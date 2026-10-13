@@ -51,6 +51,7 @@ from clinical_time import clinical_now, clinical_today
 from bpd_suggestion import suggest_bpd
 from rop_suggestion import suggest_rop, stage_rank, exam as rop_exam, event as rop_event
 from cr_duplicates import normalize_cr, find_duplicate
+from identifier_duplicates import refuse_duplicate_identifiers
 import form_completion as fc
 import composite_suggestion as cs
 from brain_injury_suggestion import suggest_brain_injury, grade_rank as bi_grade_rank, record as bi_record
@@ -1018,6 +1019,12 @@ def create_screening(
             enrollment_id = screening.enrollment_id
             status = compute_screening_status(screening)
             pii_payload = extract_screening_pii(screening.model_dump())
+            refuse_duplicate_identifiers(
+                db,
+                screening.site_name,
+                pii_payload.get("maternal_uid"),
+                pii_payload.get("hospital_admission_number"),
+            )
 
             db_screening = Screening(
                 screening_id=screening_id,
@@ -1197,6 +1204,13 @@ def update_screening(
             update_data.pop(field, None)
 
         if pii_payload:
+            refuse_duplicate_identifiers(
+                db,
+                entry.site_name or updated_data.site_name,
+                pii_payload.get("maternal_uid"),
+                pii_payload.get("hospital_admission_number"),
+                exclude_screening_id=screening_id,
+            )
             upsert_participant_pii(
                 db,
                 enrollment_id=entry.enrollment_id or updated_data.enrollment_id,
