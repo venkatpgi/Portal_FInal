@@ -113,6 +113,16 @@ function MatchBadges({ status, screeningId, gaLogMissing }) {
         <CheckCircle2 size={13} /> Matched{screeningId ? ` — ${screeningId}` : ""}
       </span>
     );
+  } else if (status === "possible_match") {
+    // Same name, CR does not match, GA consistent (PI 2026-10-14): may be
+    // her with a mistyped CR, or a different woman -- staff must check and
+    // correct the CR on whichever record is wrong.
+    badges.push(
+      <span key="possible" className="lob-badge lob-badge--alert"
+        title="Same name and a consistent GA, but the CR number differs. Check both records and correct the CR.">
+        <HelpCircle size={13} /> Possible match{screeningId ? ` — ${screeningId}` : ""} (check CR)
+      </span>
+    );
   } else if (status === "in_range_no_match") {
     badges.push(
       <span key="no-form-a" className="lob-badge lob-badge--alert">
@@ -181,7 +191,7 @@ export default function LogOfAllBirths() {
   }, [isSiteLocked, user?.site]);
 
   const alertCount = useMemo(
-    () => entries.filter((e) => e.match_status === "in_range_no_match" || e.ga_log_missing).length,
+    () => entries.filter((e) => ["in_range_no_match", "possible_match"].includes(e.match_status) || e.ga_log_missing).length,
     [entries]
   );
   const crPendingCount = useMemo(() => entries.filter((e) => e.cr_pending).length, [entries]);
@@ -566,7 +576,7 @@ export default function LogOfAllBirths() {
             </thead>
             <tbody>
               {entries.map((e) => {
-                const isAlert = e.match_status === "in_range_no_match" || e.ga_log_missing;
+                const isAlert = ["in_range_no_match", "possible_match"].includes(e.match_status) || e.ga_log_missing;
                 // "Add reason" only makes sense when Form A is genuinely
                 // missing -- an orphan Form A (matched, but
                 // ga_log_missing=TRUE) has nothing to explain via "reason

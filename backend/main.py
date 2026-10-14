@@ -8744,7 +8744,7 @@ def submit_form_l(
 # ============================================================================
 # LOG OF ALL BIRTHS — completeness cross-check (see birth_log_matching.py)
 # ============================================================================
-from birth_log_matching import match_birth_log_entry
+from birth_log_matching import match_birth_log_entry, refresh_birth_log_matches
 
 BIRTH_LOG_WRITE_FIELDS = set(BirthLogEntryCreate.model_fields.keys()) - {"site_name", "allow_duplicate_cr"}
 
@@ -8801,6 +8801,7 @@ def create_birth_log_entry(
     match = match_birth_log_entry(
         db, site_name, record.mother_uid, record.mother_name,
         record.gestation_weeks, record.gestation_days,
+        date_of_birth=record.date_of_birth,
     )
     record.matched_screening_id = match["matched_screening_id"]
     record.matched_enrollment_id = match["matched_enrollment_id"]
@@ -8840,6 +8841,7 @@ def update_birth_log_entry(
     match = match_birth_log_entry(
         db, record.site_name, record.mother_uid, record.mother_name,
         record.gestation_weeks, record.gestation_days,
+        date_of_birth=record.date_of_birth,
     )
     record.matched_screening_id = match["matched_screening_id"]
     record.matched_enrollment_id = match["matched_enrollment_id"]
@@ -8849,6 +8851,15 @@ def update_birth_log_entry(
     db.commit()
     db.refresh(record)
     return record
+
+
+def _birth_log_sites(db, current_user, site):
+    """Sites whose birth-log matches a read should refresh."""
+    if not is_global(current_user):
+        return [current_user.site_name]
+    if site:
+        return [site]
+    return [r[0] for r in db.query(BirthLogEntry.site_name).distinct().all()]
 
 
 @app.get("/birth-log/", response_model=List[BirthLogEntryOut])
@@ -8862,6 +8873,7 @@ def list_birth_log_entries(
         query = query.filter(BirthLogEntry.site_name == current_user.site_name)
     elif site:
         query = query.filter(BirthLogEntry.site_name == site)
+    refresh_birth_log_matches(db, _birth_log_sites(db, current_user, site))
     records = query.order_by(BirthLogEntry.date_of_birth.desc().nulls_last(), BirthLogEntry.id.desc()).all()
 
     out = []
@@ -8885,11 +8897,13 @@ def get_birth_log_alerts(
     completeness cross-check the paper 'Log of All Births' CRF exists
     for, computed automatically instead of relying on a hand-ticked
     column. Includes any entry with EITHER badge condition: Form A
-    missing (match_status='in_range_no_match') OR no Gestation Log entry
+    missing (match_status='in_range_no_match'), a name-only link to verify
+    (match_status='possible_match') OR no Gestation Log entry
     at all (ga_log_missing=True, which can also be true on an otherwise-
     matched entry — see birth_log_matching.py's module docstring)."""
+    refresh_birth_log_matches(db, _birth_log_sites(db, current_user, site))
     query = db.query(BirthLogEntry).filter(
-        (BirthLogEntry.match_status == "in_range_no_match")
+        (BirthLogEntry.match_status.in_(["in_range_no_match", "possible_match"]))
         | (BirthLogEntry.ga_log_missing.is_(True))
     )
     if not is_global(current_user):

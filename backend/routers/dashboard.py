@@ -118,6 +118,7 @@ from sqlalchemy.orm import Session
 from db import get_db
 from deps import get_current_user, is_superadmin, is_global
 from models import AdverseEvents, SAEReport, Screening, User, GACheckEntry, BirthLogEntry
+from birth_log_matching import refresh_birth_log_matches
 
 _DOCX_MEDIA = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
@@ -807,6 +808,7 @@ def get_consort_flow(
 
     sites = _dashboard_sites(current_user, site)
 
+    refresh_birth_log_matches(db)  # Box 2 'never checked' reads stored match_status
     ga_counts_by_site, never_checked_by_site, never_checked_reasons_by_site, orphan_screenings_by_site = _compute_ga_check_boxes(db)
     counts_by_site, refusal_reasons_by_site, not_randomised_reasons_by_site = _compute_screening_boxes(db)
     followup_boxes, followup_ltfu_reasons = _compute_followup_boxes(db)
