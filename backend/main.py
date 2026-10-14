@@ -8774,6 +8774,7 @@ def submit_form_l(
 # LOG OF ALL BIRTHS — completeness cross-check (see birth_log_matching.py)
 # ============================================================================
 from birth_log_matching import match_birth_log_entry, refresh_birth_log_matches
+from trial_dates import is_pre_trial, trial_start
 
 BIRTH_LOG_WRITE_FIELDS = set(BirthLogEntryCreate.model_fields.keys()) - {"site_name", "allow_duplicate_cr"}
 
@@ -8802,6 +8803,8 @@ def _refuse_duplicate_cr(db, model, site_name, mother_uid, *, exclude_id=None,
 
 def _mark_cr_pending(record):
     record.cr_pending = not normalize_cr(record.mother_uid)
+    if isinstance(record, BirthLogEntry):
+        record.pre_trial = is_pre_trial(record.date_of_birth, record.created_at)
     return record
 
 
@@ -8934,6 +8937,10 @@ def get_birth_log_alerts(
     query = db.query(BirthLogEntry).filter(
         (BirthLogEntry.match_status.in_(["in_range_no_match", "possible_match"]))
         | (BirthLogEntry.ga_log_missing.is_(True))
+    )
+    # Only births from the trial start count as alerts (PI 2026-10-14).
+    query = query.filter(
+        func.coalesce(BirthLogEntry.date_of_birth, func.date(BirthLogEntry.created_at)) >= trial_start()
     )
     if not is_global(current_user):
         query = query.filter(BirthLogEntry.site_name == current_user.site_name)

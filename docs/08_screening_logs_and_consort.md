@@ -46,6 +46,12 @@ Page `LogOfAllBirths.jsx`; API `/birth-log/…`; matching `backend/birth_log_mat
 - "Reason not approached" (+ Other) captured per birth; the "+ Add reason"
   button shows only for `in_range_no_match`.
 - `GET /birth-log/alerts` = entries with either badge, plus possible matches.
+- **Births before the trial start** (`trial_dates.TRIAL_START_DATE`, 2026-10-14;
+  date of birth, else `created_at`) are marked `pre_trial` in the list, show a
+  neutral "Before trial start" badge instead of "Not filled Form A" / "Never
+  Checked GA log", have no "+ Add reason", and are left out of
+  `/birth-log/alerts` and the alert count. (Pre-trial PGIMER Form A records
+  were deleted on 2026-10-14, so those births would otherwise all alert.)
 - CONSORT Box 2 "never checked" still counts only `in_range_no_match` +
   `ga_log_missing`; a possible match is treated as screened until staff
   correct it.
@@ -113,7 +119,7 @@ Invariant the dashboard relies on: **Box 1 ≥ Box 3** (Box 1 − Box 3 = log
 entries that never became a Form A).
 
 **Trial start date (PI, 2026-10-14).** The true trial started on
-**2026-10-14** (`TRIAL_START_DATE` in `backend/routers/dashboard.py`,
+**2026-10-14** (`TRIAL_START_DATE` in `backend/trial_dates.py`,
 overridable by the env var of the same name). Box 1 and Box 2 count only
 Gestation Log entries with `check_date` (else `created_at`) on/after that
 date, and Box 2's "never checked" rows only Log of All Births entries with

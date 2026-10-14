@@ -135,7 +135,7 @@ ALL_SITES = ["PGIMER", "GMCH", "IOG", "AFMC", "GMCH-A", "AMC"]
 # kept from before it (women still pregnant at the start) have no in-period
 # log entry and so are counted in Box 1 as "orphans" -- which keeps
 # Approached >= Screened. The logs themselves are never filtered or edited.
-TRIAL_START_DATE = os.getenv("TRIAL_START_DATE", "2026-10-14")
+from trial_dates import TRIAL_START_DATE  # noqa: E402
 _GA_LOG_IN_TRIAL_SQL = "COALESCE(check_date, CAST(created_at AS DATE)) >= CAST(:trial_start AS DATE)"
 _BIRTH_LOG_IN_TRIAL_SQL = "COALESCE(date_of_birth, CAST(created_at AS DATE)) >= CAST(:trial_start AS DATE)"
 
