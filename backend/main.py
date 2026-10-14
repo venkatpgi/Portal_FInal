@@ -8775,6 +8775,7 @@ def submit_form_l(
 # ============================================================================
 from birth_log_matching import match_birth_log_entry, refresh_birth_log_matches
 from trial_dates import is_pre_trial, trial_start
+from ga_log_status import live_status as ga_live_status, still_eligible_gap as ga_still_eligible_gap, norm_cr as ga_norm_cr
 
 BIRTH_LOG_WRITE_FIELDS = set(BirthLogEntryCreate.model_fields.keys()) - {"site_name", "allow_duplicate_cr"}
 
@@ -9060,6 +9061,51 @@ def update_ga_check_entry(
     return record
 
 
+def _attach_ga_live_status(db, records):
+    """Live 'Delivered / Crossed 32 wk / Now eligible / Overdue' status for
+    Gestation Log entries (ga_log_status.py). Computed per read, not stored;
+    must run before PII masking. Births come from the Log of All Births and
+    from Form B of any Form A carrying the same mother's CR."""
+    today = clinical_today()
+    by_site = {}
+    for r in records:
+        by_site.setdefault(r.site_name, []).append(r)
+    for site, rows in by_site.items():
+        births = [
+            {"mother_uid": b.mother_uid, "mother_name": b.mother_name, "date_of_birth": b.date_of_birth,
+             "gestation_weeks": b.gestation_weeks, "gestation_days": b.gestation_days,
+             "source": "Log of All Births"}
+            for b in db.query(BirthLogEntry).filter(BirthLogEntry.site_name == site).all()
+        ]
+        live_sids = {sid for (sid,) in db.query(Screening.screening_id).filter(
+            Screening.site_name == site, Screening.is_deleted.isnot(True)).all()}
+        pii = {p.screening_id: p for p in db.query(ParticipantPII).filter(
+            ParticipantPII.site_name == site).all() if p.screening_id in live_sids}
+        form_a_crs = {ga_norm_cr(p.maternal_uid) for p in pii.values() if ga_norm_cr(p.maternal_uid)}
+        if pii:
+            for fb in db.query(BirthResuscitation).filter(
+                    BirthResuscitation.screening_id.in_(list(pii)),
+                    BirthResuscitation.date_of_birth.isnot(None)).all():
+                p = pii[fb.screening_id]
+                births.append({"mother_uid": p.maternal_uid,
+                               "mother_name": " ".join(x for x in [p.mother_first_name, p.mother_surname] if x),
+                               "date_of_birth": fb.date_of_birth, "gestation_weeks": fb.gestation_weeks,
+                               "gestation_days": fb.gestation_days, "source": "Form B"})
+        for r in rows:
+            entry = {"check_date": r.check_date, "gestation_weeks": r.gestation_weeks,
+                     "gestation_days": r.gestation_days, "eligible": r.eligible,
+                     "found_iufd": r.found_iufd, "ga_source": r.ga_source,
+                     "mother_uid": r.mother_uid, "mother_name": r.mother_name,
+                     # a link to a deleted Form A no longer counts
+                     "has_form_a": bool(r.continued_to_screening and r.screening_id in live_sids)
+                                   or (ga_norm_cr(r.mother_uid) in form_a_crs if ga_norm_cr(r.mother_uid) else False)}
+            st = ga_live_status(entry, births, today)
+            for k, v in st.items():
+                setattr(r, k, v)
+            r.has_form_a = entry["has_form_a"]
+            r.in_gap = ga_still_eligible_gap(entry, st)
+
+
 @app.get("/ga-check/", response_model=List[GACheckEntryOut])
 def list_ga_check_entries(
     site: str | None = None,
@@ -9072,6 +9118,7 @@ def list_ga_check_entries(
     elif site:
         query = query.filter(GACheckEntry.site_name == site)
     records = query.order_by(GACheckEntry.check_date.desc().nulls_last(), GACheckEntry.id.desc()).all()
+    _attach_ga_live_status(db, records)
 
     out = []
     for r in records:
@@ -9117,15 +9164,20 @@ def get_ga_check_gap(
     """Eligible (GA<32wk) GA Check entries never continued into a saved
     Form A -- the live-side completeness gap, catching a miss at triage
     instead of waiting for it to surface at birth in the Log of All Births."""
+    # Eligible at the check (or newly reached 25 wk), no Form A, and still
+    # pregnant within the window -- delivered / crossed 32 wk / overdue
+    # entries no longer count (ga_log_status.py, PI 2026-10-14).
     query = db.query(GACheckEntry).filter(
-        GACheckEntry.eligible == True,  # noqa: E712
         GACheckEntry.continued_to_screening == False,  # noqa: E712
+        GACheckEntry.eligible.isnot(None),
     )
     if not is_global(current_user):
         query = query.filter(GACheckEntry.site_name == current_user.site_name)
     elif site:
         query = query.filter(GACheckEntry.site_name == site)
     records = query.order_by(GACheckEntry.check_date.desc().nulls_last()).all()
+    _attach_ga_live_status(db, records)
+    records = [r for r in records if r.in_gap]
 
     can_view = lambda r: can_view_pii_for_site(current_user, r.site_name)
     return [

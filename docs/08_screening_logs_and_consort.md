@@ -18,6 +18,29 @@ Page `GACheckLog.jsx`; API `/ga-check/…`; rules `backend/ga_check.py`.
   yet" list = `GET /ga-check/gap`.
 - Entries can be edited (`PUT /ga-check/{id}`); eligibility is recomputed.
 
+### Live status (PI / trial nurses 2026-10-14)
+Computed on every read (`backend/ga_log_status.py`, `main._attach_ga_live_status`),
+never stored; the stored `eligible` stays "eligible at the time of the check",
+which is what the CONSORT boxes count.
+- **Delivered** — a birth of the **same mother's CR** at the same site (Log of
+  All Births, or Form B of a live Form A with that CR) whose GA at birth fits
+  the GA at the check + days since (±14 days). Born up to 28 days before the
+  check also counts if the GA fits (check entered after the birth); an earlier
+  pregnancy of the same mother can never fit. The CR is the only match key;
+  names (spelling variants allowed) and dates are checks.
+- **CR match — check record** — same CR, but the GA does not fit or the name
+  clearly differs: a data-entry problem for the nurse.
+- Not delivered → current GA = GA at check + days since, shown as "now …":
+  **Crossed 32 wk** (eligible at check, now ≥32w0d; "Form A filled · now
+  ≥32 wk" if she has a Form A), **Now eligible (reached 25 wk)** (logged
+  Reliable before 25w0d, now 25w0d–31w6d, no Form A), **Delivery not
+  logged?** (now ≥42w0d, no birth found).
+- "Has Form A" = a GA-log link to a Form A that still exists, or a live Form A
+  with the same CR at the site.
+- `/ga-check/gap` ("Eligible, no Form A yet") = no Form A and either eligible
+  at the check and still pregnant within the window, or Now eligible.
+- Page: Still pregnant / Delivered / All filter; Delivered count.
+
 ## 2. Log of All Births (`birth_log_all_births`)
 Page `LogOfAllBirths.jsx`; API `/birth-log/…`; matching `backend/birth_log_matching.py`.
 

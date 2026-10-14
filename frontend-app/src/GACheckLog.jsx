@@ -79,6 +79,49 @@ const BLANK_FORM = {
 
 export const GA_CHECK_SEED_KEY = "ga_check_seed";
 
+// Live status (backend ga_log_status.py, PI / trial nurses 2026-10-14):
+// computed on every load, never stored. The stored "eligible" stays the
+// eligibility at the time of the check (what the CONSORT boxes count).
+const fmtGa = (days) => (days == null ? "" : `${Math.floor(days / 7)}w ${days % 7}d`);
+
+function LiveBadge({ e }) {
+  switch (e.live_status) {
+    case "delivered":
+      return (
+        <span className="gac-badge gac-badge--delivered" title={`From ${e.delivered_source || "birth record"}`}>
+          <CheckCircle2 size={13} /> Delivered {e.delivered_on ? formatDateToDDMMYYYY(e.delivered_on) : ""}
+          {e.delivered_ga_days != null ? ` · ${fmtGa(e.delivered_ga_days)}` : ""}
+        </span>
+      );
+    case "cr_check":
+      return (
+        <span className="gac-badge gac-badge--cr-check" title={e.live_note || ""}>
+          <AlertTriangle size={13} /> CR match — check record
+        </span>
+      );
+    case "overdue":
+      return (
+        <span className="gac-badge gac-badge--overdue" title="Now 42 weeks or more and no birth found for this CR number. Check the Log of All Births entry (CR number) or record the delivery.">
+          <AlertTriangle size={13} /> Delivery not logged?
+        </span>
+      );
+    case "crossed_32":
+      return (
+        <span className="gac-badge gac-badge--crossed" title="Eligible when checked; now 32 weeks or more and not delivered.">
+          {e.has_form_a ? "Form A filled · now ≥32 wk" : "Crossed 32 wk"}
+        </span>
+      );
+    case "now_eligible":
+      return (
+        <span className="gac-badge gac-badge--gap" title="Logged before 25 weeks; now inside the 25w0d–31w6d window.">
+          <AlertTriangle size={13} /> Now eligible (reached 25 wk)
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
 export default function GACheckLog() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -139,10 +182,15 @@ export default function GACheckLog() {
     return () => clearTimeout(t);
   }, [searchText]);
 
-  const visibleEntries = useMemo(
-    () => filterGaChecks(entries, appliedQuery),
-    [entries, appliedQuery],
-  );
+  const [liveFilter, setLiveFilter] = useState("all");
+  const visibleEntries = useMemo(() => {
+    const found = filterGaChecks(entries, appliedQuery);
+    if (liveFilter === "delivered") return found.filter((e) => e.live_status === "delivered");
+    if (liveFilter === "pregnant") {
+      return found.filter((e) => !e.found_iufd && e.live_status !== "delivered");
+    }
+    return found;
+  }, [entries, appliedQuery, liveFilter]);
   const searching = collapseSearchSpaces(appliedQuery).length > 0;
 
   const stats = useMemo(() => {
@@ -150,7 +198,8 @@ export default function GACheckLog() {
     const eligible = entries.filter((e) => e.eligible === true).length;
     const continued = entries.filter((e) => e.continued_to_screening).length;
     const crPending = entries.filter((e) => e.cr_pending).length;
-    return { total, eligible, continued, gap: gapEntries.length, crPending };
+    const delivered = entries.filter((e) => e.live_status === "delivered").length;
+    return { total, eligible, continued, gap: gapEntries.length, crPending, delivered };
   }, [entries, gapEntries]);
 
   const duplicateCr = useMemo(
@@ -377,6 +426,10 @@ export default function GACheckLog() {
           <div className="gac-stat-value">{stats.gap}</div>
           <div className="gac-stat-label">Eligible, no Form A yet</div>
         </div>
+        <div className="gac-stat">
+          <div className="gac-stat-value">{stats.delivered}</div>
+          <div className="gac-stat-label">Delivered</div>
+        </div>
       </div>
 
       <form className="gac-card" onSubmit={handleSave}>
@@ -498,6 +551,16 @@ export default function GACheckLog() {
       <div className="gac-card">
         <div className="gac-card-head">
           <h2>Recent checks {user?.site ? `— ${user.site}` : ""}</h2>
+          <select
+            className="gac-live-filter"
+            value={liveFilter}
+            onChange={(ev) => setLiveFilter(ev.target.value)}
+            aria-label="Show"
+          >
+            <option value="all">All</option>
+            <option value="pregnant">Still pregnant</option>
+            <option value="delivered">Delivered</option>
+          </select>
           <button type="button" className="gac-icon-btn" onClick={load} disabled={loading} title="Refresh">
             <RefreshCw size={14} className={loading ? "gac-spin" : ""} />
           </button>
@@ -526,10 +589,11 @@ export default function GACheckLog() {
             </thead>
             <tbody>
               {visibleEntries.map((e) => {
-                const isGap = e.eligible && !e.continued_to_screening;
+                const isGap = e.in_gap != null ? e.in_gap : (e.eligible && !e.continued_to_screening);
                 const unreliable = e.ga_source && e.ga_source !== RELIABLE_SOURCE;
+                const done = e.live_status === "delivered";
                 return (
-                  <tr key={e.id} className={isGap ? "gac-row--gap" : ""}>
+                  <tr key={e.id} className={isGap ? "gac-row--gap" : done ? "gac-row--done" : ""}>
                     <td>{e.check_date ? formatDateToDDMMYYYY(e.check_date) : "—"}</td>
                     <td>{e.site_name || "—"}</td>
                     <td>{e.mother_name || "—"}</td>
@@ -543,11 +607,18 @@ export default function GACheckLog() {
                     </td>
                     <td>{e.found_iufd ? "—" : (e.ga_source || "—")}</td>
                     <td>{METHOD_LABELS[e.gestation_method] || e.gestation_method || "—"}</td>
-                    <td>{e.gestation_weeks != null ? `${e.gestation_weeks}w ${e.gestation_days ?? 0}d` : "—"}</td>
                     <td>
-                      {e.found_iufd ? (
+                      {e.gestation_weeks != null ? `${e.gestation_weeks}w ${e.gestation_days ?? 0}d` : "—"}
+                      {e.current_ga_days != null && e.live_status !== "delivered" && (
+                        <div className="gac-now-ga">now {fmtGa(e.current_ga_days)}</div>
+                      )}
+                    </td>
+                    <td>
+                      <div className="gac-badge-stack">
+                      <LiveBadge e={e} />
+                      {e.live_status && e.live_status !== "cr_check" && !e.continued_to_screening && !e.has_form_a ? null : e.found_iufd ? (
                         <span className="gac-badge gac-badge--not-eligible">IUFD</span>
-                      ) : e.continued_to_screening ? (
+                      ) : (e.continued_to_screening || e.has_form_a) ? (
                         <span className="gac-badge gac-badge--continued">
                           <CheckCircle2 size={13} /> Form A started{e.screening_id ? ` — ${e.screening_id}` : ""}
                         </span>
@@ -562,6 +633,7 @@ export default function GACheckLog() {
                       ) : (
                         <span className="gac-badge gac-badge--unknown">Gestation unknown</span>
                       )}
+                      </div>
                     </td>
                     <td>
                       <div className="gac-row-actions">
