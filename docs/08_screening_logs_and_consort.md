@@ -96,3 +96,16 @@ Every row carries a plain-language "where this number comes from" tooltip
 
 Invariant the dashboard relies on: **Box 1 ≥ Box 3** (Box 1 − Box 3 = log
 entries that never became a Form A).
+
+**Trial start date (PI, 2026-10-14).** The true trial started on
+**2026-10-14** (`TRIAL_START_DATE` in `backend/routers/dashboard.py`,
+overridable by the env var of the same name). Box 1 and Box 2 count only
+Gestation Log entries with `check_date` (else `created_at`) on/after that
+date, and Box 2's "never checked" rows only Log of All Births entries with
+`date_of_birth` (else `created_at`) on/after it. The logs themselves keep all
+their pre-trial entries; only the CONSORT counting is restricted. A Form A
+record kept from before the start (a woman still pregnant on 2026-10-14) has
+no in-period log entry, so it is counted in Box 1 as an orphan — which is
+what keeps Box 1 ≥ Box 3. On the same day all other pre-trial PGIMER Form A
+records and everything linked to them were deleted (25 kept); other sites
+were left unchanged.

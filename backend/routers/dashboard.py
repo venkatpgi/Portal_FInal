@@ -128,6 +128,16 @@ logger = logging.getLogger(__name__)
 # used for screening/enrollment IDs), not alphabetical or insertion order.
 ALL_SITES = ["PGIMER", "GMCH", "IOG", "AFMC", "GMCH-A", "AMC"]
 
+# True-trial start (PI 2026-10-14). Pre-trial Gestation Log / Log of All
+# Births entries are real but are not part of the trial's CONSORT flow, so
+# Box 1/Box 2 only count log entries dated on/after this date. Form A records
+# kept from before it (women still pregnant at the start) have no in-period
+# log entry and so are counted in Box 1 as "orphans" -- which keeps
+# Approached >= Screened. The logs themselves are never filtered or edited.
+TRIAL_START_DATE = os.getenv("TRIAL_START_DATE", "2026-10-14")
+_GA_LOG_IN_TRIAL_SQL = "COALESCE(check_date, CAST(created_at AS DATE)) >= CAST(:trial_start AS DATE)"
+_BIRTH_LOG_IN_TRIAL_SQL = "COALESCE(date_of_birth, CAST(created_at AS DATE)) >= CAST(:trial_start AS DATE)"
+
 
 def _dashboard_sites(user: User, site: str | None = None) -> list[str]:
     """Site scope for dashboard endpoints. Global users may narrow with `site`;
@@ -158,7 +168,7 @@ _GA_OUT_OR_UNKNOWN_SQL = (
 # separately); identification_type='Missed...' takes precedence over
 # found_iufd/eligible so a retroactively-logged miss is never
 # double-classified as also being an eligibility-gap case.
-GA_CHECK_QUERY = text("""
+GA_CHECK_QUERY = text(f"""
     SELECT
         site_name,
         COUNT(*) AS box1,
@@ -185,6 +195,7 @@ GA_CHECK_QUERY = text("""
                  AND eligible IS NULL
             THEN 1 ELSE 0 END) AS box2_not_candidate_unreliable
     FROM ga_check_log
+    WHERE {_GA_LOG_IN_TRIAL_SQL}
     GROUP BY site_name
 """)
 
@@ -199,18 +210,20 @@ GA_CHECK_QUERY = text("""
 # its own badge, on the Log of All Births page itself -- see
 # birth_log_matching.py's module docstring). Deliberately NOT part of Box
 # 1's own total (see module docstring above).
-NEVER_CHECKED_QUERY = text("""
+NEVER_CHECKED_QUERY = text(f"""
     SELECT site_name, COUNT(*) AS n
     FROM birth_log_all_births
     WHERE match_status = 'in_range_no_match' AND ga_log_missing = TRUE
+      AND {_BIRTH_LOG_IN_TRIAL_SQL}
     GROUP BY site_name
 """)
 
-NEVER_CHECKED_REASON_QUERY = text("""
+NEVER_CHECKED_REASON_QUERY = text(f"""
     SELECT site_name, reason_not_approached AS reason, COUNT(*) AS n
     FROM birth_log_all_births
     WHERE match_status = 'in_range_no_match' AND ga_log_missing = TRUE
       AND reason_not_approached IS NOT NULL AND reason_not_approached != ''
+      AND {_BIRTH_LOG_IN_TRIAL_SQL}
     GROUP BY site_name, reason_not_approached
 """)
 
@@ -229,7 +242,8 @@ ORPHAN_SCREENINGS_QUERY = text("""
     FROM screenings s
     WHERE s.is_deleted = FALSE
       AND s.site_name IS NOT NULL AND s.site_name != ''
-      AND NOT EXISTS (SELECT 1 FROM ga_check_log g WHERE g.screening_id = s.screening_id)
+      AND NOT EXISTS (SELECT 1 FROM ga_check_log g WHERE g.screening_id = s.screening_id
+                      AND COALESCE(g.check_date, CAST(g.created_at AS DATE)) >= CAST(:trial_start AS DATE))
     GROUP BY s.site_name
 """)
 
@@ -474,24 +488,24 @@ def _compute_ga_check_boxes(db: Session):
     never_checked_reasons_by_site = {site: {} for site in ALL_SITES}
     orphan_screenings_by_site = {site: 0 for site in ALL_SITES}
 
-    for row in db.execute(GA_CHECK_QUERY).mappings():
+    for row in db.execute(GA_CHECK_QUERY, {"trial_start": TRIAL_START_DATE}).mappings():
         site = row["site_name"]
         if site not in ga_counts_by_site:
             ga_counts_by_site[site] = _blank_ga_check_counts()
         for key in _blank_ga_check_counts():
             ga_counts_by_site[site][key] = int(row[key] or 0)
 
-    for row in db.execute(NEVER_CHECKED_QUERY).mappings():
+    for row in db.execute(NEVER_CHECKED_QUERY, {"trial_start": TRIAL_START_DATE}).mappings():
         site = row["site_name"]
         never_checked_by_site.setdefault(site, 0)
         never_checked_by_site[site] = int(row["n"] or 0)
 
-    for row in db.execute(NEVER_CHECKED_REASON_QUERY).mappings():
+    for row in db.execute(NEVER_CHECKED_REASON_QUERY, {"trial_start": TRIAL_START_DATE}).mappings():
         site = row["site_name"]
         never_checked_reasons_by_site.setdefault(site, {})
         never_checked_reasons_by_site[site][row["reason"]] = int(row["n"] or 0)
 
-    for row in db.execute(ORPHAN_SCREENINGS_QUERY).mappings():
+    for row in db.execute(ORPHAN_SCREENINGS_QUERY, {"trial_start": TRIAL_START_DATE}).mappings():
         site = row["site_name"]
         orphan_screenings_by_site.setdefault(site, 0)
         orphan_screenings_by_site[site] = int(row["n"] or 0)
