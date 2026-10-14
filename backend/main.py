@@ -626,6 +626,35 @@ def link_screening_enrollment(
 def root():
     return {"message": "PORTAL Trial API is running!"}
 
+# Phone draft reset (PI 2026-10-14). When a site's pre-trial records are
+# deleted, phones still hold drafts for those women/babies, and saving one
+# would quietly recreate deleted rows. The Android app asks this endpoint
+# after sign-in and clears its saved drafts once for each newer date.
+# Dates per site; override with LOCAL_DATA_RESET_JSON='{"GMCH": "2026-11-01"}'.
+SITE_LOCAL_DATA_RESET = {"PGIMER": "2026-10-14"}
+
+
+def _site_local_data_reset() -> dict:
+    dates = dict(SITE_LOCAL_DATA_RESET)
+    try:
+        dates.update(json.loads(os.getenv("LOCAL_DATA_RESET_JSON") or "{}"))
+    except ValueError:
+        logger.warning("LOCAL_DATA_RESET_JSON is not valid JSON; ignored")
+    return dates
+
+
+@app.get("/app/local-data-reset")
+def get_local_data_reset(current_user: User = Depends(get_current_user)):
+    """{"site_name", "reset_date"}: the latest phone-draft reset date for the
+    user's site (all sites for a global user), or null when there is none."""
+    dates = _site_local_data_reset()
+    if is_global(current_user):
+        reset_date = max(dates.values(), default=None)
+    else:
+        reset_date = dates.get(current_user.site_name)
+    return {"site_name": current_user.site_name, "reset_date": reset_date}
+
+
 # Health check endpoint  -  required by AWS ALB, ECS, and Elastic Beanstalk
 @app.get("/health")
 def health_check():
