@@ -22,18 +22,39 @@ Page `GACheckLog.jsx`; API `/ga-check/…`; rules `backend/ga_check.py`.
 Page `LogOfAllBirths.jsx`; API `/birth-log/…`; matching `backend/birth_log_matching.py`.
 
 - Every birth at the site, randomised or not (digital version of the paper CRF).
-- **Matching** (`match_birth_log_entry`, recomputed on every save), within the site:
+- **Matching** (`birth_log_matching.match_against`), within the site:
   1. CR number match against `participant_pii` (normalised: spaces/dashes
-     removed, upper-case), else
-  2. exact full-name match.
+     removed, upper-case) → **`matched`** — the only way to be "matched".
+  2. Otherwise a same full-name Form A → **`possible_match`** ("Possible match
+     — check CR"), but **only if the GA fits**: Form A GA + days from Form A
+     (`created_at`) to the birth must be within **±14 days** of the GA at
+     birth (`ga_consistent`). If either GA is missing it is still offered as
+     possible. A same-name woman whose GA cannot fit is not linked at all
+     (PI 2026-10-14, after several same-name women were linked to the wrong
+     Form A). Staff resolve a possible match by correcting the CR on
+     whichever record is wrong.
+- **Refreshed on read** (`refresh_birth_log_matches`): the birth-log list,
+  `/birth-log/alerts` and the CONSORT endpoint re-match every entry of the
+  relevant sites against current Form A / Gestation Log data and save any
+  change — a match is no longer frozen at the moment the birth was saved.
 - Two independent badges:
-  - `match_status` (Form A): `matched` / `in_range_no_match` (GA 25w0d–31w6d,
-    no Form A → **"Not filled Form A"**) / `out_of_range` / `ga_unknown`.
+  - `match_status` (Form A): `matched` / `possible_match` / `in_range_no_match`
+    (GA 25w0d–31w6d, no Form A → **"Not filled Form A"**) / `out_of_range` /
+    `ga_unknown`.
   - `ga_log_missing`: no Gestation Log entry for her (**"Never Checked GA log"**)
     — only computed when matched or in range.
 - "Reason not approached" (+ Other) captured per birth; the "+ Add reason"
   button shows only for `in_range_no_match`.
-- `GET /birth-log/alerts` = entries with either badge.
+- `GET /birth-log/alerts` = entries with either badge, plus possible matches.
+- **Births before the trial start** (`trial_dates.TRIAL_START_DATE`, 2026-10-14;
+  date of birth, else `created_at`) are marked `pre_trial` in the list, show a
+  neutral "Before trial start" badge instead of "Not filled Form A" / "Never
+  Checked GA log", have no "+ Add reason", and are left out of
+  `/birth-log/alerts` and the alert count. (Pre-trial PGIMER Form A records
+  were deleted on 2026-10-14, so those births would otherwise all alert.)
+- CONSORT Box 2 "never checked" still counts only `in_range_no_match` +
+  `ga_log_missing`; a possible match is treated as screened until staff
+  correct it.
 
 ## 3. CR-number rules (both logs, PI 2026-09-28)
 - **Optional.** Saved without one → **"CR pending"** badge + count banner
@@ -96,3 +117,16 @@ Every row carries a plain-language "where this number comes from" tooltip
 
 Invariant the dashboard relies on: **Box 1 ≥ Box 3** (Box 1 − Box 3 = log
 entries that never became a Form A).
+
+**Trial start date (PI, 2026-10-14).** The true trial started on
+**2026-10-14** (`TRIAL_START_DATE` in `backend/trial_dates.py`,
+overridable by the env var of the same name). Box 1 and Box 2 count only
+Gestation Log entries with `check_date` (else `created_at`) on/after that
+date, and Box 2's "never checked" rows only Log of All Births entries with
+`date_of_birth` (else `created_at`) on/after it. The logs themselves keep all
+their pre-trial entries; only the CONSORT counting is restricted. A Form A
+record kept from before the start (a woman still pregnant on 2026-10-14) has
+no in-period log entry, so it is counted in Box 1 as an orphan — which is
+what keeps Box 1 ≥ Box 3. On the same day all other pre-trial PGIMER Form A
+records and everything linked to them were deleted (25 kept); other sites
+were left unchanged.

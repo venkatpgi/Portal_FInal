@@ -1,5 +1,7 @@
+import os
+
 from jose import jwt, JWTError
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from config import SECRET_KEY, ALGORITHM
 from models import User
@@ -72,6 +74,7 @@ def ensure_same_site(site_name: str | None, user: User):
 
 
 def get_current_user(
+    request: Request,
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ):
@@ -95,4 +98,46 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=401)
 
+    refuse_non_live_site_write(request, user)
     return user
+
+
+# ============================================================================
+# SITES NOT YET ENROLLING (PI 2026-10-14)
+# Only staff of live sites may save on the trial server; staff of other sites
+# practise on training.portaltrial.in (own database). LIVE_SITES env var:
+# comma-separated site names, "*" = every site (set on the training server).
+# Default PGIMER. Reading is unaffected; global roles (superadmin,
+# global_scientist), users without a site, and /auth/* (login, refresh,
+# logout, change password) are never blocked. Add a site on its go-live day.
+# ============================================================================
+WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+WRITE_EXEMPT_PATH_PREFIXES = ("/auth/",)
+TRAINING_SITE_URL = "https://training.portaltrial.in"
+
+
+def live_sites() -> frozenset | None:
+    """Sites allowed to save here, or None when every site is allowed."""
+    raw = os.getenv("LIVE_SITES", "PGIMER").strip()
+    if raw == "*":
+        return None
+    return frozenset(s.strip() for s in raw.split(",") if s.strip())
+
+
+def refuse_non_live_site_write(request: Request, user: User) -> None:
+    if request.method.upper() not in WRITE_METHODS:
+        return
+    if is_global(user) or not (user.site_name or "").strip():
+        return
+    if request.url.path.startswith(WRITE_EXEMPT_PATH_PREFIXES):
+        return
+    sites = live_sites()
+    if sites is None or user.site_name in sites:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=(
+            f"{user.site_name} is not enrolling in the trial yet, so entries cannot be "
+            f"saved here. Please use the training site: {TRAINING_SITE_URL}"
+        ),
+    )

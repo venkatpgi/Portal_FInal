@@ -1,4 +1,4 @@
-from pydantic import BaseModel, field_validator, field_serializer, model_validator
+﻿from pydantic import BaseModel, field_validator, field_serializer, model_validator
 
 from mobile_numbers import mobile_pair_errors
 from typing import Optional, List, Dict
@@ -3048,6 +3048,7 @@ class BirthLogEntryCreate(BaseModel):
 class BirthLogEntryOut(BirthLogEntryCreate):
     id: int
     cr_pending: Optional[bool] = None  # no CR number yet (computed, not a column)
+    pre_trial: Optional[bool] = None  # born before TRIAL_START_DATE (computed, not a column)
     entered_by: Optional[str] = None
     matched_screening_id: Optional[str] = None
     matched_enrollment_id: Optional[str] = None

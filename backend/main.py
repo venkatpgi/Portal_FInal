@@ -626,6 +626,35 @@ def link_screening_enrollment(
 def root():
     return {"message": "PORTAL Trial API is running!"}
 
+# Phone draft reset (PI 2026-10-14). When a site's pre-trial records are
+# deleted, phones still hold drafts for those women/babies, and saving one
+# would quietly recreate deleted rows. The Android app asks this endpoint
+# after sign-in and clears its saved drafts once for each newer date.
+# Dates per site; override with LOCAL_DATA_RESET_JSON='{"GMCH": "2026-11-01"}'.
+SITE_LOCAL_DATA_RESET = {"PGIMER": "2026-10-14"}
+
+
+def _site_local_data_reset() -> dict:
+    dates = dict(SITE_LOCAL_DATA_RESET)
+    try:
+        dates.update(json.loads(os.getenv("LOCAL_DATA_RESET_JSON") or "{}"))
+    except ValueError:
+        logger.warning("LOCAL_DATA_RESET_JSON is not valid JSON; ignored")
+    return dates
+
+
+@app.get("/app/local-data-reset")
+def get_local_data_reset(current_user: User = Depends(get_current_user)):
+    """{"site_name", "reset_date"}: the latest phone-draft reset date for the
+    user's site (all sites for a global user), or null when there is none."""
+    dates = _site_local_data_reset()
+    if is_global(current_user):
+        reset_date = max(dates.values(), default=None)
+    else:
+        reset_date = dates.get(current_user.site_name)
+    return {"site_name": current_user.site_name, "reset_date": reset_date}
+
+
 # Health check endpoint  -  required by AWS ALB, ECS, and Elastic Beanstalk
 @app.get("/health")
 def health_check():
@@ -8744,7 +8773,8 @@ def submit_form_l(
 # ============================================================================
 # LOG OF ALL BIRTHS — completeness cross-check (see birth_log_matching.py)
 # ============================================================================
-from birth_log_matching import match_birth_log_entry
+from birth_log_matching import match_birth_log_entry, refresh_birth_log_matches
+from trial_dates import is_pre_trial, trial_start
 
 BIRTH_LOG_WRITE_FIELDS = set(BirthLogEntryCreate.model_fields.keys()) - {"site_name", "allow_duplicate_cr"}
 
@@ -8773,6 +8803,8 @@ def _refuse_duplicate_cr(db, model, site_name, mother_uid, *, exclude_id=None,
 
 def _mark_cr_pending(record):
     record.cr_pending = not normalize_cr(record.mother_uid)
+    if isinstance(record, BirthLogEntry):
+        record.pre_trial = is_pre_trial(record.date_of_birth, record.created_at)
     return record
 
 
@@ -8801,6 +8833,7 @@ def create_birth_log_entry(
     match = match_birth_log_entry(
         db, site_name, record.mother_uid, record.mother_name,
         record.gestation_weeks, record.gestation_days,
+        date_of_birth=record.date_of_birth,
     )
     record.matched_screening_id = match["matched_screening_id"]
     record.matched_enrollment_id = match["matched_enrollment_id"]
@@ -8840,6 +8873,7 @@ def update_birth_log_entry(
     match = match_birth_log_entry(
         db, record.site_name, record.mother_uid, record.mother_name,
         record.gestation_weeks, record.gestation_days,
+        date_of_birth=record.date_of_birth,
     )
     record.matched_screening_id = match["matched_screening_id"]
     record.matched_enrollment_id = match["matched_enrollment_id"]
@@ -8849,6 +8883,15 @@ def update_birth_log_entry(
     db.commit()
     db.refresh(record)
     return record
+
+
+def _birth_log_sites(db, current_user, site):
+    """Sites whose birth-log matches a read should refresh."""
+    if not is_global(current_user):
+        return [current_user.site_name]
+    if site:
+        return [site]
+    return [r[0] for r in db.query(BirthLogEntry.site_name).distinct().all()]
 
 
 @app.get("/birth-log/", response_model=List[BirthLogEntryOut])
@@ -8862,6 +8905,7 @@ def list_birth_log_entries(
         query = query.filter(BirthLogEntry.site_name == current_user.site_name)
     elif site:
         query = query.filter(BirthLogEntry.site_name == site)
+    refresh_birth_log_matches(db, _birth_log_sites(db, current_user, site))
     records = query.order_by(BirthLogEntry.date_of_birth.desc().nulls_last(), BirthLogEntry.id.desc()).all()
 
     out = []
@@ -8885,12 +8929,18 @@ def get_birth_log_alerts(
     completeness cross-check the paper 'Log of All Births' CRF exists
     for, computed automatically instead of relying on a hand-ticked
     column. Includes any entry with EITHER badge condition: Form A
-    missing (match_status='in_range_no_match') OR no Gestation Log entry
+    missing (match_status='in_range_no_match'), a name-only link to verify
+    (match_status='possible_match') OR no Gestation Log entry
     at all (ga_log_missing=True, which can also be true on an otherwise-
     matched entry — see birth_log_matching.py's module docstring)."""
+    refresh_birth_log_matches(db, _birth_log_sites(db, current_user, site))
     query = db.query(BirthLogEntry).filter(
-        (BirthLogEntry.match_status == "in_range_no_match")
+        (BirthLogEntry.match_status.in_(["in_range_no_match", "possible_match"]))
         | (BirthLogEntry.ga_log_missing.is_(True))
+    )
+    # Only births from the trial start count as alerts (PI 2026-10-14).
+    query = query.filter(
+        func.coalesce(BirthLogEntry.date_of_birth, func.date(BirthLogEntry.created_at)) >= trial_start()
     )
     if not is_global(current_user):
         query = query.filter(BirthLogEntry.site_name == current_user.site_name)
