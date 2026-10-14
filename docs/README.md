@@ -24,6 +24,21 @@ the same commit.
 | [08_screening_logs_and_consort.md](08_screening_logs_and_consort.md) | Gestation (Inclusion Criteria) Screening Log, Log of All Births, matching, CR-number rules, CONSORT boxes |
 | [09_data_integrity_playbook.md](09_data_integrity_playbook.md) | Known failure modes, checks to run, how to investigate and repair |
 
+## Trial site vs training site (PI 2026-10-14)
+- **portaltrial.in** holds the real trial data. Only staff of **live sites**
+  can save there: `LIVE_SITES` env var on the server (default `PGIMER`;
+  comma-separated; `*` = all). Any save/change/delete (POST/PUT/PATCH/DELETE)
+  by a user of another site gets **403** "…not enrolling in the trial yet…
+  Please use the training site" (`deps.refuse_non_live_site_write`, run inside
+  `get_current_user`). Reading, `/auth/*` and global roles (superadmin,
+  global_scientist) are never blocked. **Add the site to `LIVE_SITES` on its
+  go-live day** (then restart the backend).
+- **training.portaltrial.in**: same app, own database `icmr_training`,
+  `LIVE_SITES=*`, red "TRAINING SITE" bar. Sites not yet enrolling practise
+  there; the Android app has a "Training site" switch on the login screen.
+- Trial start: `backend/trial_dates.py` `TRIAL_START_DATE` (2026-10-14) —
+  CONSORT and Log of All Births alerts count from this date (chapter 08).
+
 ## Glossary
 
 | Term | Meaning |
