@@ -258,11 +258,21 @@ function OpenQueries({ sites }) {
         <div className="tmd-state">No open data queries.</div>
       ) : (
         <table className="dq-table">
-          <thead><tr><th>Site</th><th>Open</th><th>Over 72 h</th><th>Over 7 days</th></tr></thead>
+          <thead>
+            <tr>
+              <th className="dq-th-label">Site</th>
+              <th className="dq-th-num">Open</th>
+              <th className="dq-th-num">Over 72 h</th>
+              <th className="dq-th-num">Over 7 days</th>
+            </tr>
+          </thead>
           <tbody>
             {rows.map(([site, c]) => (
-              <tr key={site}>
-                <td>{siteShortCode(site) || site}</td><td>{c.total}</td><td>{c.amber}</td><td>{c.red}</td>
+              <tr key={site} className="dq-tr">
+                <td className="dq-td-label">{siteShortCode(site) || site}</td>
+                <td className="dq-td-num">{c.total}</td>
+                <td className="dq-td-num">{c.amber}</td>
+                <td className="dq-td-num">{c.red}</td>
               </tr>
             ))}
           </tbody>
