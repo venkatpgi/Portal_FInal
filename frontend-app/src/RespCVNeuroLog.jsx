@@ -950,7 +950,8 @@ export default function RespCVNeuroLog() {
   const isPI         = (userRole || "").toLowerCase() === "site_pi";
   // Audit trail ("History") is superadmin + site PI only — matches the
   // backend's /audit/ role check in routers/audit.py.
-  const canViewAudit = isSuperadmin || isPI;
+  const canViewAudit = isSuperadmin || isPI
+    || ["project_scientist", "global_scientist", "tech_support"].includes((userRole || "").toLowerCase());
   // Submit button is visible to everyone — no role restriction
   // It only appears when day is saved AND all fields are 100% complete
 

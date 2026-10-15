@@ -8,7 +8,7 @@ import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import DashboardWorkspaceLayout from "./components/dashboard/DashboardWorkspaceLayout";
 import GlobalSiteFilter, { siteQueryParams } from "./components/dashboard/GlobalSiteFilter";
-import { isGlobalUser } from "./utils/roles";
+import { isGlobalUser, canSeeAnalytics } from "./utils/roles";
 import { siteShortCode } from "./utils/siteNames";
 import "./TrialMonitoringDashboard.css";
 import DataQuality from "./DataQuality";
@@ -115,7 +115,6 @@ const SECTIONS = [
 
 export default function TrialMonitoringDashboard() {
   const { user } = useAuth();
-  const isSuperadmin = (user?.role || "").toLowerCase() === "superadmin";
   const isGlobal = isGlobalUser(user);
   const [activeSection, setActiveSection] = useState("consort");
   const [apiSite, setApiSite] = useState("");
@@ -181,7 +180,7 @@ export default function TrialMonitoringDashboard() {
               sites={consortData?.sites}
             />
           )}
-          {isSuperadmin && consortData && activeSection === "consort" && (
+          {canSeeAnalytics(user) && consortData && activeSection === "consort" && (
             <button className="tmd-csv-btn" onClick={downloadCsv}>Download CSV</button>
           )}
         </div>

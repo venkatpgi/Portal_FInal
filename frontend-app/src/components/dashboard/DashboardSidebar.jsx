@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { canViewAudit } from "../../utils/roles";
+import { canViewAudit, canSeeAnalytics } from "../../utils/roles";
 import { formatSiteName } from "./siteLabels";
 
 const ITEMS = [
@@ -110,22 +110,22 @@ export default function DashboardSidebar({
           <List size={14} aria-hidden="true" /> View Entries
         </NavLink>
         {isSuperadmin && (
-          <>
-            <NavLink
-              to="/manage-staff"
-              onClick={onClose}
-              className={workspaceNavClass}
-            >
-              <Users size={14} aria-hidden="true" /> Manage Staff
-            </NavLink>
-            <NavLink
-              to="/trial-monitoring"
-              onClick={onClose}
-              className={workspaceNavClass}
-            >
-              <Activity size={14} aria-hidden="true" /> Trial Monitoring
-            </NavLink>
-          </>
+          <NavLink
+            to="/manage-staff"
+            onClick={onClose}
+            className={workspaceNavClass}
+          >
+            <Users size={14} aria-hidden="true" /> Manage Staff
+          </NavLink>
+        )}
+        {canSeeAnalytics(user) && (
+          <NavLink
+            to="/trial-monitoring"
+            onClick={onClose}
+            className={workspaceNavClass}
+          >
+            <Activity size={14} aria-hidden="true" /> Trial Monitoring
+          </NavLink>
         )}
         {canViewAudit(user) && (
           <NavLink

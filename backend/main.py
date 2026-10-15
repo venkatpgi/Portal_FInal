@@ -75,7 +75,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from deps import (
     get_current_user, is_superadmin, is_global, require_superadmin, ensure_same_site,
-    ALL_ROLES, ROLE_SUPERADMIN,
+    ALL_ROLES, ROLE_SUPERADMIN, ROLE_SITE_PI, ROLE_SITE_SCIENTIST,
 )
 from routers import enrollment
 from routers import pii as pii_router
@@ -1316,6 +1316,10 @@ def delete_screening(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Deleting is for the Global PI, Site PIs and Site Scientists only
+    # (access hierarchy SOP change 4); nurses enter data but cannot delete.
+    if (current_user.role or "").lower() not in {ROLE_SUPERADMIN, ROLE_SITE_PI, ROLE_SITE_SCIENTIST}:
+        raise HTTPException(status_code=403, detail="Only the Site PI, Site Scientist or Global PI can delete a record.")
     entry = get_accessible_screening_query(db, current_user).filter(Screening.id == id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Screening entry not found")
@@ -1923,6 +1927,8 @@ def get_maternal_details(
 
     # Rejoin all PII fields (address, email, and individual address components)
     PII_REJOIN_FIELDS = ("address", "email_address", "house", "city", "district", "state", "pincode", "landmark")
+    if not can_view_pii_for_site(current_user, site_for_enrollment(db, enrollment_id)):
+        return record_dict  # identity hidden from roles without PII access (e.g. PTS3)
     try:
         pii_row = db.execute(
             text(f"""

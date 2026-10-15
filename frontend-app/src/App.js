@@ -9,6 +9,7 @@ import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PatientProvider } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
+import { canSeeAnalytics, isReadOnlyUser } from "./utils/roles";
 
 import ScreeningForm from "./ScreeningForm";
 import BirthResuscitation from "./BirthResuscitationForm";
@@ -182,7 +183,7 @@ function AppContent() {
                   <Users size={16} /> <span>Manage Staff</span>
                 </NavLink>
               )}
-              {user?.role === "superadmin" && (
+              {canSeeAnalytics(user) && (
                 <NavLink
                   to="/trial-monitoring"
                   className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
@@ -197,6 +198,16 @@ function AppContent() {
               <FloatingLogout />
             </div>
           </nav>
+        )}
+
+        {isReadOnlyUser(user) && (
+          <div
+            role="status"
+            style={{ background: "#eff6ff", color: "#1e3a8a", borderBottom: "1px solid #bfdbfe",
+                     padding: "6px 16px", fontSize: 13, textAlign: "center" }}
+          >
+            View-only account: you can open every record, but entries cannot be created, changed or deleted.
+          </div>
         )}
 
         {/* ===== ROUTES ===== */}

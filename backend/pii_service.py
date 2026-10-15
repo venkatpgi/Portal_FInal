@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 
 from models import ParticipantPII, Screening
 
-PII_VIEW_ROLES = frozenset({"superadmin", "pii_officer"})
+# Who may see participant identity (explicit list: access hierarchy SOP 1 Oct
+# 2026, PI 2026-10-15). All sites: Global PI, Overall Project Scientist
+# (view only; writes are refused centrally), PII officer. Own site only:
+# the site roles. Technical support (PTS3) and any other role: none.
+PII_VIEW_ROLES = frozenset({"superadmin", "pii_officer", "project_scientist", "global_scientist"})
+PII_SITE_ROLES = frozenset({"site_pi", "site_scientist", "nurse"})
 
 SCREENING_PII_FIELDS = (
     "mother_first_name",
@@ -59,7 +64,7 @@ def utc_now():
 
 def can_view_pii(user) -> bool:
     role = (user.role or "").lower()
-    return role in PII_VIEW_ROLES or bool(user.site_name)
+    return role in PII_VIEW_ROLES or (role in PII_SITE_ROLES and bool(user.site_name))
 
 
 def can_view_pii_for_site(user, site_name: str | None) -> bool:
@@ -68,9 +73,7 @@ def can_view_pii_for_site(user, site_name: str | None) -> bool:
     role = (user.role or "").lower()
     if role in PII_VIEW_ROLES:
         return True
-    # Any same-site user (regardless of the exact role string — nurse,
-    # screener, site_user, etc.) can view PII for their own site, matching
-    # the access rule used for screenings/enrollment elsewhere in the app.
+    # Site roles: their own site only.
     return bool(user.site_name and site_name and user.site_name == site_name)
 
 

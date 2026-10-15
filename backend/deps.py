@@ -17,22 +17,34 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 # Scientist -> Nurse. Stored lowercase/snake_case in User.role.
 # ============================================================================
 ROLE_SUPERADMIN = "superadmin"
-ROLE_PROJECT_SCIENTIST = "project_scientist"   # site-scoped, same as site_pi/site_scientist
+ROLE_PROJECT_SCIENTIST = "project_scientist"   # Overall Project Scientist (PRS3-M): all sites, view only (PI 2026-10-15)
 ROLE_SITE_PI = "site_pi"
 ROLE_SITE_SCIENTIST = "site_scientist"
 ROLE_NURSE = "nurse"
 ROLE_PII_OFFICER = "pii_officer"               # existing, unrelated to site hierarchy
 ROLE_GLOBAL_SCIENTIST = "global_scientist"       # cross-site read (trial monitoring, etc.)
+ROLE_TECH_SUPPORT = "tech_support"             # Project Technical Support 3 (PTS3): read-only, no PII, no reports
 
 ALL_ROLES = frozenset({
     ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_GLOBAL_SCIENTIST,
     ROLE_SITE_PI, ROLE_SITE_SCIENTIST, ROLE_NURSE, ROLE_PII_OFFICER,
+    ROLE_TECH_SUPPORT,
 })
 
-# Roles that can see/act across every site, not just their own site_name.
-# Cross-site visibility: superadmin + global_scientist (named global read accounts).
-# project_scientist stays site-scoped — do NOT add it here (Aug 2026 decision).
-GLOBAL_ROLES = frozenset({ROLE_SUPERADMIN, ROLE_GLOBAL_SCIENTIST})
+# Roles that see every site, not just their own site_name (access hierarchy
+# SOP 1 Oct 2026 + PI 2026-10-15). project_scientist is now the Overall
+# Project Scientist (PRS3-M) -- all sites, replacing the Aug 2026 site-scoped
+# rule; global_scientist is kept as its legacy alias. tech_support (PTS3)
+# reads all sites to reproduce bugs. Write limits: READ_ONLY_ROLES below.
+GLOBAL_ROLES = frozenset({ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_GLOBAL_SCIENTIST, ROLE_TECH_SUPPORT})
+
+# Cannot create, edit or delete clinical data anywhere (PI 2026-10-15): only
+# the Global PI (superadmin) and site roles edit. Enforced for every endpoint
+# in get_current_user (refuse_role_restricted_request).
+READ_ONLY_ROLES = frozenset({ROLE_PROJECT_SCIENTIST, ROLE_GLOBAL_SCIENTIST, ROLE_TECH_SUPPORT})
+
+# Trial-wide analytics: dashboards, AI Insights, CSV export.
+CENTRAL_ANALYTICS_ROLES = frozenset({ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_GLOBAL_SCIENTIST})
 
 # Mobile app (Flutter UserRole enum) only knows ADMIN/PI/SCIENTIST/NURSE/DEO/MONITOR.
 # Both project_scientist (global) and site_scientist map to SCIENTIST; the mobile
@@ -45,6 +57,7 @@ MOBILE_ROLE_MAP = {
     ROLE_SITE_SCIENTIST: "SCIENTIST",
     ROLE_NURSE: "NURSE",
     ROLE_PII_OFFICER: "MONITOR",
+    ROLE_TECH_SUPPORT: "MONITOR",
 }
 
 
@@ -54,6 +67,14 @@ def _role(user: User) -> str:
 
 def is_superadmin(user: User) -> bool:
     return _role(user) == ROLE_SUPERADMIN
+
+
+def is_read_only(user: User) -> bool:
+    return _role(user) in READ_ONLY_ROLES
+
+
+def is_central_analytics(user: User) -> bool:
+    return _role(user) in CENTRAL_ANALYTICS_ROLES
 
 
 def is_global(user: User) -> bool:
@@ -98,6 +119,7 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=401)
 
+    refuse_role_restricted_request(request, user)
     refuse_non_live_site_write(request, user)
     return user
 
@@ -141,3 +163,34 @@ def refuse_non_live_site_write(request: Request, user: User) -> None:
             f"saved here. Please use the training site: {TRAINING_SITE_URL}"
         ),
     )
+
+
+# ============================================================================
+# READ-ONLY ROLES AND PTS3 LIMITS (PI 2026-10-15, enforced for every endpoint)
+# ============================================================================
+# POSTs that only read, allowed for read-only roles.
+READ_ONLY_ALLOWED_WRITE_PREFIXES = ("/auth/", "/pii/batch")
+# Central analytics roles may also use the AI Insights chat (a POST).
+ANALYTICS_ALLOWED_WRITE_PREFIXES = ("/dashboard/ai-insights",)
+# PTS3 (tech_support) reads records to reproduce bugs, but never sees
+# participant identity, quality / analytics dashboards or generated reports.
+TECH_SUPPORT_DENIED_PREFIXES = ("/dashboard/", "/pii/")
+TECH_SUPPORT_DENIED_SUFFIXES = ("/document",)
+
+
+def refuse_role_restricted_request(request: Request, user: User) -> None:
+    path = request.url.path
+    role = _role(user)
+    if role == ROLE_TECH_SUPPORT and (
+        path.startswith(TECH_SUPPORT_DENIED_PREFIXES) or path.endswith(TECH_SUPPORT_DENIED_SUFFIXES)
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Not available to the technical support role.")
+    if request.method.upper() not in WRITE_METHODS or role not in READ_ONLY_ROLES:
+        return
+    if path.startswith(READ_ONLY_ALLOWED_WRITE_PREFIXES):
+        return
+    if role in CENTRAL_ANALYTICS_ROLES and path.startswith(ANALYTICS_ALLOWED_WRITE_PREFIXES):
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                        detail="This account is view-only: entries cannot be created, changed or deleted.")

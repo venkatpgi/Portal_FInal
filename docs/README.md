@@ -31,13 +31,29 @@ the same commit.
   by a user of another site gets **403** "…not enrolling in the trial yet…
   Please use the training site" (`deps.refuse_non_live_site_write`, run inside
   `get_current_user`). Reading, `/auth/*` and global roles (superadmin,
-  global_scientist) are never blocked. **Add the site to `LIVE_SITES` on its
+  global_scientist / project_scientist) are never blocked. **Add the site to `LIVE_SITES` on its
   go-live day** (then restart the backend).
 - **training.portaltrial.in**: same app, own database `icmr_training`,
   `LIVE_SITES=*`, red "TRAINING SITE" bar. Sites not yet enrolling practise
   there; the Android app has a "Training site" switch on the login screen.
 - Trial start: `backend/trial_dates.py` `TRIAL_START_DATE` (2026-10-14) —
   CONSORT and Log of All Births alerts count from this date (chapter 08).
+
+## Roles and rights (access hierarchy SOP 1 Oct 2026, PI 2026-10-15)
+Enforced on the server (`deps.py`, `pii_service.py`); the UI only mirrors it (`utils/roles.js`).
+
+| Designation | App role | Scope | Edits data | Participant identity | Dashboards / AI / CSV | Audit trail |
+| --- | --- | --- | --- | --- | --- | --- |
+| Global PI (Nodal / main PI) | `superadmin` | All sites | Yes; also accounts, day reopening | All sites | Yes | All |
+| Overall Project Scientist (PRS3-M) | `project_scientist` | All sites | **No** (view only) | All sites, view | Yes | All |
+| Technical support (PTS3) | `tech_support` | All sites | No | **None** (`/pii/*` refused, Form C address hidden) | **No** (`/dashboard/*`, report `/document` refused) | All |
+| Site PI | `site_pi` | Own site | Yes, incl. delete | Own site | Data quality / site views | Own site |
+| Site Scientist (PRS3-NM, PRS2-M) | `site_scientist` | Own site | Yes, incl. delete | Own site | Data quality / site views | No |
+| Project Nurse (PN3) | `nurse` | Own site | Yes, **no delete**, no CONSORT | Own site | Data quality only | No |
+
+- Read-only roles (`project_scientist`, `global_scientist`, `tech_support`): every POST/PUT/PATCH/DELETE is refused (403) except `/auth/*`, `/pii/batch` (a read) and, for analytics roles, `/dashboard/ai-insights` (`deps.refuse_role_restricted_request`, run inside `get_current_user`).
+- Trial-wide analytics (CONSORT CSV, safety, baseline, clinical quality, enrolment trend, ops summary, AI Insights) = `CENTRAL_ANALYTICS_ROLES` (Global PI, Overall Project Scientist). Opening the site-scoped views to Site PI / Site Scientist (SOP change 3) is still to do.
+- Placeholder roles (`pi`, `scientist`, `deo`, `monitor`) no longer see identity data and are being retired.
 
 ## Glossary
 
