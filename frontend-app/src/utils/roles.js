@@ -4,6 +4,20 @@ const GLOBAL_ROLES = new Set(["superadmin", "project_scientist", "global_scienti
 const READ_ONLY_ROLES = new Set(["project_scientist", "global_scientist", "tech_support"]);
 const CENTRAL_ANALYTICS_ROLES = new Set(["superadmin", "project_scientist", "global_scientist"]);
 
+const CENTRAL_REVIEWER_ROLES = new Set(["superadmin", "project_scientist", "global_scientist"]);
+const SITE_QUERY_ROLES = new Set(["site_pi", "site_scientist"]);
+
+/** Data queries inbox: Global PI, Overall Project Scientist, Site PI, Site Scientist. */
+export function canSeeDataQueries(user) {
+  const r = (user?.role || "").toLowerCase();
+  return CENTRAL_REVIEWER_ROLES.has(r) || SITE_QUERY_ROLES.has(r);
+}
+
+/** All-site query reviewer who gives the second sign-off. */
+export function isCentralReviewer(user) {
+  return CENTRAL_REVIEWER_ROLES.has((user?.role || "").toLowerCase());
+}
+
 /** View-only account: cannot create, change or delete entries. */
 export function isReadOnlyUser(user) {
   return READ_ONLY_ROLES.has((user?.role || "").toLowerCase());

@@ -55,6 +55,26 @@ Enforced on the server (`deps.py`, `pii_service.py`); the UI only mirrors it (`u
 - Trial-wide analytics (CONSORT CSV, safety, baseline, clinical quality, enrolment trend, ops summary, AI Insights) = `CENTRAL_ANALYTICS_ROLES` (Global PI, Overall Project Scientist). Opening the site-scoped views to Site PI / Site Scientist (SOP change 3) is still to do.
 - Placeholder roles (`pi`, `scientist`, `deo`, `monitor`) no longer see identity data and are being retired.
 
+## Data queries (Phase 1, PI 2026-10-15)
+Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems
+and keep one row per problem in `data_queries`. `run_checks()` opens new
+ones, resolves those whose problem has gone, reopens resolved ones that come
+back, and leaves "confirmed correct" ones closed unless their facts change.
+It runs hourly (`run_data_checks.py`, systemd timer) and on demand
+(`POST /data-queries/run`, Global PI). Checks never edit clinical data; facts
+and details hold ids, numbers and dates only.
+- Age colour from `due_at`: amber after 72 h, red after 7 days. Form
+  timeliness checks (Form C / D / E not complete for randomised babies) are
+  raised only once 72 h have passed.
+- Who (`routers/data_queries.py`): Site PI and Site Scientist their site;
+  Global PI and Overall Project Scientist all sites. Nurses and PTS3: none.
+- Lifecycle: open → acknowledged → resolved (automatic) or "confirmed
+  correct" with a reason. Identity, consent / eligibility and safety checks
+  (`second_signoff=True`) need the Overall Project Scientist or Global PI to
+  sign off a site's confirmation; they can also reopen it. Every action is
+  in the audit log (`table_name='data_queries'`).
+- Page: `/data-queries` (`DataQueries.jsx`).
+
 ## Glossary
 
 | Term | Meaning |

@@ -144,3 +144,49 @@ def still_eligible_gap(entry: dict, status: dict) -> bool:
     if status["live_status"] == "now_eligible":
         return True
     return entry.get("eligible") is True and status["live_status"] is None
+
+
+def attach_live_status(db, records, today):
+    """Live 'Delivered / Crossed 32 wk / Now eligible / Overdue' status for
+    Gestation Log entries (ga_log_status.py). Computed per read, not stored;
+    must run before PII masking. Births come from the Log of All Births and
+    from Form B of any Form A carrying the same mother's CR."""
+    from models import BirthLogEntry, BirthResuscitation, ParticipantPII, Screening
+
+    by_site = {}
+    for r in records:
+        by_site.setdefault(r.site_name, []).append(r)
+    for site, rows in by_site.items():
+        births = [
+            {"mother_uid": b.mother_uid, "mother_name": b.mother_name, "date_of_birth": b.date_of_birth,
+             "gestation_weeks": b.gestation_weeks, "gestation_days": b.gestation_days,
+             "source": "Log of All Births"}
+            for b in db.query(BirthLogEntry).filter(BirthLogEntry.site_name == site).all()
+        ]
+        live_sids = {sid for (sid,) in db.query(Screening.screening_id).filter(
+            Screening.site_name == site, Screening.is_deleted.isnot(True)).all()}
+        pii = {p.screening_id: p for p in db.query(ParticipantPII).filter(
+            ParticipantPII.site_name == site).all() if p.screening_id in live_sids}
+        form_a_crs = {norm_cr(p.maternal_uid) for p in pii.values() if norm_cr(p.maternal_uid)}
+        if pii:
+            for fb in db.query(BirthResuscitation).filter(
+                    BirthResuscitation.screening_id.in_(list(pii)),
+                    BirthResuscitation.date_of_birth.isnot(None)).all():
+                p = pii[fb.screening_id]
+                births.append({"mother_uid": p.maternal_uid,
+                               "mother_name": " ".join(x for x in [p.mother_first_name, p.mother_surname] if x),
+                               "date_of_birth": fb.date_of_birth, "gestation_weeks": fb.gestation_weeks,
+                               "gestation_days": fb.gestation_days, "source": "Form B"})
+        for r in rows:
+            entry = {"check_date": r.check_date, "gestation_weeks": r.gestation_weeks,
+                     "gestation_days": r.gestation_days, "eligible": r.eligible,
+                     "found_iufd": r.found_iufd, "ga_source": r.ga_source,
+                     "mother_uid": r.mother_uid, "mother_name": r.mother_name,
+                     # a link to a deleted Form A no longer counts
+                     "has_form_a": bool(r.continued_to_screening and r.screening_id in live_sids)
+                                   or (norm_cr(r.mother_uid) in form_a_crs if norm_cr(r.mother_uid) else False)}
+            st = live_status(entry, births, today)
+            for k, v in st.items():
+                setattr(r, k, v)
+            r.has_form_a = entry["has_form_a"]
+            r.in_gap = still_eligible_gap(entry, st)

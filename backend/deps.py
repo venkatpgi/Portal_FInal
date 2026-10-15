@@ -168,13 +168,14 @@ def refuse_non_live_site_write(request: Request, user: User) -> None:
 # ============================================================================
 # READ-ONLY ROLES AND PTS3 LIMITS (PI 2026-10-15, enforced for every endpoint)
 # ============================================================================
-# POSTs that only read, allowed for read-only roles.
-READ_ONLY_ALLOWED_WRITE_PREFIXES = ("/auth/", "/pii/batch")
+# POSTs allowed for read-only roles: reads, and acting on data queries
+# (oversight, not data entry).
+READ_ONLY_ALLOWED_WRITE_PREFIXES = ("/auth/", "/pii/batch", "/data-queries/")
 # Central analytics roles may also use the AI Insights chat (a POST).
 ANALYTICS_ALLOWED_WRITE_PREFIXES = ("/dashboard/ai-insights",)
 # PTS3 (tech_support) reads records to reproduce bugs, but never sees
 # participant identity, quality / analytics dashboards or generated reports.
-TECH_SUPPORT_DENIED_PREFIXES = ("/dashboard/", "/pii/")
+TECH_SUPPORT_DENIED_PREFIXES = ("/dashboard/", "/pii/", "/data-queries")
 TECH_SUPPORT_DENIED_SUFFIXES = ("/document",)
 
 

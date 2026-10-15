@@ -9,7 +9,7 @@ import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PatientProvider } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
-import { canSeeAnalytics, isReadOnlyUser } from "./utils/roles";
+import { canSeeAnalytics, canSeeDataQueries, isReadOnlyUser } from "./utils/roles";
 
 import ScreeningForm from "./ScreeningForm";
 import BirthResuscitation from "./BirthResuscitationForm";
@@ -39,6 +39,7 @@ import HelperFormRecords from "./HelperFormRecords";
 import LogOfAllBirths from "./LogOfAllBirths";
 import GACheckLog from "./GACheckLog";
 import AuditTrail from "./AuditTrail";
+import DataQueries from "./DataQueries";
 import EditScreening from "./EditScreening";
 import Dashboard from "./Dashboard";
 import TrialMonitoringDashboard from "./TrialMonitoringDashboard";
@@ -183,6 +184,14 @@ function AppContent() {
                   <Users size={16} /> <span>Manage Staff</span>
                 </NavLink>
               )}
+              {canSeeDataQueries(user) && (
+                <NavLink
+                  to="/data-queries"
+                  className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
+                >
+                  <ClipboardList size={16} /> <span>Data Queries</span>
+                </NavLink>
+              )}
               {canSeeAnalytics(user) && (
                 <NavLink
                   to="/trial-monitoring"
@@ -231,6 +240,7 @@ function AppContent() {
                       <Route path="/ga-check" element={<ProtectedRoute><GACheckLog /></ProtectedRoute>} />
                       <Route path="/log-of-all-births" element={<ProtectedRoute><LogOfAllBirths /></ProtectedRoute>} />
                       <Route path="/audit-trail" element={<ProtectedRoute><AuditTrail /></ProtectedRoute>} />
+                      <Route path="/data-queries" element={<ProtectedRoute><DataQueries /></ProtectedRoute>} />
                       <Route path="/edit/:id" element={<ProtectedRoute><EditScreening /></ProtectedRoute>} />
                       <Route path="/form-a/:screeningId?" element={<ProtectedRoute><FormLayout currentForm="form_a"><ScreeningForm /></FormLayout></ProtectedRoute>} />
                       {SCREENING_ID_FORM_REDIRECTS.map(({ basePath, currentForm, label }) => (
