@@ -73,7 +73,17 @@ and details hold ids, numbers and dates only.
   (`second_signoff=True`) need the Overall Project Scientist or Global PI to
   sign off a site's confirmation; they can also reopen it. Every action is
   in the audit log (`table_name='data_queries'`).
-- Page: `/data-queries` (`DataQueries.jsx`).
+- Page: `/data-queries` (`DataQueries.jsx`, CSS prefix `dqy-`); top-bar link
+  with the open count (`DataQueriesNavLink.jsx`, red if any is over 7 days);
+  dashboard Section 2 Panel 0 (open / amber / red per site).
+- Banner on every form (`DataQueryBanner.jsx` in `FormLayout`): open queries
+  on the current screening / enrollment id, via `GET /data-queries/for-record`
+  (also for nurses, their site; read-only).
+- On save: a middleware in `main.py` calls `data_checks_trigger.request_run()`
+  after every successful write (except auth, dashboards, users, data queries);
+  debounced to one run a minute per worker. `run_checks` takes a Postgres
+  advisory lock (`RUN_LOCK_KEY`), so overlapping runs skip. A full run takes
+  about 2 s.
 
 ## Glossary
 

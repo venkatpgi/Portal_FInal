@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from audit_service import record_audit
 from data_checks import CHECKS, CHECKS_BY_ID, OPEN_STATES, colour, run_checks
 from db import get_db
-from deps import (ROLE_GLOBAL_SCIENTIST, ROLE_PROJECT_SCIENTIST, ROLE_SITE_PI, ROLE_SITE_SCIENTIST,
+from deps import (ROLE_GLOBAL_SCIENTIST, ROLE_NURSE, ROLE_PROJECT_SCIENTIST, ROLE_SITE_PI, ROLE_SITE_SCIENTIST,
                   ROLE_SUPERADMIN, get_current_user, is_superadmin)
 from models import DataQuery, User
 
@@ -106,6 +106,32 @@ def list_queries(
     now = datetime.utcnow()
     rows = qy.order_by(DataQuery.due_at.asc().nulls_last(), DataQuery.id.asc()).limit(1000).all()
     return [_out(q, now) for q in rows]
+
+
+@router.get("/for-record")
+def for_record(
+    keys: list[str] = Query(default=[]),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Open queries on the records a form is showing, for the banner on that
+    form. Also for nurses (their site), who otherwise have no inbox."""
+    role = _role(current_user)
+    keys = [k for k in keys if k][:10]
+    if not keys:
+        return []
+    if role in CENTRAL:
+        site = None
+    elif role in SITE_ROLES | {ROLE_NURSE} and current_user.site_name:
+        site = current_user.site_name
+    else:
+        return []
+    qy = db.query(DataQuery).filter(DataQuery.status.in_(OPEN_STATES), DataQuery.record_key.in_(keys))
+    if site is not None:
+        qy = qy.filter(DataQuery.site_name == site)
+    now = datetime.utcnow()
+    return [{"id": q.id, "title": q.title, "detail": q.detail, "colour": colour(q, now), "status": q.status}
+            for q in qy.order_by(DataQuery.due_at.asc().nulls_last()).all()]
 
 
 @router.get("/summary")

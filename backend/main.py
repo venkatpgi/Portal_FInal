@@ -112,6 +112,7 @@ from audit_service import (
 )
 from schema_patches import apply_schema_patches
 import email_service
+import data_checks_trigger
 from staff_service import seed_site_staff, deactivate_stale_site_staff
 from user_service import seed_login_users, backfill_pilot_designations, backfill_staff_emails
 import security_monitor
@@ -238,6 +239,23 @@ def on_startup_migrations():
         logger.warning("Startup migration skipped or failed: %s", exc)
     finally:
         db.close()
+
+
+# Data queries: re-run the checks shortly after any successful data write
+# (debounced to one run a minute per worker; see data_checks_trigger.py).
+_DATA_CHECK_SKIP_PREFIXES = ("/auth/", "/data-queries", "/dashboard/", "/users", "/admin/")
+
+
+@app.middleware("http")
+async def data_checks_after_write_middleware(request: Request, call_next):
+    response = await call_next(request)
+    try:
+        if (request.method in ("POST", "PUT", "PATCH", "DELETE") and response.status_code < 400
+                and not request.url.path.startswith(_DATA_CHECK_SKIP_PREFIXES)):
+            data_checks_trigger.request_run()
+    except Exception:
+        logger.exception("could not schedule data checks")
+    return response
 
 
 @app.middleware("http")

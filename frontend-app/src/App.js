@@ -40,6 +40,7 @@ import LogOfAllBirths from "./LogOfAllBirths";
 import GACheckLog from "./GACheckLog";
 import AuditTrail from "./AuditTrail";
 import DataQueries from "./DataQueries";
+import DataQueriesNavLink from "./components/DataQueriesNavLink";
 import EditScreening from "./EditScreening";
 import Dashboard from "./Dashboard";
 import TrialMonitoringDashboard from "./TrialMonitoringDashboard";
@@ -184,14 +185,7 @@ function AppContent() {
                   <Users size={16} /> <span>Manage Staff</span>
                 </NavLink>
               )}
-              {canSeeDataQueries(user) && (
-                <NavLink
-                  to="/data-queries"
-                  className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
-                >
-                  <ClipboardList size={16} /> <span>Data Queries</span>
-                </NavLink>
-              )}
+              {canSeeDataQueries(user) && <DataQueriesNavLink />}
               {canSeeAnalytics(user) && (
                 <NavLink
                   to="/trial-monitoring"

@@ -88,29 +88,29 @@ export default function DataQueries() {
   if (!canSeeDataQueries(user)) {
     return (
       <DashboardWorkspaceLayout pageTitle="Data Queries">
-        <div className="dq-root dq-empty">Data queries are for Site PIs, scientists and the Global PI.</div>
+        <div className="dqy-root dqy-empty">Data queries are for Site PIs, scientists and the Global PI.</div>
       </DashboardWorkspaceLayout>
     );
   }
 
   return (
     <DashboardWorkspaceLayout pageTitle="Data Queries">
-      <div className="dq-root">
-        <p className="dq-lead">
+      <div className="dqy-root">
+        <p className="dqy-lead">
           Problems found automatically in the data. A query closes by itself once the record is corrected;
           if the data is right, confirm it with a reason.
         </p>
 
         {summary && (
-          <div className="dq-tiles">
-            <div className="dq-tile"><b>{summary.total}</b><span>Open</span></div>
-            <div className="dq-tile dq-tile--amber"><b>{summary.amber || 0}</b><span>Over 72 h</span></div>
-            <div className="dq-tile dq-tile--red"><b>{summary.red || 0}</b><span>Over 7 days</span></div>
-            <div className="dq-tile"><b>{summary.awaiting_signoff || 0}</b><span>Awaiting sign-off</span></div>
+          <div className="dqy-tiles">
+            <div className="dqy-tile"><b>{summary.total}</b><span>Open</span></div>
+            <div className="dqy-tile dqy-tile--amber"><b>{summary.amber || 0}</b><span>Over 72 h</span></div>
+            <div className="dqy-tile dqy-tile--red"><b>{summary.red || 0}</b><span>Over 7 days</span></div>
+            <div className="dqy-tile"><b>{summary.awaiting_signoff || 0}</b><span>Awaiting sign-off</span></div>
           </div>
         )}
 
-        <div className="dq-toolbar">
+        <div className="dqy-toolbar">
           <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Show">
             <option value="open">Open</option>
             <option value="closed">Closed</option>
@@ -119,13 +119,13 @@ export default function DataQueries() {
           <button type="button" onClick={load} disabled={loading}>Refresh</button>
         </div>
 
-        {error && <div className="dq-error">{error}</div>}
-        {!loading && rows.length === 0 && <div className="dq-empty">No {status === "open" ? "open " : ""}queries.</div>}
+        {error && <div className="dqy-error">{error}</div>}
+        {!loading && rows.length === 0 && <div className="dqy-empty">No {status === "open" ? "open " : ""}queries.</div>}
 
         {groups.map(([area, qs]) => (
-          <section key={area} className="dq-group">
+          <section key={area} className="dqy-group">
             <h3>{area} <span>({qs.length})</span></h3>
-            <table className="dq-table">
+            <table className="dqy-table">
               <thead>
                 <tr>
                   <th aria-label="Age" />
@@ -141,20 +141,20 @@ export default function DataQueries() {
                   const link = recordLink(q);
                   return (
                     <tr key={q.id}>
-                      <td><span className={`dq-dot dq-dot--${q.colour || "none"}`} title={q.colour === "red" ? "Over 7 days" : q.colour === "amber" ? "Over 72 hours" : ""} /></td>
+                      <td><span className={`dqy-dot dqy-dot--${q.colour || "none"}`} title={q.colour === "red" ? "Over 7 days" : q.colour === "amber" ? "Over 72 hours" : ""} /></td>
                       {central && <td>{siteShortCode(q.site_name) || "—"}</td>}
                       <td>
-                        <div className="dq-title">
+                        <div className="dqy-title">
                           {q.title}
-                          {q.needs_second_signoff && <span className="dq-tag">2nd sign-off</span>}
+                          {q.needs_second_signoff && <span className="dqy-tag">2nd sign-off</span>}
                         </div>
-                        <div className="dq-detail">{q.detail}</div>
-                        {link && <Link className="dq-link" to={link}>Open the log</Link>}
+                        <div className="dqy-detail">{q.detail}</div>
+                        {link && <Link className="dqy-link" to={link}>Open the log</Link>}
                         {q.confirmed_reason && (
-                          <div className="dq-reason">Confirmed by {q.confirmed_by}: {q.confirmed_reason}</div>
+                          <div className="dqy-reason">Confirmed by {q.confirmed_by}: {q.confirmed_reason}</div>
                         )}
                         {confirming === q.id && (
-                          <div className="dq-confirm">
+                          <div className="dqy-confirm">
                             <textarea
                               value={reason}
                               onChange={(e) => setReason(e.target.value)}
@@ -164,24 +164,24 @@ export default function DataQueries() {
                             <div>
                               <button type="button" disabled={busy === q.id || reason.trim().length < 5}
                                 onClick={() => act(q, "confirm-correct", { reason })}>Confirm correct</button>
-                              <button type="button" className="dq-ghost" onClick={() => { setConfirming(null); setReason(""); }}>Cancel</button>
+                              <button type="button" className="dqy-ghost" onClick={() => { setConfirming(null); setReason(""); }}>Cancel</button>
                             </div>
                           </div>
                         )}
                       </td>
-                      <td className="dq-nowrap">{fmtDate(q.due_at)}</td>
-                      <td className="dq-nowrap">{STATUS_LABEL[q.status] || q.status}</td>
-                      <td className="dq-actions">
+                      <td className="dqy-nowrap">{fmtDate(q.due_at)}</td>
+                      <td className="dqy-nowrap">{STATUS_LABEL[q.status] || q.status}</td>
+                      <td className="dqy-actions">
                         {q.status === "open" && (
                           <button type="button" disabled={busy === q.id} onClick={() => act(q, "acknowledge")}>Acknowledge</button>
                         )}
                         {["open", "acknowledged"].includes(q.status) && confirming !== q.id && (
-                          <button type="button" className="dq-ghost" onClick={() => { setConfirming(q.id); setReason(""); }}>Data is correct…</button>
+                          <button type="button" className="dqy-ghost" onClick={() => { setConfirming(q.id); setReason(""); }}>Data is correct…</button>
                         )}
                         {q.status === "awaiting_signoff" && central && (
                           <>
                             <button type="button" disabled={busy === q.id} onClick={() => act(q, "signoff")}>Sign off</button>
-                            <button type="button" className="dq-ghost" disabled={busy === q.id} onClick={() => act(q, "reject-confirmation")}>Reopen</button>
+                            <button type="button" className="dqy-ghost" disabled={busy === q.id} onClick={() => act(q, "reject-confirmation")}>Reopen</button>
                           </>
                         )}
                       </td>

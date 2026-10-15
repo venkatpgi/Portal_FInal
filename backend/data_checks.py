@@ -30,6 +30,7 @@ AMBER_AFTER = timedelta(hours=72)
 RED_AFTER = timedelta(days=7)
 OPEN_STATES = ("open", "acknowledged", "awaiting_signoff")
 ENROLLMENT_RE = re.compile(r"^\d{2}-[A-D]-\d{3}$", re.IGNORECASE)
+RUN_LOCK_KEY = 7342001  # pg advisory lock id for run_checks
 
 
 def _dt(d) -> Optional[datetime]:
@@ -287,7 +288,13 @@ def run_checks(db, now: Optional[datetime] = None, today: Optional[date] = None,
 
     now = now or datetime.utcnow()
     today = today or clinical_today()
-    ctx = _context(db, now, today)
+    ctx = _context(db, now, today)  # may commit (birth-log match refresh)
+    # One reconcile at a time across workers and the hourly timer: a
+    # transaction-level advisory lock, released by the commit below.
+    if db.get_bind().dialect.name == "postgresql":
+        if not db.execute(text("SELECT pg_try_advisory_xact_lock(:k)"), {"k": RUN_LOCK_KEY}).scalar():
+            db.rollback()
+            return {"skipped": "another run in progress"}
     counts = defaultdict(int)
     checks = [c for c in CHECKS if not only or c.check_id in set(only)]
     existing = defaultdict(dict)
