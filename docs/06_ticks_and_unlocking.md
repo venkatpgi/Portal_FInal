@@ -19,8 +19,8 @@ Two separate ideas — do not confuse them:
   | `ga_out_of_range` / `ga_unknown` | GA outside 25w0d–31w6d, or Screen Failure | Forms B+ locked |
   | `exclusion` | any A4 exclusion | Forms B+ locked |
   | `consent` | consent not Yes / Trial run | Forms B+ locked |
-  | `no_ppv` | Form B: baby did not need PPV (`/enrollment-status` `no_ppv`) | **only Forms A, B, C** open (`FORMS_ALLOWED_WHEN_NO_PPV`) |
-- `next_form` (server) = first of B, C, (stop if no PPV), D, E not yet saved.
+  | `no_ppv` | Form B: baby did not need PPV (`/enrollment-status` `no_ppv`) | **only Forms A and B** open (`FORMS_ALLOWED_WHEN_NO_PPV`); the server also refuses Form C (`main._refuse_form_c_without_ppv`, 422) — PI 2026-10-16: Form C is only for randomised babies. Babies who needed PPV but were not randomised keep all forms. |
+- `next_form` (server) = first of B, (stop if no PPV), C, D, E not yet saved.
 
 ## 2. Green ticks — the rules
 

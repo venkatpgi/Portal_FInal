@@ -344,7 +344,7 @@ export default function Sidebar({ currentForm }) {
     return eid ? `${form.path}/${eid}` : null;
   };
 
-  const FORMS_ALLOWED_WHEN_NO_PPV = new Set(["form_a", "form_b", "form_c"]);
+  const FORMS_ALLOWED_WHEN_NO_PPV = new Set(["form_a", "form_b"]);  // PI 2026-10-16: Form C only for randomised
 
   const getLockReason = () => localStorage.getItem("enrollment_lock_reason");
 
@@ -353,7 +353,7 @@ export default function Sidebar({ currentForm }) {
     if (formId === "form_a") return true;
 
     const reason = getLockReason();
-    /* PPV not required: Forms A–C stay open; D+ stay closed */
+    /* PPV not required: only Forms A and B stay open */
     if (enrollmentLocked && reason === "no_ppv") {
       return FORMS_ALLOWED_WHEN_NO_PPV.has(formId);
     }
@@ -373,7 +373,7 @@ export default function Sidebar({ currentForm }) {
       return "Other forms locked — exclusion criteria present.";
     }
     if (reason === "no_ppv") {
-      return "Forms after Form C are locked — resuscitation (PPV) not required. Only Forms A–C can be completed.";
+      return "Forms after Form B are locked — the baby did not need PPV. Only Forms A and B are filled.";
     }
     if (enrollmentLocked) {
       return "Enrollment locked — consent not given or participant not eligible.";

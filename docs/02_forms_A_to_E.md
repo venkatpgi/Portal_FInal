@@ -69,6 +69,10 @@ and, once saved, links back to the log entry (`PATCH /ga-check/{id}/link`).
 - "Does baby require ventilation (PPV)?" = No → **not randomised, locked**
   (`applyInitialStepsNotRequired`, `lockEnrollmentNoPpv`); server assigns
   `NR-<screening id>`.
+  **Enrolment ends at Form B** (PI 2026-10-16): Form C and later are not filled; the
+  sidebar opens only Forms A and B and the server refuses Form C
+  (`main._refuse_form_c_without_ppv`). A baby who needed PPV but was not
+  randomised keeps all forms (followed for major outcomes).
 - Randomised = Yes needs enrollment id (`01-A-001` format on Save), randomisation
   date, strata. Randomised = No needs "Reason not randomised" (feeds CONSORT
   Box 7, chapter 08).

@@ -1853,6 +1853,22 @@ def update_birth_resuscitation(
 # FORM C  -  MATERNAL DETAILS ENDPOINTS
 # ============================================================================
 
+def _refuse_form_c_without_ppv(db: Session, enrollment_id: str) -> None:
+    """Form C is only for randomised babies (PI 2026-10-16). A baby whose
+    Form B says PPV was not required stops after Form B, for every caller
+    (web, mobile app, direct API)."""
+    birth = (
+        db.query(BirthResuscitation)
+        .filter(BirthResuscitation.enrollment_id == enrollment_id)
+        .first()
+    )
+    if birth is not None and birth.required_resuscitation is False:
+        raise HTTPException(
+            status_code=422,
+            detail="Form C is only for randomised babies. This baby did not need PPV, so enrolment ended at Form B.",
+        )
+
+
 @app.post("/maternal-details/", response_model=MaternalDetailsOut)
 def create_maternal_details(
     data: MaternalDetailsCreate,
@@ -1860,6 +1876,7 @@ def create_maternal_details(
     current_user: User = Depends(get_current_user),
 ):
     require_enrollment_access(data.enrollment_id, db, current_user)
+    _refuse_form_c_without_ppv(db, data.enrollment_id)
     payload = split_and_store_pii(
         db,
         data.model_dump(exclude_unset=True),
@@ -1906,6 +1923,7 @@ def update_maternal_details(
     current_user: User = Depends(get_current_user),
 ):
     require_enrollment_access(enrollment_id, db, current_user)
+    _refuse_form_c_without_ppv(db, enrollment_id)
     record = (
         db.query(MaternalDetails)
         .filter(MaternalDetails.enrollment_id == enrollment_id)
@@ -6621,7 +6639,7 @@ def get_enrollment_status(
             )
         )
     )
-    # PPV / resuscitation not required ? stop after Forms A?C
+    # PPV / resuscitation not required -> stop after Forms A and B (PI 2026-10-16)
     no_ppv = form_b and birth.required_resuscitation is False
 
     maternal = (
@@ -6686,10 +6704,12 @@ def get_enrollment_status(
 
     if not form_b:
         next_form = "form-b"
+    elif no_ppv:
+        # PI 2026-10-16: Form C is only for randomised babies; a baby who did
+        # not need PPV stops after Form B.
+        next_form = "completed"
     elif not form_c:
         next_form = "form-c"
-    elif no_ppv:
-        next_form = "completed"
     elif not form_d:
         next_form = "form-d"
     elif not form_e:
