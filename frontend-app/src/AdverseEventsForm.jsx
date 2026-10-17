@@ -12,6 +12,8 @@ import { fallbackCompletedByDesignation as getDesignation } from "./utils/comple
 import FormNavBar from "./components/FormNavBar";
 import { usePatient } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
+import { stripDigits } from "./utils/personName";
+import { sanitizeMaternalUid } from "./utils/maternalUid";
 import {
   Home,
   ClipboardList,
@@ -572,7 +574,7 @@ export default function AdverseEventsForm() {
             <input
               className="ae-input"
               value={formData.mother_name}
-              onChange={(e) => set("mother_name", e.target.value)}
+              onChange={(e) => set("mother_name", stripDigits(e.target.value))}
             />
           </div>
           <div className="form-group">
@@ -588,7 +590,7 @@ export default function AdverseEventsForm() {
             <input
               className="ae-input"
               value={formData.maternal_uid}
-              onChange={(e) => set("maternal_uid", e.target.value)}
+              onChange={(e) => set("maternal_uid", sanitizeMaternalUid(siteName || patientData?.site_name || patientData?.site, e.target.value))}
             />
           </div>
         </div>

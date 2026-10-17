@@ -55,6 +55,22 @@ Enforced on the server (`deps.py`, `pii_service.py`); the UI only mirrors it (`u
 - Trial-wide analytics (CONSORT CSV, safety, baseline, clinical quality, enrolment trend, ops summary, AI Insights) = `CENTRAL_ANALYTICS_ROLES` (Global PI, Overall Project Scientist). Opening the site-scoped views to Site PI / Site Scientist (SOP change 3) is still to do.
 - Placeholder roles (`pi`, `scientist`, `deo`, `monitor`) no longer see identity data and are being retired.
 
+## CR number and name rules (PI 2026-10-18)
+Enforced by the server on every save where they are entered (Form A, Form B,
+Form C, AE form via `pii_service.split_and_store_pii`; Gestation Log; Log of
+All Births) — `backend/identity_rules.py`; the pages filter typing the same
+way (`utils/maternalUid.js`, `utils/personName.js`, Form A `idFieldRule`).
+- CR: PGIMER exactly 12 digits; AMC serial/year (`123/2026`); other sites
+  numbers only ("-" or "/" as separators). Blank allowed (CR optional in the
+  logs). 422 otherwise.
+- Mother's / husband's names: no digits (twins use Birth type / Birth order).
+- A value already stored is not re-checked when saved unchanged, so an old
+  record with a bad value can still be edited; changing it needs a valid one.
+- Consent "Trial run" is retired: removed from the dropdowns, refused on
+  save (`main.refuse_trial_run_consent`, 422) and no longer counts as consent
+  in `compute_screening_status` (such a record becomes Pending, so Form B is
+  refused). A record saved with it opens with consent blank and a notice.
+
 ## Data queries (Phase 1, PI 2026-10-15)
 Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems
 and keep one row per problem in `data_queries`. `run_checks()` opens new

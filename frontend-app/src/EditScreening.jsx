@@ -467,7 +467,6 @@ function EditScreening() {
             <option value="">-- Select --</option>
             <option value="Yes">Yes</option>
             <option value="No">No</option>
-            <option value="Trial run">Trial run</option>
             <option value="Not approached for consent">
               Not approached for consent
             </option>

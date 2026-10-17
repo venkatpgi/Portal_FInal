@@ -52,6 +52,7 @@ from bpd_suggestion import suggest_bpd
 from rop_suggestion import suggest_rop, stage_rank, exam as rop_exam, event as rop_event
 from cr_duplicates import normalize_cr, find_duplicate
 from identifier_duplicates import refuse_duplicate_identifiers
+from identity_rules import require_valid_identity, stored_values
 import form_completion as fc
 import composite_suggestion as cs
 from brain_injury_suggestion import suggest_brain_injury, grade_rank as bi_grade_rank, record as bi_record
@@ -436,13 +437,28 @@ def require_ga_in_inclusion_window(data):
         raise HTTPException(status_code=422, detail=GA_WINDOW_REJECT)
 
 
+TRIAL_RUN_CONSENT = "Trial run"
+
+
+def refuse_trial_run_consent(consent) -> None:
+    """'Trial run' was a practice consent value; since the trial started it
+    is not accepted (PI 2026-10-18) -- record the real consent instead."""
+    if (consent or "").strip().lower() == TRIAL_RUN_CONSENT.lower():
+        raise HTTPException(
+            status_code=422,
+            detail="'Trial run' is no longer a consent option. Record the real consent (Yes or No).",
+        )
+
+
 def compute_screening_status(data):
     """Authoritative screening_status for web + mobile (Form A).
 
     Labels match Screening Form / ViewEntries banners:
       Screen Failure — GA undeterminable (Neither) OR any exclusion Yes
       Not Eligible   — GA outside 25w0d–31w6d, OR consent No / Not approached
-      Eligible       — GA in window, no exclusion, consent Yes or Trial run
+      Eligible       — GA in window, no exclusion, consent Yes
+                       ("Trial run" no longer counts as consent: PI
+                       2026-10-18, after the trial started)
       Pending        — screening incomplete (no GA yet) OR clinically OK
                        but consent not yet recorded
     """
@@ -465,8 +481,7 @@ def compute_screening_status(data):
         return "Screen Failure"
 
     consent = getattr(data, "consent_given", None)
-    # Trial run is allowed to proceed the same way as Yes (web Sidebar)
-    if consent in ("Yes", "Trial run"):
+    if consent == "Yes":
         return "Eligible"
 
     if consent in ("No", "Not approached"):
@@ -583,8 +598,8 @@ def require_valid_enrollment_id_format(enrollment_id: str | None) -> None:
 def require_eligible_screening_for_form_b(db: Session, screening_id: str | None) -> None:
     """Form B (birth/resuscitation, incl. the NR- "no PPV needed" path) may
     only be created/updated for a screening that is actually Eligible —
-    GA in the 25w0d-31w6d window, no A4 exclusion, and consent Yes / Trial
-    run. Found live 2026-09-30: a baby whose Form A consent was "No" (Not
+    GA in the 25w0d-31w6d window, no A4 exclusion, and consent Yes
+    ("Trial run" no longer counts, 2026-10-18). Found live 2026-09-30: a baby whose Form A consent was "No" (Not
     Eligible) still had two Form B rows and helper-form data saved under
     it — the browser's own sidebar greys out Form B for a non-Eligible
     screening, but nothing enforced that on the server, so a route that
@@ -1067,7 +1082,9 @@ def create_screening(
             screening_id = screening.screening_id or generate_screening_id(screening.site_id, db)
             enrollment_id = screening.enrollment_id
             status = compute_screening_status(screening)
+            refuse_trial_run_consent(screening.consent_given)
             pii_payload = extract_screening_pii(screening.model_dump())
+            require_valid_identity(screening.site_name, pii_payload)
             refuse_duplicate_identifiers(
                 db,
                 screening.site_name,
@@ -1238,6 +1255,7 @@ def update_screening(
         old_snapshot = row_snapshot(entry)
         update_data = updated_data.model_dump(exclude_unset=True)
         update_data.pop("screening_id", None)
+        refuse_trial_run_consent(update_data.get("consent_given"))
 
         # FIX: same reasoning as create_screening above ? don't trust the
         # client's site_id, derive it from site_name server-side so an
@@ -1253,6 +1271,9 @@ def update_screening(
             update_data.pop(field, None)
 
         if pii_payload:
+            _stored_pii = db.query(ParticipantPII).filter(ParticipantPII.screening_id == screening_id).first()
+            require_valid_identity(entry.site_name or updated_data.site_name, pii_payload,
+                                   stored_values(_stored_pii, SCREENING_PII_FIELDS))
             refuse_duplicate_identifiers(
                 db,
                 entry.site_name or updated_data.site_name,
@@ -8869,6 +8890,7 @@ def create_birth_log_entry(
 
     payload = {k: v for k, v in data.model_dump().items() if k in BIRTH_LOG_WRITE_FIELDS}
     require_plausible_gestation(payload.get("gestation_weeks"), payload.get("gestation_days"))
+    require_valid_identity(site_name, payload)
     _refuse_duplicate_cr(db, BirthLogEntry, site_name, payload.get("mother_uid"),
                          date_of_birth=payload.get("date_of_birth"), match_dob=True,
                          birth_order=payload.get("birth_order"),
@@ -8908,6 +8930,8 @@ def update_birth_log_entry(
 
     payload = {k: v for k, v in data.model_dump().items() if k in BIRTH_LOG_WRITE_FIELDS}
     require_plausible_gestation(payload.get("gestation_weeks"), payload.get("gestation_days"))
+    require_valid_identity(record.site_name, payload,
+                           stored_values(record, ("mother_uid", "mother_name", "husband_name")))
     _refuse_duplicate_cr(db, BirthLogEntry, record.site_name, payload.get("mother_uid"),
                          exclude_id=record.id, date_of_birth=payload.get("date_of_birth"), match_dob=True,
                          birth_order=payload.get("birth_order"),
@@ -9052,6 +9076,7 @@ def create_ga_check_entry(
         {k: v for k, v in data.model_dump().items() if k in GA_CHECK_WRITE_FIELDS}
     )
     require_plausible_gestation(payload.get("gestation_weeks"), payload.get("gestation_days"))
+    require_valid_identity(site_name, payload)
     _refuse_duplicate_cr(db, GACheckEntry, site_name, payload.get("mother_uid"),
                          allow=bool(data.allow_duplicate_cr),
                          override_hint=", or tick 'New contact of the same woman' to log it again")
@@ -9093,6 +9118,7 @@ def update_ga_check_entry(
         {k: v for k, v in data.model_dump().items() if k in GA_CHECK_WRITE_FIELDS and k != "check_date"}
     )
     require_plausible_gestation(payload.get("gestation_weeks"), payload.get("gestation_days"))
+    require_valid_identity(site_name, payload, stored_values(record, ("mother_uid", "mother_name")))
     _refuse_duplicate_cr(db, GACheckEntry, site_name, payload.get("mother_uid"), exclude_id=record.id,
                          allow=bool(data.allow_duplicate_cr),
                          override_hint=", or tick 'New contact of the same woman' to keep both")

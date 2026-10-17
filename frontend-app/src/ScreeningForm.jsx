@@ -24,6 +24,7 @@ import { relativeTime, toDateTimeLocalValue, formatDateToDDMMYYYY, toDateOnlyVal
 import { resolveConsentSignatureFromRecord, resolvePiSignatureFromRecord } from "./utils/consentSignature";
 import { sanitizeScreeningCreatePayload } from "./utils/screeningPayload";
 import { printPatientPdf } from "./utils/printPatientPdf";
+import { PERSON_NAME_FIELDS, stripDigits } from "./utils/personName";
 import { mobilePairErrors, PRIMARY_MOBILE_LABEL, SECONDARY_MOBILE_LABEL } from "./utils/mobileNumbers";
 
 /* ─── YesNoToggle — animated sliding segment ──────────────── */
@@ -239,6 +240,9 @@ export default function ScreeningForm() {
       // PGIMER Chandigarh CR numbers are 12 digits (site-confirmed).
       if (site === "PGIMER") return { pattern: /^\d{12}$/, hint: "Must be exactly 12 digits", charFilter: /[^0-9]/g, maxLen: 12, required: true };
       if (site === "AMC")    return { pattern: /^\d+\/\d{4}$/, hint: "Must be in serial/year format, e.g. 123/2026", charFilter: /[^0-9/]/g, maxLen: 15, required: true };
+      // Other sites: numbers only, "-" or "/" as separators (PI 2026-10-18;
+      // the server applies the same rule, backend/identity_rules.py).
+      if (site) return { pattern: /^\d+(?:[-/]\d+)*$/, hint: "Numbers only", charFilter: /[^0-9/-]/g, maxLen: 20, required: false };
       return null;
     }
     if (field === "hospital_admission_number") {
@@ -268,6 +272,9 @@ export default function ScreeningForm() {
     ...BLANK_FORM, screening_datetime: toDateTimeLocalValue(new Date()),
     ...(isSiteLocked ? { site_name: user.site, site_id: SITE_ID_MAP[user.site] || "" } : {}),
   });
+  // A record saved with the retired "Trial run" consent (PI 2026-10-18) opens
+  // with consent blank and a notice asking for the real consent.
+  const [trialRunConsent, setTrialRunConsent] = useState(false);
   const formDataRef    = useRef(formData);
   const screeningIdRef = useRef(screeningId);
   const autoSaveRef    = useRef(null);
@@ -372,8 +379,10 @@ export default function ScreeningForm() {
         ...clinical
       } = d || {};
 
+      setTrialRunConsent(d.consent_given === "Trial run");
       setFormData(() => ({
         ...BLANK_FORM, ...clinical,
+        ...(clinical.consent_given === "Trial run" ? { consent_given: "" } : {}),
         screening_datetime: normalizeDateTimeLocalString(d.screening_datetime || clinical.screening_datetime || ""),
         /* Identity fields come ONLY from participant_pii. Strip autosave
            "DRAFT" placeholders so they never reappear as real names. */
@@ -460,7 +469,7 @@ export default function ScreeningForm() {
 
       // Clear stale locks from another patient when THIS screening is eligible
       // and consented. Keep no_ppv only if enrollment-status later re-applies it.
-      const consentOk = d.consent_given === "Yes" || d.consent_given === "Trial run";
+      const consentOk = d.consent_given === "Yes";
       const weeks = d.gestation_weeks;
       const days = d.gestation_days ?? 0;
       let gaOut = false;
@@ -710,7 +719,6 @@ export default function ScreeningForm() {
          Sidebar re-applies no_ppv from THIS enrollment's birth row if needed. */
       const consentOk =
         formData.consent_given === "Yes" ||
-        formData.consent_given === "Trial run" ||
         !formData.consent_given;
       const reason = localStorage.getItem("enrollment_lock_reason");
       if (consentOk && reason !== "no_ppv") {
@@ -768,7 +776,7 @@ export default function ScreeningForm() {
     if (name === "decision_forego_resus") { set({ decision_forego_resus:value, decision_forego_resus_reasons: value==="Yes" ? formData.decision_forego_resus_reasons : [] }); return; }
     if (name === "insufficient_time")  { set({ insufficient_time:value, insufficient_time_reason: value==="Yes" ? formData.insufficient_time_reason : "" }); return; }
     if (name === "consent_given") {
-      const needsAttest = value === "Yes" || value === "No" || value === "Trial run";
+      const needsAttest = value === "Yes" || value === "No";
       const dt = needsAttest ? new Date().toISOString().slice(0, 16) : "";
       if (!isInitialLoad && formData.consent_given !== value) {
         set({
@@ -794,13 +802,18 @@ export default function ScreeningForm() {
       }
       return;
     }
+    if (PERSON_NAME_FIELDS.includes(name)) {
+      // No numbers in a name (PI 2026-10-18; server: identity_rules.py).
+      set({ [name]: stripDigits(value) });
+      return;
+    }
     if (name === "maternal_uid") {
       // Site-specific formats:
       //   PGIMER: exactly 12 digits, numeric only
       //   AMC:    serial/year, e.g. "123/2026"
-      //   GMCH / GMCH-A / IOG / AFMC: optional free alphanumeric if provided
+      //   GMCH / GMCH-A / IOG / AFMC: optional, numbers only ("-" / "/" allowed)
       const rule = idFieldRule(formData.site_name, "maternal_uid");
-      const filtered = rule ? value.replace(rule.charFilter, "") : value.replace(/[^a-zA-Z0-9/]/g, "");
+      const filtered = rule ? value.replace(rule.charFilter, "") : value.replace(/[^0-9/-]/g, "");
       const capped = rule ? filtered.slice(0, rule.maxLen) : filtered;
       set({ maternal_uid: capped });
       if (capped.trim()) {
@@ -971,7 +984,7 @@ export default function ScreeningForm() {
 
     if (!hasExclusion) {
       if (!formData.consent_given)       add("Consent (A5)",                       "consent_given");
-      if (formData.consent_given === "Yes" || formData.consent_given === "No" || formData.consent_given === "Trial run") {
+      if (formData.consent_given === "Yes" || formData.consent_given === "No") {
         if (!formData.relationship_to_participant) add("Consent obtained from (A5)", "relationship_to_participant");
         if (formData.relationship_to_participant === "Other" && !formData.relationship_other?.trim())
           add("Specify relationship (A5)",                                         "relationship_other");
@@ -995,7 +1008,7 @@ export default function ScreeningForm() {
       // The ICF signature is the consenting party's — it doesn't exist when
       // consent is refused. Requiring it for "No" made a refusal impossible to
       // save (PI-reported 2026-09-26). The backend never required it.
-      if (formData.consent_given === "Yes" || formData.consent_given === "Trial run") {
+      if (formData.consent_given === "Yes") {
         if (!formData.consent_signature_image) add("Consent signature (A5)", "consent_signature_image");
       }
     }
@@ -1315,7 +1328,7 @@ export default function ScreeningForm() {
     }
     const ok = await saveForm();
     if (!ok) return;
-    if (formData.consent_given !== "Yes" && formData.consent_given !== "Trial run") {
+    if (formData.consent_given !== "Yes") {
       localStorage.setItem("enrollment_locked","true");
       localStorage.setItem("enrollment_lock_reason", "consent");
       window.dispatchEvent(new Event("storage"));
@@ -1844,15 +1857,19 @@ export default function ScreeningForm() {
                           <option value="">-- Select --</option>
                           <option value="Yes">Yes</option>
                           <option value="No">No</option>
-                          <option value="Trial run">Trial run</option>
                           <option value="Not approached">Not approached</option>
                         </select>
+                        {trialRunConsent && !formData.consent_given && (
+                          <div className="alert-warning">
+                            Consent was recorded as "Trial run", which is no longer accepted. Record the real consent.
+                          </div>
+                        )}
                       </div>
                       <div/>
                     </div>
 
-                    {/* 27. Obtained from — Yes / No / Trial run */}
-                    {(formData.consent_given === "Yes" || formData.consent_given === "No" || formData.consent_given === "Trial run") && (
+                    {/* 27. Obtained from — Yes / No */}
+                    {(formData.consent_given === "Yes" || formData.consent_given === "No") && (
                       <div className="form-grid-2">
                         <div className="form-group">
                           <label>27. Consent obtained from<span className="required">*</span></label>
@@ -1905,7 +1922,7 @@ export default function ScreeningForm() {
                     )}
 
                     {/* 30. Consent obtained by + 31. Video PIS */}
-                    {(formData.consent_given === "Yes" || formData.consent_given === "No" || formData.consent_given === "Trial run") && (
+                    {(formData.consent_given === "Yes" || formData.consent_given === "No") && (
                       <div className="form-grid-2">
                         <div className="form-group">
                           <label>30. Consent obtained by (First name)<span className="required">*</span></label>
@@ -1945,8 +1962,7 @@ export default function ScreeningForm() {
 
                     {/* ICF — consenting party signature only (staff/PI attestation is print-only).
                         Not shown for a refusal: there is no consenting party to sign. */}
-                    {(formData.consent_given === "Yes" ||
-                      formData.consent_given === "Trial run") && (
+                    {formData.consent_given === "Yes" && (
                       <div className="followup-box icf-signature-box" data-field="consent_signature_image">
                         <label className="followup-label">Informed consent (ICF)</label>
                         {consentGivenByName(formData) && (
@@ -1988,7 +2004,7 @@ export default function ScreeningForm() {
                     {/* PIS Document download links — PDF. Punjabi only for
                         PGIMER Chandigarh / GMCH Chandigarh (not GMCH-A). */}
                     {(formData.consent_given === "Yes" || formData.consent_given === "No" ||
-                      formData.consent_given === "Trial run" || formData.consent_given === "Not approached") && (
+                      formData.consent_given === "Not approached") && (
                       <div className="followup-box pis-document-box">
                         <label className="followup-label">PIS Document</label>
                         <div className="pis-document-buttons">

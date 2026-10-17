@@ -118,7 +118,7 @@ const ROLE_LABELS = {
   scientist:'Scientist', nurse:'Research Nurse', deo:'Data Entry Operator', monitor:'Monitor',
 };
 const validId = value => value && value !== 'undefined' && value !== 'null' ? value : null;
-const consentAllowsEnrollment = value => value === 'Yes' || value === 'Trial run';
+const consentAllowsEnrollment = value => value === 'Yes'; // "Trial run" retired 2026-10-18
 
 export default function Sidebar({ currentForm }) {
   const { completedForms = [], unlockedForms = [], isProgressLoaded, fetchProgress } = useFormProgress();

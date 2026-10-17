@@ -27,6 +27,7 @@ import { formatDateToDDMMYYYY } from "./utils/datetime";
 import { findDuplicateCr, maternalUidLiveError, maternalUidPlaceholder, maternalUidSaveError, sanitizeMaternalUid } from "./utils/maternalUid";
 import { collapseSearchSpaces, filterGaChecks } from "./utils/gaCheckSearch";
 import useEntryFocus from "./hooks/useEntryFocus";
+import { stripDigits } from "./utils/personName";
 import {
   Search, AlertTriangle, CheckCircle2, ArrowRight, RefreshCw, X,
 } from "lucide-react";
@@ -479,7 +480,7 @@ export default function GACheckLog() {
           </label>
           <label className="gac-field">
             <span>Mother's Name</span>
-            <input value={form.mother_name} onChange={(e) => setField("mother_name", e.target.value)} autoFocus />
+            <input value={form.mother_name} onChange={(e) => setField("mother_name", stripDigits(e.target.value))} autoFocus />
           </label>
           <label className="gac-field">
             <span>Mother's UHID / CR Number</span>

@@ -103,7 +103,7 @@ function formAIsComplete(entry) {
   if (status === "Not Eligible" || status === "Screen Failure") return true;
   const consent = (entry.consent_given || "").trim();
   if (!consent) return false;
-  if (consent === "Yes" || consent === "Trial run") {
+  if (consent === "Yes") {
     return !!(entry.consent_taken_by && entry.relationship_to_participant);
   }
   if (consent === "No") return !!entry.reason_for_consent_refusal;

@@ -51,7 +51,7 @@ function PrintReport({ formData = {}, preparedByName = "", piName = "" }) {
     const excl = ["exclusion_anomaly","fetal_hydrops","decision_forego_resus",
       "insufficient_time","iufd"].some(k => formData[k] === "Yes");
     if (excl) return "SCREEN FAILURE";
-    if (formData.consent_given === "Yes" || formData.consent_given === "Trial run")
+    if (formData.consent_given === "Yes")
       return "ELIGIBLE";
     if (formData.consent_given === "No" ||
         formData.consent_given === "Not approached") return "NOT ELIGIBLE";

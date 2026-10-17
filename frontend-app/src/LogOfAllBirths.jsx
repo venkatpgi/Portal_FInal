@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { collapseSearchSpaces, filterLogEntries } from "./utils/gaCheckSearch";
 import useEntryFocus from "./hooks/useEntryFocus";
+import { stripDigits } from "./utils/personName";
 import "./LogOfAllBirths.css";
 
 const MODES_OF_DELIVERY = ["Emergency LSCS", "Elective LSCS", "NVD", "Instrumental", "Other"];
@@ -494,11 +495,11 @@ export default function LogOfAllBirths() {
           </label>
           <label className="lob-field">
             <span>Mother's Name</span>
-            <input value={form.mother_name} onChange={(e) => setField("mother_name", e.target.value)} />
+            <input value={form.mother_name} onChange={(e) => setField("mother_name", stripDigits(e.target.value))} />
           </label>
           <label className="lob-field">
             <span>Husband's Name</span>
-            <input value={form.husband_name} onChange={(e) => setField("husband_name", e.target.value)} />
+            <input value={form.husband_name} onChange={(e) => setField("husband_name", stripDigits(e.target.value))} />
           </label>
           <label className="lob-field">
             <span>Date of Birth *</span>

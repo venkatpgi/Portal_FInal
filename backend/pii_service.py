@@ -347,6 +347,20 @@ def migrate_legacy_pii(db: Session) -> int:
     return count
 
 
+def _require_valid_identity_for(db, mapped, enrollment_id, screening_id, site_name) -> None:
+    """CR / name rules (identity_rules.py) for a form save; values equal to
+    the ones already stored are not re-checked."""
+    from identity_rules import CR_FIELDS, NAME_FIELD_LABELS, require_valid_identity, stored_values
+    existing = None
+    if screening_id:
+        existing = db.query(ParticipantPII).filter(ParticipantPII.screening_id == screening_id).first()
+    if existing is None and enrollment_id:
+        existing = db.query(ParticipantPII).filter(ParticipantPII.enrollment_id == enrollment_id).first()
+    keys = tuple(CR_FIELDS) + tuple(NAME_FIELD_LABELS)
+    require_valid_identity(site_name or (existing.site_name if existing else None),
+                           mapped, stored_values(existing, keys))
+
+
 def split_and_store_pii(
     db: Session,
     payload: dict,
@@ -379,6 +393,7 @@ def split_and_store_pii(
         if "contact_husband" in mapped:
             mapped.setdefault("husband_contact", mapped.get("contact_husband"))
         valid_cols = {c.name for c in ParticipantPII.__table__.columns}
+        _require_valid_identity_for(db, mapped, enrollment_id, screening_id, site_name)
         upsert_participant_pii(
             db,
             enrollment_id=enrollment_id,
