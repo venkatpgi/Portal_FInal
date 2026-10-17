@@ -14,8 +14,10 @@ import { SITE_ORDER } from "./utils/siteNames";
 import { formatDateToDDMMYYYY } from "./utils/datetime";
 import { findDuplicateCr, maternalUidLiveError, maternalUidPlaceholder, maternalUidSaveError, normalizeCr, sanitizeMaternalUid } from "./utils/maternalUid";
 import {
-  ClipboardList, Plus, AlertTriangle, CheckCircle2, HelpCircle, Circle, RefreshCw,
+  ClipboardList, Plus, AlertTriangle, CheckCircle2, HelpCircle, Circle, RefreshCw, Search, X,
 } from "lucide-react";
+import { collapseSearchSpaces, filterLogEntries } from "./utils/gaCheckSearch";
+import useEntryFocus from "./hooks/useEntryFocus";
 import "./LogOfAllBirths.css";
 
 const MODES_OF_DELIVERY = ["Emergency LSCS", "Elective LSCS", "NVD", "Instrumental", "Other"];
@@ -196,6 +198,25 @@ export default function LogOfAllBirths() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Search by name, CR number or entry # (same rules as the Gestation Log).
+  const [searchText, setSearchText] = useState("");
+  const [appliedQuery, setAppliedQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setAppliedQuery(searchText), 300);
+    return () => clearTimeout(t);
+  }, [searchText]);
+  const visibleEntries = useMemo(() => filterLogEntries(entries, appliedQuery), [entries, appliedQuery]);
+  const searching = collapseSearchSpaces(appliedQuery).length > 0;
+
+  // /log-of-all-births?entry=64 (from a data query): show and highlight it.
+  const revealAll = useCallback(() => {
+    setSearchText("");
+    setAppliedQuery("");
+  }, []);
+  const { focusedId, missingId } = useEntryFocus({
+    entries, loading, reveal: revealAll, rowIdPrefix: "lob-entry",
+  });
 
   useEffect(() => {
     if (isSiteLocked && user?.site) setLogSite(user.site);
@@ -567,10 +588,34 @@ export default function LogOfAllBirths() {
           </button>
         </div>
         {loadError && <div className="lob-form-error">{loadError}</div>}
+        {missingId != null && (
+          <div className="lob-form-error">Entry #{missingId} is not in this log (it may have been deleted).</div>
+        )}
+        <div className="lob-search">
+          <Search size={16} className="lob-search-icon" aria-hidden="true" />
+          <input
+            type="text"
+            value={searchText}
+            placeholder="Search by name, CR number or entry #"
+            aria-label="Search by name, CR number or entry number"
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          {searchText && (
+            <button type="button" className="lob-search-clear" onClick={() => setSearchText("")} aria-label="Clear search">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        {searching && (
+          <p className="lob-search-count">
+            {visibleEntries.length === 1 ? "1 result" : `${visibleEntries.length} results`}
+          </p>
+        )}
         <div className="lob-table-wrap">
           <table className="lob-table">
             <thead>
               <tr>
+                <th>#</th>
                 <th>Date / Time</th>
                 <th>Birth order</th>
                 <th>Mother's UID</th>
@@ -586,7 +631,7 @@ export default function LogOfAllBirths() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((e) => {
+              {visibleEntries.map((e) => {
                 const isAlert = !e.pre_trial && (["in_range_no_match", "possible_match"].includes(e.match_status) || e.ga_log_missing);
                 // "Add reason" only makes sense when Form A is genuinely
                 // missing -- an orphan Form A (matched, but
@@ -594,7 +639,12 @@ export default function LogOfAllBirths() {
                 // not approached", since she WAS screened.
                 const canAddReason = !e.pre_trial && e.match_status === "in_range_no_match";
                 return (
-                  <tr key={e.id} className={isAlert ? "lob-row--alert" : ""}>
+                  <tr
+                    key={e.id}
+                    id={`lob-entry-${e.id}`}
+                    className={[isAlert ? "lob-row--alert" : "", focusedId === e.id ? "lob-row--focus" : ""].join(" ").trim()}
+                  >
+                    <td className="lob-entry-no">#{e.id}</td>
                     <td>{e.date_of_birth ? formatDateToDDMMYYYY(e.date_of_birth) : "—"}{e.time_of_birth ? ` ${e.time_of_birth}` : ""}</td>
                     <td>
                       {e.multiple_birth_count != null && e.birth_order != null ? (
@@ -630,7 +680,15 @@ export default function LogOfAllBirths() {
                 );
               })}
               {!loading && entries.length === 0 && (
-                <tr><td colSpan={12} className="lob-empty">No births logged yet.</td></tr>
+                <tr><td colSpan={13} className="lob-empty">No births logged yet.</td></tr>
+              )}
+              {!loading && searching && entries.length > 0 && visibleEntries.length === 0 && (
+                <tr>
+                  <td colSpan={13} className="lob-empty">
+                    No matching births found.{" "}
+                    <button type="button" className="lob-link-btn" onClick={() => setSearchText("")}>Clear search</button>
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

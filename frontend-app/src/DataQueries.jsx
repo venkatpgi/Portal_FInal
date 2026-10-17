@@ -28,8 +28,10 @@ function fmtDate(iso) {
 }
 
 function recordLink(q) {
-  if (q.record_type === "ga_check") return "/ga-check";
-  if (q.record_type === "birth_log") return "/log-of-all-births";
+  // ?entry= opens the log at that entry (hooks/useEntryFocus.js).
+  const entry = encodeURIComponent(q.record_key);
+  if (q.record_type === "ga_check") return `/ga-check?entry=${entry}`;
+  if (q.record_type === "birth_log") return `/log-of-all-births?entry=${entry}`;
   return null;
 }
 
@@ -149,7 +151,7 @@ export default function DataQueries() {
                           {q.needs_second_signoff && <span className="dqy-tag">2nd sign-off</span>}
                         </div>
                         <div className="dqy-detail">{q.detail}</div>
-                        {link && <Link className="dqy-link" to={link}>Open the log</Link>}
+                        {link && <Link className="dqy-link" to={link}>Open entry #{q.record_key}</Link>}
                         {q.confirmed_reason && (
                           <div className="dqy-reason">Confirmed by {q.confirmed_by}: {q.confirmed_reason}</div>
                         )}

@@ -15,6 +15,12 @@ Not delivered -> current GA = GA at check + days since, and:
   overdue      current GA >= 42w0d (no birth found: a missing/mistyped birth entry)
   crossed_32   eligible at the check, now >= 32w0d
   now_eligible logged (Reliable) before 25w0d, now 25w0d-31w6d
+
+Entries checked before the trial start date (PI 2026-10-17): a "CR match --
+check" or "Delivery not logged?" is shown as "pre_trial" instead. Those women
+delivered before the trial began and are outside its flow, so they raise no
+data query. "Now eligible" and the "Eligible, no Form A" gap still apply: a
+woman logged before the start can still enter the trial.
 """
 from __future__ import annotations
 
@@ -73,7 +79,22 @@ def _ga_days(weeks, days) -> Optional[int]:
     return int(weeks) * 7 + int(days or 0)
 
 
-def live_status(entry: dict, births: Iterable[dict], today: date) -> dict:
+def live_status(entry: dict, births: Iterable[dict], today: date,
+                trial_start: Optional[date] = None) -> dict:
+    """Status of one entry; see the module docstring. `trial_start` turns a
+    pre-trial cr_check / overdue into "pre_trial" (the reason stays in
+    live_note)."""
+    out = _live_status(entry, births, today)
+    check = _as_date(entry.get("check_date"))
+    if (trial_start and check and check < trial_start
+            and out["live_status"] in ("cr_check", "overdue")):
+        if out["live_status"] == "overdue":
+            out["live_note"] = "No birth found for this CR by 42 weeks"
+        out["live_status"] = "pre_trial"
+    return out
+
+
+def _live_status(entry: dict, births: Iterable[dict], today: date) -> dict:
     """entry: check_date, gestation_weeks/days, eligible, found_iufd, ga_source,
     mother_uid, mother_name, has_form_a. births (same site): mother_uid,
     mother_name, date_of_birth, gestation_weeks/days, source."""
@@ -152,6 +173,7 @@ def attach_live_status(db, records, today):
     must run before PII masking. Births come from the Log of All Births and
     from Form B of any Form A carrying the same mother's CR."""
     from models import BirthLogEntry, BirthResuscitation, ParticipantPII, Screening
+    from trial_dates import trial_start
 
     by_site = {}
     for r in records:
@@ -185,7 +207,7 @@ def attach_live_status(db, records, today):
                      # a link to a deleted Form A no longer counts
                      "has_form_a": bool(r.continued_to_screening and r.screening_id in live_sids)
                                    or (norm_cr(r.mother_uid) in form_a_crs if norm_cr(r.mother_uid) else False)}
-            st = live_status(entry, births, today)
+            st = live_status(entry, births, today, trial_start())
             for k, v in st.items():
                 setattr(r, k, v)
             r.has_form_a = entry["has_form_a"]

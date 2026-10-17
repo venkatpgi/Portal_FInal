@@ -347,3 +347,8 @@
 .gac-row--done td { color: #94a3b8; }
 .gac-now-ga { font-size: 11px; color: #64748b; white-space: nowrap; }
 .gac-live-filter { margin-left: auto; margin-right: 8px; font-size: 13px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; }
+
+/* Entry number (quoted by data queries) and the entry opened from one. */
+.gac-entry-no { color: var(--gac-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gac-table tr.gac-row--focus td { background: #e0f2fe; }
+.gac-table tr.gac-row--focus td:first-child { box-shadow: inset 4px 0 0 var(--gac-sky); }

@@ -99,3 +99,26 @@ def test_birth_logged_day_before_check_counts_when_ga_fits():
 def test_spelling_variant_is_not_a_name_difference():
     s = live_status(entry(mother_name="pooonam"), [birth(mother_name="Poonam Devi")], TODAY)
     assert s["live_status"] == "delivered"
+
+
+START = date(2026, 10, 14)
+
+
+def test_pre_trial_cr_check_and_overdue_become_pre_trial():
+    s = live_status(entry(), [birth(gestation_weeks=38, gestation_days=0)], TODAY, START)
+    assert s["live_status"] == "pre_trial" and "GA at birth does not fit" in s["live_note"]
+    e = entry(check_date="2026-08-01", gestation_weeks=36, eligible=False)
+    s = live_status(e, [], TODAY, START)
+    assert s["live_status"] == "pre_trial" and s["current_ga_days"] is not None
+
+
+def test_pre_trial_keeps_now_eligible_and_delivered():
+    e = entry(check_date="2026-09-23", gestation_weeks=23, eligible=False)
+    assert live_status(e, [], TODAY, START)["live_status"] == "now_eligible"
+    assert live_status(entry(), [birth()], TODAY, START)["live_status"] == "delivered"
+
+
+def test_trial_period_cr_check_unchanged():
+    e = entry(check_date="2026-10-14")
+    b = birth(date_of_birth="2026-10-14", gestation_weeks=38, gestation_days=0)
+    assert live_status(e, [b], date(2026, 10, 20), START)["live_status"] == "cr_check"

@@ -26,6 +26,7 @@ import { SITE_ORDER } from "./utils/siteNames";
 import { formatDateToDDMMYYYY } from "./utils/datetime";
 import { findDuplicateCr, maternalUidLiveError, maternalUidPlaceholder, maternalUidSaveError, sanitizeMaternalUid } from "./utils/maternalUid";
 import { collapseSearchSpaces, filterGaChecks } from "./utils/gaCheckSearch";
+import useEntryFocus from "./hooks/useEntryFocus";
 import {
   Search, AlertTriangle, CheckCircle2, ArrowRight, RefreshCw, X,
 } from "lucide-react";
@@ -111,6 +112,12 @@ function LiveBadge({ e }) {
           {e.has_form_a ? "Form A filled · now ≥32 wk" : "Crossed 32 wk"}
         </span>
       );
+    case "pre_trial":
+      return (
+        <span className="gac-badge gac-badge--unknown" title={`Checked before the trial started (14 Oct 2026); no data query is raised. ${e.live_note || ""}`.trim()}>
+          Before trial start
+        </span>
+      );
     case "now_eligible":
       return (
         <span className="gac-badge gac-badge--gap" title="Logged before 25 weeks; now inside the 25w0d–31w6d window.">
@@ -187,11 +194,21 @@ export default function GACheckLog() {
     const found = filterGaChecks(entries, appliedQuery);
     if (liveFilter === "delivered") return found.filter((e) => e.live_status === "delivered");
     if (liveFilter === "pregnant") {
-      return found.filter((e) => !e.found_iufd && e.live_status !== "delivered");
+      return found.filter((e) => !e.found_iufd && !["delivered", "pre_trial"].includes(e.live_status));
     }
     return found;
   }, [entries, appliedQuery, liveFilter]);
   const searching = collapseSearchSpaces(appliedQuery).length > 0;
+
+  // /ga-check?entry=64 (from a data query): show and highlight that entry.
+  const revealAll = useCallback(() => {
+    setSearchText("");
+    setAppliedQuery("");
+    setLiveFilter("all");
+  }, []);
+  const { focusedId, missingId } = useEntryFocus({
+    entries, loading, reveal: revealAll, rowIdPrefix: "gac-entry",
+  });
 
   const stats = useMemo(() => {
     const total = entries.length;
@@ -537,8 +554,8 @@ export default function GACheckLog() {
         <input
           type="text"
           value={searchText}
-          placeholder="Search by name or ID"
-          aria-label="Search by name or ID"
+          placeholder="Search by name, CR number or entry #"
+          aria-label="Search by name, CR number or entry number"
           onChange={(e) => setSearchText(e.target.value)}
         />
         {searchText && (
@@ -566,6 +583,9 @@ export default function GACheckLog() {
           </button>
         </div>
         {loadError && <div className="gac-form-error">{loadError}</div>}
+        {missingId != null && (
+          <div className="gac-form-error">Entry #{missingId} is not in this log (it may have been deleted).</div>
+        )}
         {searching && (
           <p className="gac-search-count">
             {visibleEntries.length === 1 ? "1 result" : `${visibleEntries.length} results`}
@@ -575,6 +595,7 @@ export default function GACheckLog() {
           <table className="gac-table">
             <thead>
               <tr>
+                <th>#</th>
                 <th>Date</th>
                 <th>Site</th>
                 <th>Name</th>
@@ -593,7 +614,12 @@ export default function GACheckLog() {
                 const unreliable = e.ga_source && e.ga_source !== RELIABLE_SOURCE;
                 const done = e.live_status === "delivered";
                 return (
-                  <tr key={e.id} className={isGap ? "gac-row--gap" : done ? "gac-row--done" : ""}>
+                  <tr
+                    key={e.id}
+                    id={`gac-entry-${e.id}`}
+                    className={[isGap ? "gac-row--gap" : done ? "gac-row--done" : "", focusedId === e.id ? "gac-row--focus" : ""].join(" ").trim()}
+                  >
+                    <td className="gac-entry-no">#{e.id}</td>
                     <td>{e.check_date ? formatDateToDDMMYYYY(e.check_date) : "—"}</td>
                     <td>{e.site_name || "—"}</td>
                     <td>{e.mother_name || "—"}</td>
@@ -649,11 +675,11 @@ export default function GACheckLog() {
                 );
               })}
               {!loading && entries.length === 0 && (
-                <tr><td colSpan={10} className="gac-empty">No checks logged yet.</td></tr>
+                <tr><td colSpan={11} className="gac-empty">No checks logged yet.</td></tr>
               )}
               {!loading && searching && visibleEntries.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="gac-empty">
+                  <td colSpan={11} className="gac-empty">
                     No matching checks found.{" "}
                     <button type="button" className="gac-link-btn" onClick={() => setSearchText("")}>Clear search</button>
                   </td>

@@ -201,6 +201,51 @@ def check_formA_duplicate_identifier(ctx):
     return out
 
 
+def _edit_distance(a: str, b: str) -> int:
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def check_formA_possible_same_woman(ctx):
+    """Two Form A at one site whose CR numbers differ by 1-2 characters (a
+    typo or an extra digit), with names that match and GAs that fit the dates:
+    probably the same woman screened twice (PI 2026-10-17, after one woman got
+    three Form A from three slightly different CRs). Exact CR matches are
+    FORMA_DUPLICATE_ID's job."""
+    from ga_log_status import names_differ
+    from identifier_duplicates import normalize_identifier
+    by_site = defaultdict(list)
+    for p in ctx["pii"]:
+        cr = normalize_identifier(p.maternal_uid)
+        name = " ".join(x for x in (p.mother_first_name, p.mother_surname) if x)
+        if cr and name:
+            by_site[p.site_name].append((p.screening_id, cr, name))
+    ga = ctx["screening_ga"]
+    pairs = defaultdict(set)
+    for site, rows in by_site.items():
+        for i, (sa, ca, na) in enumerate(rows):
+            for sb, cb, nb in rows[i + 1:]:
+                if ca == cb or abs(len(ca) - len(cb)) > 2 or _edit_distance(ca, cb) > 2:
+                    continue
+                if names_differ(na, nb):
+                    continue
+                (ga_a, da), (ga_b, db_) = ga.get(sa, (None, None)), ga.get(sb, (None, None))
+                if None not in (ga_a, ga_b, da, db_) and abs(ga_a + (db_ - da).days - ga_b) > 14:
+                    continue
+                pairs[(site, sa)].add(sb)
+                pairs[(site, sb)].add(sa)
+    return [finding(site, "screening", sid, "Possibly the same woman on another Form A",
+                    f"Form A {sid} and {', '.join(sorted(others))} at {site}: CR numbers differ by one or two "
+                    "characters, names match and the GA fits. Keep one Form A; correct or delete the other.",
+                    {"others": sorted(others)}, ctx["now"])
+            for (site, sid), others in sorted(pairs.items())]
+
+
 def check_day1_date_mismatch(ctx):
     return [finding(ctx["site_of_eid"].get(r[0]), "enrollment", r[0], "Form E Day 1 date differs from birth date",
                     f"{r[0]}: Form E Day 1 date {r[1]} vs Form B date of birth {r[2]}; helper days and PMA dates will shift.",
@@ -238,6 +283,7 @@ CHECKS = [
     Check("FORMB_SPLIT_BABY", "Identity", "One Form A with more than one Form B", check_formb_split_baby, second_signoff=True),
     Check("FORMB_NO_FORM_A", "Identity", "Form B pointing to a Form A that does not exist", check_formb_no_form_a, second_signoff=True),
     Check("FORMA_DUPLICATE_ID", "Identity", "Same CR or hospital number on two Form A", check_formA_duplicate_identifier, second_signoff=True),
+    Check("FORMA_POSSIBLE_SAME_WOMAN", "Identity", "Two Form A with nearly the same CR, matching name and GA", check_formA_possible_same_woman, second_signoff=True),
     Check("FORMB_NOT_ELIGIBLE", "Consent / eligibility", "Form B saved for a screening that is not Eligible", check_formb_not_eligible, second_signoff=True),
     Check("DAY1_DATE_MISMATCH", "Clinical consistency", "Form E Day 1 date differs from Form B date of birth", check_day1_date_mismatch),
     Check("FORM_C_INCOMPLETE", "Form timeliness", "Form C (maternal details) not complete", _incomplete("Form C", "maternal_details"), raise_after=AMBER_AFTER),
@@ -262,7 +308,11 @@ def _context(db, now: datetime, today: date) -> dict:
     for table in ("maternal_details", "postnatal_day1", "nicu_admission"):
         complete[table] = {r[0] for r in db.execute(text(
             f"SELECT DISTINCT enrollment_id FROM {table} WHERE is_complete IS TRUE"))}
-    live_sids = {s for (s,) in db.query(Screening.screening_id).filter(Screening.is_deleted.isnot(True))}
+    live_screens = db.query(Screening.screening_id, Screening.gestation_weeks, Screening.gestation_days,
+                            Screening.screening_datetime).filter(Screening.is_deleted.isnot(True)).all()
+    live_sids = {r[0] for r in live_screens}
+    screening_ga = {sid: ((w * 7 + (d or 0)) if w is not None else None, dt.date() if dt else None)
+                    for sid, w, d, dt in live_screens}
     return {
         "now": now,
         "ga": _ga_rows(db, today),
@@ -272,6 +322,7 @@ def _context(db, now: datetime, today: date) -> dict:
         "site_of_eid": {r["enrollment_id"]: r["site_name"] for r in formb},
         "pii": [p for p in db.query(ParticipantPII).all() if p.screening_id in live_sids],
         "complete": complete,
+        "screening_ga": screening_ga,
         "day1_mismatch": db.execute(text("""
             SELECT n.enrollment_id, n.day1_date, b.date_of_birth
             FROM nicu_admission n JOIN birth_resuscitation b ON b.enrollment_id = n.enrollment_id

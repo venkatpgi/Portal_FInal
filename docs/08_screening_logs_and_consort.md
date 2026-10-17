@@ -39,10 +39,17 @@ which is what the CONSORT boxes count.
   with the same CR at the site.
 - `/ga-check/gap` ("Eligible, no Form A yet") = no Form A and either eligible
   at the check and still pregnant within the window, or Now eligible.
-- Page: Still pregnant / Delivered / All filter; Delivered count.
+- **Before trial start** (PI 2026-10-17) — checked before `TRIAL_START_DATE`
+  and would be "CR match — check" or "Delivery not logged?": these women
+  delivered before the trial and raise no data query (reason kept in
+  `live_note`). "Now eligible" and the "Eligible, no Form A" gap still apply.
+- Page: Still pregnant (excludes Delivered and Before trial start) /
+  Delivered / All filter; Delivered count; entry # column; search by name, CR
+  or entry #; `?entry=N` opens the log at that entry.
 
 ## 2. Log of All Births (`birth_log_all_births`)
 Page `LogOfAllBirths.jsx`; API `/birth-log/…`; matching `backend/birth_log_matching.py`.
+Entry # column; search by name, CR or entry #; `?entry=N` opens the log at that entry.
 
 - Every birth at the site, randomised or not (digital version of the paper CRF).
 - **Matching** (`birth_log_matching.match_against`), within the site:

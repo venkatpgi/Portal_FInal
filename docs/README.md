@@ -76,6 +76,18 @@ and details hold ids, numbers and dates only.
 - Page: `/data-queries` (`DataQueries.jsx`, CSS prefix `dqy-`); top-bar link
   with the open count (`DataQueriesNavLink.jsx`, red if any is over 7 days);
   dashboard Section 2 Panel 0 (open / amber / red per site).
+- "Open entry #N" on a Gestation Log / Log of All Births query opens the log
+  at that entry (`/ga-check?entry=N`, `/log-of-all-births?entry=N`,
+  `hooks/useEntryFocus.js`): search and filters are cleared, the row is
+  scrolled into view and highlighted. Both logs show the entry # column and
+  search by name, CR or entry # (`utils/gaCheckSearch.js`).
+- Gestation Log entries checked before `TRIAL_START_DATE` raise only the
+  "eligible / now eligible, no Form A" queries; their CR-mismatch and
+  delivery-not-logged statuses show as "Before trial start" (PI 2026-10-17).
+- `FORMA_POSSIBLE_SAME_WOMAN`: two live Form A at one site whose CR numbers
+  differ by 1-2 characters (edit distance), with names that do not clearly
+  differ and GAs that fit the screening dates (±14 d). Second sign-off.
+  Exact CR / hospital-number matches stay with `FORMA_DUPLICATE_ID`.
 - Banner on every form (`DataQueryBanner.jsx` in `FormLayout`): open queries
   on the current screening / enrollment id, via `GET /data-queries/for-record`
   (also for nurses, their site; read-only).
