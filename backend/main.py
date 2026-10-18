@@ -52,6 +52,7 @@ from bpd_suggestion import suggest_bpd
 from rop_suggestion import suggest_rop, stage_rank, exam as rop_exam, event as rop_event
 from cr_duplicates import normalize_cr, find_duplicate
 from identifier_duplicates import refuse_duplicate_identifiers
+from identity_rules import require_valid_identity, stored_values
 import form_completion as fc
 import composite_suggestion as cs
 from brain_injury_suggestion import suggest_brain_injury, grade_rank as bi_grade_rank, record as bi_record
@@ -75,12 +76,13 @@ from pydantic import BaseModel
 from typing import Optional, List
 from deps import (
     get_current_user, is_superadmin, is_global, require_superadmin, ensure_same_site,
-    ALL_ROLES, ROLE_SUPERADMIN,
+    ALL_ROLES, ROLE_SUPERADMIN, ROLE_SITE_PI, ROLE_SITE_SCIENTIST,
 )
 from routers import enrollment
 from routers import pii as pii_router
 from routers import staff as staff_router
 from routers import audit as audit_router
+from routers import data_queries as data_queries_router
 from routers import dashboard as dashboard_router
 from routers import auth as auth_router
 from baby_uid_duplicate import (
@@ -111,6 +113,7 @@ from audit_service import (
 )
 from schema_patches import apply_schema_patches
 import email_service
+import data_checks_trigger
 from staff_service import seed_site_staff, deactivate_stale_site_staff
 from user_service import seed_login_users, backfill_pilot_designations, backfill_staff_emails
 import security_monitor
@@ -170,6 +173,7 @@ app.include_router(pii_router.router)
 app.include_router(staff_router.router)
 app.include_router(audit_router.router)
 app.include_router(dashboard_router.router)
+app.include_router(data_queries_router.router)
 
 
 @app.on_event("startup")
@@ -236,6 +240,23 @@ def on_startup_migrations():
         logger.warning("Startup migration skipped or failed: %s", exc)
     finally:
         db.close()
+
+
+# Data queries: re-run the checks shortly after any successful data write
+# (debounced to one run a minute per worker; see data_checks_trigger.py).
+_DATA_CHECK_SKIP_PREFIXES = ("/auth/", "/data-queries", "/dashboard/", "/users", "/admin/")
+
+
+@app.middleware("http")
+async def data_checks_after_write_middleware(request: Request, call_next):
+    response = await call_next(request)
+    try:
+        if (request.method in ("POST", "PUT", "PATCH", "DELETE") and response.status_code < 400
+                and not request.url.path.startswith(_DATA_CHECK_SKIP_PREFIXES)):
+            data_checks_trigger.request_run()
+    except Exception:
+        logger.exception("could not schedule data checks")
+    return response
 
 
 @app.middleware("http")
@@ -416,13 +437,28 @@ def require_ga_in_inclusion_window(data):
         raise HTTPException(status_code=422, detail=GA_WINDOW_REJECT)
 
 
+TRIAL_RUN_CONSENT = "Trial run"
+
+
+def refuse_trial_run_consent(consent) -> None:
+    """'Trial run' was a practice consent value; since the trial started it
+    is not accepted (PI 2026-10-18) -- record the real consent instead."""
+    if (consent or "").strip().lower() == TRIAL_RUN_CONSENT.lower():
+        raise HTTPException(
+            status_code=422,
+            detail="'Trial run' is no longer a consent option. Record the real consent (Yes or No).",
+        )
+
+
 def compute_screening_status(data):
     """Authoritative screening_status for web + mobile (Form A).
 
     Labels match Screening Form / ViewEntries banners:
       Screen Failure — GA undeterminable (Neither) OR any exclusion Yes
       Not Eligible   — GA outside 25w0d–31w6d, OR consent No / Not approached
-      Eligible       — GA in window, no exclusion, consent Yes or Trial run
+      Eligible       — GA in window, no exclusion, consent Yes
+                       ("Trial run" no longer counts as consent: PI
+                       2026-10-18, after the trial started)
       Pending        — screening incomplete (no GA yet) OR clinically OK
                        but consent not yet recorded
     """
@@ -445,8 +481,7 @@ def compute_screening_status(data):
         return "Screen Failure"
 
     consent = getattr(data, "consent_given", None)
-    # Trial run is allowed to proceed the same way as Yes (web Sidebar)
-    if consent in ("Yes", "Trial run"):
+    if consent == "Yes":
         return "Eligible"
 
     if consent in ("No", "Not approached"):
@@ -563,8 +598,8 @@ def require_valid_enrollment_id_format(enrollment_id: str | None) -> None:
 def require_eligible_screening_for_form_b(db: Session, screening_id: str | None) -> None:
     """Form B (birth/resuscitation, incl. the NR- "no PPV needed" path) may
     only be created/updated for a screening that is actually Eligible —
-    GA in the 25w0d-31w6d window, no A4 exclusion, and consent Yes / Trial
-    run. Found live 2026-09-30: a baby whose Form A consent was "No" (Not
+    GA in the 25w0d-31w6d window, no A4 exclusion, and consent Yes
+    ("Trial run" no longer counts, 2026-10-18). Found live 2026-09-30: a baby whose Form A consent was "No" (Not
     Eligible) still had two Form B rows and helper-form data saved under
     it — the browser's own sidebar greys out Form B for a non-Eligible
     screening, but nothing enforced that on the server, so a route that
@@ -1047,7 +1082,9 @@ def create_screening(
             screening_id = screening.screening_id or generate_screening_id(screening.site_id, db)
             enrollment_id = screening.enrollment_id
             status = compute_screening_status(screening)
+            refuse_trial_run_consent(screening.consent_given)
             pii_payload = extract_screening_pii(screening.model_dump())
+            require_valid_identity(screening.site_name, pii_payload)
             refuse_duplicate_identifiers(
                 db,
                 screening.site_name,
@@ -1218,6 +1255,7 @@ def update_screening(
         old_snapshot = row_snapshot(entry)
         update_data = updated_data.model_dump(exclude_unset=True)
         update_data.pop("screening_id", None)
+        refuse_trial_run_consent(update_data.get("consent_given"))
 
         # FIX: same reasoning as create_screening above ? don't trust the
         # client's site_id, derive it from site_name server-side so an
@@ -1233,6 +1271,9 @@ def update_screening(
             update_data.pop(field, None)
 
         if pii_payload:
+            _stored_pii = db.query(ParticipantPII).filter(ParticipantPII.screening_id == screening_id).first()
+            require_valid_identity(entry.site_name or updated_data.site_name, pii_payload,
+                                   stored_values(_stored_pii, SCREENING_PII_FIELDS))
             refuse_duplicate_identifiers(
                 db,
                 entry.site_name or updated_data.site_name,
@@ -1316,6 +1357,10 @@ def delete_screening(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Deleting is for the Global PI, Site PIs and Site Scientists only
+    # (access hierarchy SOP change 4); nurses enter data but cannot delete.
+    if (current_user.role or "").lower() not in {ROLE_SUPERADMIN, ROLE_SITE_PI, ROLE_SITE_SCIENTIST}:
+        raise HTTPException(status_code=403, detail="Only the Site PI, Site Scientist or Global PI can delete a record.")
     entry = get_accessible_screening_query(db, current_user).filter(Screening.id == id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Screening entry not found")
@@ -1829,6 +1874,22 @@ def update_birth_resuscitation(
 # FORM C  -  MATERNAL DETAILS ENDPOINTS
 # ============================================================================
 
+def _refuse_form_c_without_ppv(db: Session, enrollment_id: str) -> None:
+    """Form C is only for randomised babies (PI 2026-10-16). A baby whose
+    Form B says PPV was not required stops after Form B, for every caller
+    (web, mobile app, direct API)."""
+    birth = (
+        db.query(BirthResuscitation)
+        .filter(BirthResuscitation.enrollment_id == enrollment_id)
+        .first()
+    )
+    if birth is not None and birth.required_resuscitation is False:
+        raise HTTPException(
+            status_code=422,
+            detail="Form C is only for randomised babies. This baby did not need PPV, so enrolment ended at Form B.",
+        )
+
+
 @app.post("/maternal-details/", response_model=MaternalDetailsOut)
 def create_maternal_details(
     data: MaternalDetailsCreate,
@@ -1836,6 +1897,7 @@ def create_maternal_details(
     current_user: User = Depends(get_current_user),
 ):
     require_enrollment_access(data.enrollment_id, db, current_user)
+    _refuse_form_c_without_ppv(db, data.enrollment_id)
     payload = split_and_store_pii(
         db,
         data.model_dump(exclude_unset=True),
@@ -1882,6 +1944,7 @@ def update_maternal_details(
     current_user: User = Depends(get_current_user),
 ):
     require_enrollment_access(enrollment_id, db, current_user)
+    _refuse_form_c_without_ppv(db, enrollment_id)
     record = (
         db.query(MaternalDetails)
         .filter(MaternalDetails.enrollment_id == enrollment_id)
@@ -1923,6 +1986,8 @@ def get_maternal_details(
 
     # Rejoin all PII fields (address, email, and individual address components)
     PII_REJOIN_FIELDS = ("address", "email_address", "house", "city", "district", "state", "pincode", "landmark")
+    if not can_view_pii_for_site(current_user, site_for_enrollment(db, enrollment_id)):
+        return record_dict  # identity hidden from roles without PII access (e.g. PTS3)
     try:
         pii_row = db.execute(
             text(f"""
@@ -6595,7 +6660,7 @@ def get_enrollment_status(
             )
         )
     )
-    # PPV / resuscitation not required ? stop after Forms A?C
+    # PPV / resuscitation not required -> stop after Forms A and B (PI 2026-10-16)
     no_ppv = form_b and birth.required_resuscitation is False
 
     maternal = (
@@ -6660,10 +6725,12 @@ def get_enrollment_status(
 
     if not form_b:
         next_form = "form-b"
+    elif no_ppv:
+        # PI 2026-10-16: Form C is only for randomised babies; a baby who did
+        # not need PPV stops after Form B.
+        next_form = "completed"
     elif not form_c:
         next_form = "form-c"
-    elif no_ppv:
-        next_form = "completed"
     elif not form_d:
         next_form = "form-d"
     elif not form_e:
@@ -8775,6 +8842,7 @@ def submit_form_l(
 # ============================================================================
 from birth_log_matching import match_birth_log_entry, refresh_birth_log_matches
 from trial_dates import is_pre_trial, trial_start
+from ga_log_status import attach_live_status as ga_attach_live_status
 
 BIRTH_LOG_WRITE_FIELDS = set(BirthLogEntryCreate.model_fields.keys()) - {"site_name", "allow_duplicate_cr"}
 
@@ -8822,6 +8890,7 @@ def create_birth_log_entry(
 
     payload = {k: v for k, v in data.model_dump().items() if k in BIRTH_LOG_WRITE_FIELDS}
     require_plausible_gestation(payload.get("gestation_weeks"), payload.get("gestation_days"))
+    require_valid_identity(site_name, payload)
     _refuse_duplicate_cr(db, BirthLogEntry, site_name, payload.get("mother_uid"),
                          date_of_birth=payload.get("date_of_birth"), match_dob=True,
                          birth_order=payload.get("birth_order"),
@@ -8861,6 +8930,8 @@ def update_birth_log_entry(
 
     payload = {k: v for k, v in data.model_dump().items() if k in BIRTH_LOG_WRITE_FIELDS}
     require_plausible_gestation(payload.get("gestation_weeks"), payload.get("gestation_days"))
+    require_valid_identity(record.site_name, payload,
+                           stored_values(record, ("mother_uid", "mother_name", "husband_name")))
     _refuse_duplicate_cr(db, BirthLogEntry, record.site_name, payload.get("mother_uid"),
                          exclude_id=record.id, date_of_birth=payload.get("date_of_birth"), match_dob=True,
                          birth_order=payload.get("birth_order"),
@@ -9005,6 +9076,7 @@ def create_ga_check_entry(
         {k: v for k, v in data.model_dump().items() if k in GA_CHECK_WRITE_FIELDS}
     )
     require_plausible_gestation(payload.get("gestation_weeks"), payload.get("gestation_days"))
+    require_valid_identity(site_name, payload)
     _refuse_duplicate_cr(db, GACheckEntry, site_name, payload.get("mother_uid"),
                          allow=bool(data.allow_duplicate_cr),
                          override_hint=", or tick 'New contact of the same woman' to log it again")
@@ -9046,6 +9118,7 @@ def update_ga_check_entry(
         {k: v for k, v in data.model_dump().items() if k in GA_CHECK_WRITE_FIELDS and k != "check_date"}
     )
     require_plausible_gestation(payload.get("gestation_weeks"), payload.get("gestation_days"))
+    require_valid_identity(site_name, payload, stored_values(record, ("mother_uid", "mother_name")))
     _refuse_duplicate_cr(db, GACheckEntry, site_name, payload.get("mother_uid"), exclude_id=record.id,
                          allow=bool(data.allow_duplicate_cr),
                          override_hint=", or tick 'New contact of the same woman' to keep both")
@@ -9060,6 +9133,11 @@ def update_ga_check_entry(
     return record
 
 
+def _attach_ga_live_status(db, records):
+    """See ga_log_status.attach_live_status (must run before PII masking)."""
+    ga_attach_live_status(db, records, clinical_today())
+
+
 @app.get("/ga-check/", response_model=List[GACheckEntryOut])
 def list_ga_check_entries(
     site: str | None = None,
@@ -9072,6 +9150,7 @@ def list_ga_check_entries(
     elif site:
         query = query.filter(GACheckEntry.site_name == site)
     records = query.order_by(GACheckEntry.check_date.desc().nulls_last(), GACheckEntry.id.desc()).all()
+    _attach_ga_live_status(db, records)
 
     out = []
     for r in records:
@@ -9117,15 +9196,20 @@ def get_ga_check_gap(
     """Eligible (GA<32wk) GA Check entries never continued into a saved
     Form A -- the live-side completeness gap, catching a miss at triage
     instead of waiting for it to surface at birth in the Log of All Births."""
+    # Eligible at the check (or newly reached 25 wk), no Form A, and still
+    # pregnant within the window -- delivered / crossed 32 wk / overdue
+    # entries no longer count (ga_log_status.py, PI 2026-10-14).
     query = db.query(GACheckEntry).filter(
-        GACheckEntry.eligible == True,  # noqa: E712
         GACheckEntry.continued_to_screening == False,  # noqa: E712
+        GACheckEntry.eligible.isnot(None),
     )
     if not is_global(current_user):
         query = query.filter(GACheckEntry.site_name == current_user.site_name)
     elif site:
         query = query.filter(GACheckEntry.site_name == site)
     records = query.order_by(GACheckEntry.check_date.desc().nulls_last()).all()
+    _attach_ga_live_status(db, records)
+    records = [r for r in records if r.in_gap]
 
     can_view = lambda r: can_view_pii_for_site(current_user, r.site_name)
     return [

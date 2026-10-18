@@ -11,17 +11,18 @@ import { useAuth } from "./context/AuthContext";
 import "./ManageStaff.css";
 
 const ROLES = [
-  { value: "superadmin",        label: "Superadmin",                                      short: "Superadmin",        tone: "purple" },
-  { value: "project_scientist", label: "Project scientist (global — e.g. nodal scientist)", short: "Project scientist", tone: "sky" },
+  { value: "superadmin",        label: "Superadmin (Global PI)",                          short: "Global PI",         tone: "purple" },
+  { value: "project_scientist", label: "Overall Project Scientist (PRS3-M) — all sites, view only", short: "Overall Project Scientist", tone: "sky" },
   { value: "site_pi",           label: "Site PI",                                         short: "Site PI",           tone: "teal" },
   { value: "site_scientist",    label: "Site scientist",                                  short: "Site scientist",    tone: "blue" },
   { value: "nurse",             label: "Nurse",                                           short: "Nurse",             tone: "green" },
   { value: "pii_officer",       label: "PII officer",                                     short: "PII officer",       tone: "amber" },
+  { value: "tech_support",      label: "Technical support (PTS3) — read-only, no identity data", short: "Tech support (PTS3)", tone: "sky" },
 ];
 
 const ROLE_MAP = Object.fromEntries(ROLES.map((r) => [r.value, r]));
 
-const GLOBAL_ROLES = ["superadmin", "project_scientist"];
+const GLOBAL_ROLES = ["superadmin", "project_scientist", "tech_support"];
 const SITES = ["PGIMER", "GMCH", "GMCH-A", "AMC", "IOG", "AFMC"];
 
 const BLANK_NEW_USER = {

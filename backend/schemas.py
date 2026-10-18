@@ -3086,6 +3086,15 @@ class GACheckEntryCreate(BaseModel):
 class GACheckEntryOut(GACheckEntryCreate):
     id: int
     cr_pending: Optional[bool] = None  # no CR number yet (computed, not a column)
+    # Live status (ga_log_status.py; computed per read, not columns)
+    live_status: Optional[str] = None  # delivered | cr_check | overdue | crossed_32 | now_eligible | pre_trial
+    current_ga_days: Optional[int] = None
+    delivered_on: Optional[str] = None
+    delivered_ga_days: Optional[int] = None
+    delivered_source: Optional[str] = None
+    live_note: Optional[str] = None
+    has_form_a: Optional[bool] = None
+    in_gap: Optional[bool] = None
     entered_by: Optional[str] = None
     eligible: Optional[bool] = None
     continued_to_screening: bool = False

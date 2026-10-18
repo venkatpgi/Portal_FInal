@@ -116,7 +116,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from db import get_db
-from deps import get_current_user, is_superadmin, is_global
+from deps import get_current_user, is_superadmin, is_global, is_central_analytics, ROLE_NURSE
 from models import AdverseEvents, SAEReport, Screening, User, GACheckEntry, BirthLogEntry
 from birth_log_matching import refresh_birth_log_matches
 
@@ -801,10 +801,14 @@ def get_consort_flow(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # Research nurses enter data; the recruitment flow is for PIs and
+    # scientists (access hierarchy SOP change 4).
+    if (current_user.role or "").lower() == ROLE_NURSE:
+        raise HTTPException(status_code=403, detail="The recruitment flow is not available to research nurses.")
     global_view = is_global(current_user)
 
-    if format == "csv" and not is_superadmin(current_user):
-        raise HTTPException(status_code=403, detail="CSV export is superadmin-only")
+    if format == "csv" and not is_central_analytics(current_user):
+        raise HTTPException(status_code=403, detail="CSV export is for the Global PI or Overall Project Scientist")
 
     sites = _dashboard_sites(current_user, site)
 
@@ -1432,8 +1436,8 @@ def get_clinical_quality(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if current_user.role.lower() != "superadmin":
-        raise HTTPException(status_code=403, detail="Superadmin only")
+    if not is_central_analytics(current_user):
+        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
 
     DR_Q = text("""
         SELECT
@@ -1613,8 +1617,8 @@ def get_baseline(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if current_user.role.lower() != "superadmin":
-        raise HTTPException(status_code=403, detail="Superadmin only")
+    if not is_central_analytics(current_user):
+        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
 
     INFANT_Q = text("""
         SELECT
@@ -1688,8 +1692,8 @@ def get_safety(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if current_user.role.lower() != "superadmin":
-        raise HTTPException(status_code=403, detail="Superadmin only")
+    if not is_central_analytics(current_user):
+        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
 
     # Total randomised per site (denominator)
     DENOM_Q = text("""
@@ -2011,8 +2015,8 @@ def get_safety_summary_report(
     date_to] on onset date where a date is parseable; rows with an
     unparseable/missing date are always included rather than silently
     dropped from a safety report."""
-    if current_user.role.lower() != "superadmin":
-        raise HTTPException(status_code=403, detail="Superadmin only")
+    if not is_central_analytics(current_user):
+        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
 
     import sae_config as cfg
     import sae_summary_report
@@ -2057,8 +2061,8 @@ def get_enrollment_trend(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if current_user.role.lower() != "superadmin":
-        raise HTTPException(status_code=403, detail="Superadmin only")
+    if not is_central_analytics(current_user):
+        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
 
     TREND_Q = text("""
         SELECT
@@ -2529,8 +2533,8 @@ def post_ai_insight(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    if current_user.role.lower() != "superadmin":
-        raise HTTPException(status_code=403, detail="Superadmin only")
+    if not is_central_analytics(current_user):
+        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:

@@ -31,13 +31,87 @@ the same commit.
   by a user of another site gets **403** "…not enrolling in the trial yet…
   Please use the training site" (`deps.refuse_non_live_site_write`, run inside
   `get_current_user`). Reading, `/auth/*` and global roles (superadmin,
-  global_scientist) are never blocked. **Add the site to `LIVE_SITES` on its
+  global_scientist / project_scientist) are never blocked. **Add the site to `LIVE_SITES` on its
   go-live day** (then restart the backend).
 - **training.portaltrial.in**: same app, own database `icmr_training`,
   `LIVE_SITES=*`, red "TRAINING SITE" bar. Sites not yet enrolling practise
   there; the Android app has a "Training site" switch on the login screen.
 - Trial start: `backend/trial_dates.py` `TRIAL_START_DATE` (2026-10-14) —
   CONSORT and Log of All Births alerts count from this date (chapter 08).
+
+## Roles and rights (access hierarchy SOP 1 Oct 2026, PI 2026-10-15)
+Enforced on the server (`deps.py`, `pii_service.py`); the UI only mirrors it (`utils/roles.js`).
+
+| Designation | App role | Scope | Edits data | Participant identity | Dashboards / AI / CSV | Audit trail |
+| --- | --- | --- | --- | --- | --- | --- |
+| Global PI (Nodal / main PI) | `superadmin` | All sites | Yes; also accounts, day reopening | All sites | Yes | All |
+| Overall Project Scientist (PRS3-M) | `project_scientist` | All sites | **No** (view only) | All sites, view | Yes | All |
+| Technical support (PTS3) | `tech_support` | All sites | No | **None** (`/pii/*` refused, Form C address hidden) | **No** (`/dashboard/*`, report `/document` refused) | All |
+| Site PI | `site_pi` | Own site | Yes, incl. delete | Own site | Data quality / site views | Own site |
+| Site Scientist (PRS3-NM, PRS2-M) | `site_scientist` | Own site | Yes, incl. delete | Own site | Data quality / site views | No |
+| Project Nurse (PN3) | `nurse` | Own site | Yes, **no delete**, no CONSORT | Own site | Data quality only | No |
+
+- Read-only roles (`project_scientist`, `global_scientist`, `tech_support`): every POST/PUT/PATCH/DELETE is refused (403) except `/auth/*`, `/pii/batch` (a read) and, for analytics roles, `/dashboard/ai-insights` (`deps.refuse_role_restricted_request`, run inside `get_current_user`).
+- Trial-wide analytics (CONSORT CSV, safety, baseline, clinical quality, enrolment trend, ops summary, AI Insights) = `CENTRAL_ANALYTICS_ROLES` (Global PI, Overall Project Scientist). Opening the site-scoped views to Site PI / Site Scientist (SOP change 3) is still to do.
+- Placeholder roles (`pi`, `scientist`, `deo`, `monitor`) no longer see identity data and are being retired.
+
+## CR number and name rules (PI 2026-10-18)
+Enforced by the server on every save where they are entered (Form A, Form B,
+Form C, AE form via `pii_service.split_and_store_pii`; Gestation Log; Log of
+All Births) — `backend/identity_rules.py`; the pages filter typing the same
+way (`utils/maternalUid.js`, `utils/personName.js`, Form A `idFieldRule`).
+- CR: PGIMER exactly 12 digits; AMC serial/year (`123/2026`); other sites
+  numbers only ("-" or "/" as separators). Blank allowed (CR optional in the
+  logs). 422 otherwise.
+- Mother's / husband's names: no digits (twins use Birth type / Birth order).
+- A value already stored is not re-checked when saved unchanged, so an old
+  record with a bad value can still be edited; changing it needs a valid one.
+- Consent "Trial run" is retired: removed from the dropdowns, refused on
+  save (`main.refuse_trial_run_consent`, 422) and no longer counts as consent
+  in `compute_screening_status` (such a record becomes Pending, so Form B is
+  refused). A record saved with it opens with consent blank and a notice.
+
+## Data queries (Phase 1, PI 2026-10-15)
+Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems
+and keep one row per problem in `data_queries`. `run_checks()` opens new
+ones, resolves those whose problem has gone, reopens resolved ones that come
+back, and leaves "confirmed correct" ones closed unless their facts change.
+It runs hourly (`run_data_checks.py`, systemd timer) and on demand
+(`POST /data-queries/run`, Global PI). Checks never edit clinical data; facts
+and details hold ids, numbers and dates only.
+- Age colour from `due_at`: amber after 72 h, red after 7 days. Form
+  timeliness checks (Form C / D / E not complete for randomised babies) are
+  raised only once 72 h have passed.
+- Who (`routers/data_queries.py`): Site PI and Site Scientist their site;
+  Global PI and Overall Project Scientist all sites. Nurses and PTS3: none.
+- Lifecycle: open → acknowledged → resolved (automatic) or "confirmed
+  correct" with a reason. Identity, consent / eligibility and safety checks
+  (`second_signoff=True`) need the Overall Project Scientist or Global PI to
+  sign off a site's confirmation; they can also reopen it. Every action is
+  in the audit log (`table_name='data_queries'`).
+- Page: `/data-queries` (`DataQueries.jsx`, CSS prefix `dqy-`); top-bar link
+  with the open count (`DataQueriesNavLink.jsx`, red if any is over 7 days);
+  dashboard Section 2 Panel 0 (open / amber / red per site).
+- "Open entry #N" on a Gestation Log / Log of All Births query opens the log
+  at that entry (`/ga-check?entry=N`, `/log-of-all-births?entry=N`,
+  `hooks/useEntryFocus.js`): search and filters are cleared, the row is
+  scrolled into view and highlighted. Both logs show the entry # column and
+  search by name, CR or entry # (`utils/gaCheckSearch.js`).
+- Gestation Log entries checked before `TRIAL_START_DATE` raise only the
+  "eligible / now eligible, no Form A" queries; their CR-mismatch and
+  delivery-not-logged statuses show as "Before trial start" (PI 2026-10-17).
+- `FORMA_POSSIBLE_SAME_WOMAN`: two live Form A at one site whose CR numbers
+  differ by 1-2 characters (edit distance), with names that do not clearly
+  differ and GAs that fit the screening dates (±14 d). Second sign-off.
+  Exact CR / hospital-number matches stay with `FORMA_DUPLICATE_ID`.
+- Banner on every form (`DataQueryBanner.jsx` in `FormLayout`): open queries
+  on the current screening / enrollment id, via `GET /data-queries/for-record`
+  (also for nurses, their site; read-only).
+- On save: a middleware in `main.py` calls `data_checks_trigger.request_run()`
+  after every successful write (except auth, dashboards, users, data queries);
+  debounced to one run a minute per worker. `run_checks` takes a Postgres
+  advisory lock (`RUN_LOCK_KEY`), so overlapping runs skip. A full run takes
+  about 2 s.
 
 ## Glossary
 

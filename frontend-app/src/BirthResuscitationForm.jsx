@@ -1405,6 +1405,12 @@ export default function BirthResuscitationForm() {
     const key = `completedForms_${eid}`;
     const ex  = JSON.parse(localStorage.getItem(key)||"[]");
     if(!ex.includes("form_b")) localStorage.setItem(key,JSON.stringify([...ex,"form_b"]));
+    /* PI 2026-10-16: Form C is only for randomised babies — a baby who did
+       not need PPV stops after Form B (server refuses Form C too). */
+    if (fdNext.required_resuscitation === "No" || allNormalNext) {
+      setMessage("✅ Form B saved. Enrolment ends here — the baby did not need PPV, so no further forms are filled.");
+      return;
+    }
     navigate(`/form-c/${eid}`);
   };
 
@@ -2110,8 +2116,8 @@ export default function BirthResuscitationForm() {
                 {(birthConditionAllNormal || formData.required_resuscitation==="No") && (
                   <div className="alert-danger">
                     <AlertTriangle size={16}/>
-                    Resuscitation (PPV) not required — Forms D and later stay locked.
-                    Complete Forms A–C only, then stop.
+                    Resuscitation (PPV) not required — enrolment ends with this form.
+                    Forms C and later are not filled.
                   </div>
                 )}
 
@@ -2870,7 +2876,7 @@ export default function BirthResuscitationForm() {
         </div>
         <button type="button" className="btn btn-primary"
           onClick={handleNext} disabled={!isSaved}>
-          Maternal Details <ArrowRight size={15}/>
+          {(formData.required_resuscitation === "No" || birthConditionAllNormal) ? "Finish (A–B only)" : "Maternal Details"} <ArrowRight size={15}/>
         </button>
       </div>
 

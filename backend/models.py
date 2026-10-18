@@ -2488,3 +2488,41 @@ class GACheckEntry(Base):
 
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+# ==========================================================
+# DATA QUERIES (Phase 1 of real-time data-quality monitoring, PI 2026-10-15)
+# One row per problem a check in data_checks.py finds on one record. Raised,
+# auto-resolved and reopened by data_checks.run_checks(); acknowledged /
+# confirmed correct / signed off by people (routers/data_queries.py).
+# Never edits clinical data. Facts hold ids, numbers and dates only, no PII.
+# ==========================================================
+class DataQuery(Base):
+    __tablename__ = "data_queries"
+    __table_args__ = (UniqueConstraint("check_id", "record_type", "record_key", name="uq_data_query_record"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    check_id = Column(String, nullable=False, index=True)
+    rule_version = Column(Integer, nullable=False, default=1)
+    site_name = Column(String, index=True, nullable=True)
+    record_type = Column(String, nullable=False)   # screening | enrollment | ga_check | birth_log
+    record_key = Column(String, nullable=False)    # screening id, enrollment id or log row id
+    title = Column(String, nullable=False)
+    detail = Column(Text, nullable=True)
+    facts = Column(JSON, nullable=True)
+    needs_second_signoff = Column(Boolean, default=False)
+
+    status = Column(String, nullable=False, default="open", index=True)  # open | acknowledged | resolved | confirmed_correct
+    due_at = Column(DateTime, nullable=True)       # amber at +72 h, red at +7 d
+    first_seen_at = Column(DateTime, default=utcnow)
+    last_seen_at = Column(DateTime, default=utcnow)
+    resolved_at = Column(DateTime, nullable=True)
+    reopened_count = Column(Integer, default=0)
+
+    acknowledged_by = Column(String, nullable=True)
+    acknowledged_at = Column(DateTime, nullable=True)
+    confirmed_by = Column(String, nullable=True)
+    confirmed_at = Column(DateTime, nullable=True)
+    confirmed_reason = Column(Text, nullable=True)
+    signoff_by = Column(String, nullable=True)
+    signoff_at = Column(DateTime, nullable=True)

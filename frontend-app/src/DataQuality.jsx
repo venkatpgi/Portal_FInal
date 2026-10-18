@@ -239,6 +239,50 @@ function SiteActivity({ data, sites }) {
   );
 }
 
+// Panel 0: open data queries per site (backend/data_checks.py). Hidden for
+// roles without access to data queries (the summary call is refused).
+function OpenQueries({ sites }) {
+  const [sum, setSum] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/data-queries/summary")
+      .then((r) => { if (!cancelled) setSum(r.data || null); })
+      .catch(() => { if (!cancelled) setSum(null); });
+    return () => { cancelled = true; };
+  }, []);
+  if (!sum) return null;
+  const rows = Object.entries(sum.by_site || {}).filter(([s]) => !sites || !sites.length || sites.includes(s) || s === "-");
+  return (
+    <Section title="Panel 0 — Open Data Queries">
+      {rows.length === 0 ? (
+        <div className="tmd-state">No open data queries.</div>
+      ) : (
+        <table className="dq-table">
+          <thead>
+            <tr>
+              <th className="dq-th-label">Site</th>
+              <th className="dq-th-num">Open</th>
+              <th className="dq-th-num">Over 72 h</th>
+              <th className="dq-th-num">Over 7 days</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([site, c]) => (
+              <tr key={site} className="dq-tr">
+                <td className="dq-td-label">{siteShortCode(site) || site}</td>
+                <td className="dq-td-num">{c.total}</td>
+                <td className="dq-td-num">{c.amber}</td>
+                <td className="dq-td-num">{c.red}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <div className="tmd-timestamp"><a href="/data-queries">Open Data Queries</a> · awaiting sign-off: {sum.awaiting_signoff || 0}</div>
+    </Section>
+  );
+}
+
 export default function DataQuality({ apiSite = "" }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -269,6 +313,8 @@ export default function DataQuality({ apiSite = "" }) {
 
   return (
     <div className="dq-root">
+      <OpenQueries sites={sites} />
+
       <Section title="Panel 1 — Form Completion Matrix">
         <CompletionMatrix data={completion_matrix} sites={sites} />
       </Section>

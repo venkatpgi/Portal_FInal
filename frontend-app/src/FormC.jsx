@@ -1449,7 +1449,7 @@ export default function FormC() {
     const ok = await saveForm();
     if (ok) {
       if (localStorage.getItem("enrollment_lock_reason") === "no_ppv") {
-        setMessage("✅ Form C saved. Forms D and later are locked — PPV was not required.");
+        setMessage("✅ Form C saved.");
         return;
       }
       navigate(`/form-d/${formData.enrollment_id}`);
@@ -2552,7 +2552,7 @@ export default function FormC() {
         onSaveDraft={session.saveDraft}
         onNext={handleNext}
         backLabel="Birth & Resuscitation"
-        nextLabel={localStorage.getItem("enrollment_lock_reason") === "no_ppv" ? "Finish (A–C only)" : "Postnatal Day 1"}
+        nextLabel="Postnatal Day 1"
         step={3} totalSteps={17}
         isSaved={isSaved}
       />

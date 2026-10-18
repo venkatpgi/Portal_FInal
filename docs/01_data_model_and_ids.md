@@ -108,9 +108,12 @@ Gestation Log entry ──(Continue to Form A)──► Form A  screening_id 01-
   + Fernet). Consequence: **you cannot search by CR number or name in SQL** —
   code that matches on them (birth-log matching, duplicate CR check) loads the
   site's rows and compares in Python.
-- PII is returned only to superadmin / PII officer / same-site users
-  (`routers/pii.py`, `pii_service.can_view_pii_for_site`); other users get
-  `null` for those fields.
+- PII is returned only to an explicit role list (`pii_service.py`,
+  PI 2026-10-15): Global PI (superadmin), Overall Project Scientist
+  (project_scientist, view) and PII officer for all sites; site_pi,
+  site_scientist and nurse for their own site. Technical support (PTS3) and
+  any other role get `null` for those fields (`routers/pii.py`,
+  `can_view_pii_for_site`; also Form C's address fields).
 
 ## 5. Saving, autosave and the "complete" flags
 

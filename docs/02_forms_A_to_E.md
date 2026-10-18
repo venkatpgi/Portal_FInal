@@ -25,7 +25,7 @@ and, once saved, links back to the log entry (`PATCH /ga-check/{id}/link`).
   | no GA | Pending |
   | GA outside window | Not Eligible |
   | any exclusion Yes | Screen Failure |
-  | consent Yes / Trial run | Eligible |
+  | consent Yes | Eligible ("Trial run" retired 2026-10-18: refused on save, no longer counts) |
   | consent No / Not approached | Not Eligible |
   | otherwise | Pending |
 - Identity fields go to `participant_pii` (chapter 01 §4).
@@ -42,8 +42,8 @@ and, once saved, links back to the log entry (`PATCH /ga-check/{id}/link`).
 - Mobiles: 10 digits starting 6–9.
 - Exclusions (A4): structural anomaly, hydrops, decision to forego
   resuscitation, insufficient time, IUFD — each Yes needs its detail.
-- Consent (A5): relationship + nurse required for Yes / No / Trial run;
-  **signature pad only for Yes / Trial run** (a refusal saves without one);
+- Consent (A5): relationship + nurse required for Yes / No;
+  **signature pad only for Yes** (a refusal saves without one);
   refusal reasons required for No, not-approached reasons for Not approached.
 - `is_complete` sent on every save = `validate()` found nothing missing.
 
@@ -69,6 +69,10 @@ and, once saved, links back to the log entry (`PATCH /ga-check/{id}/link`).
 - "Does baby require ventilation (PPV)?" = No → **not randomised, locked**
   (`applyInitialStepsNotRequired`, `lockEnrollmentNoPpv`); server assigns
   `NR-<screening id>`.
+  **Enrolment ends at Form B** (PI 2026-10-16): Form C and later are not filled; the
+  sidebar opens only Forms A and B and the server refuses Form C
+  (`main._refuse_form_c_without_ppv`). A baby who needed PPV but was not
+  randomised keeps all forms (followed for major outcomes).
 - Randomised = Yes needs enrollment id (`01-A-001` format on Save), randomisation
   date, strata. Randomised = No needs "Reason not randomised" (feeds CONSORT
   Box 7, chapter 08).

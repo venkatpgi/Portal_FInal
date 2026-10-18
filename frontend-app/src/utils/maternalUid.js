@@ -1,7 +1,8 @@
 /**
  * Maternal UID / CR number rules — same as ScreeningForm.jsx idFieldRule
  * for maternal_uid (confirmed with the study team 2026-08-01).
- * Other sites have no strict pattern.
+ * Other sites: numbers only, "-" or "/" as separators (PI 2026-10-18).
+ * The server applies the same rules (backend/identity_rules.py).
  */
 
 function siteCode(site) {
@@ -21,7 +22,7 @@ export function sanitizeMaternalUid(site, raw) {
   const code = siteCode(site);
   if (code === "PGIMER") return s.replace(/\D/g, "").slice(0, 12);
   if (code === "AMC") return s.replace(/[^0-9/]/g, "");
-  return s;
+  return s.replace(/[^0-9/-]/g, "");
 }
 
 export function maternalUidPlaceholder(site) {
@@ -42,6 +43,9 @@ export function maternalUidLiveError(site, value) {
   }
   if (code === "AMC" && !/^\d+\/\d{4}$/.test(v)) {
     return "Must be in serial/year format, e.g. 123/2026";
+  }
+  if (code !== "PGIMER" && code !== "AMC" && !/^\d+(?:[-/]\d+)*$/.test(v)) {
+    return "Numbers only";
   }
   return "";
 }

@@ -5,7 +5,6 @@ import Sidebar from '../Sidebar';
 import Header from '../components/Header';
 import './FormLayout.css';
 import '../styles/Theme.css';
-import { isUsableEnrollmentId } from '../utils/enrollmentId';
 import { useAuth } from '../context/AuthContext';
 import { siteDisplayName } from '../utils/siteNames';
 
@@ -15,23 +14,20 @@ const FormLayout = ({ children, currentForm, headerProps }) => {
 
   /* Block deep-links past allowed forms when enrollment is locked.
      - Screen failure / consent / GA: only Form A
-     - PPV not required (no_ppv): Forms A–C only */
+     - PPV not required (no_ppv): Forms A and B only (PI 2026-10-16) */
   useEffect(() => {
     if (!currentForm || currentForm === "form_a") return;
     if (localStorage.getItem("enrollment_locked") !== "true") return;
 
     const reason = localStorage.getItem("enrollment_lock_reason");
-    if (reason === "no_ppv" && (currentForm === "form_b" || currentForm === "form_c")) {
+    if (reason === "no_ppv" && currentForm === "form_b") {
       return;
     }
 
     const sid = localStorage.getItem("current_screening_id");
-    const eid = localStorage.getItem("current_enrollment_id");
     let target;
     if (reason === "no_ppv") {
-      target = isUsableEnrollmentId(eid)
-        ? `/form-c/${eid}`
-        : (sid && sid !== "undefined" && sid !== "null" ? `/form-b/${sid}` : "/form-b");
+      target = sid && sid !== "undefined" && sid !== "null" ? `/form-b/${sid}` : "/form-b";
     } else {
       target = sid && sid !== "undefined" && sid !== "null"
         ? `/form-a/${sid}`

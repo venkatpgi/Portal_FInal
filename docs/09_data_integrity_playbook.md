@@ -74,13 +74,13 @@ recorded, or a direct API call — could still create the record.
 **Fixed 30-09-2026**: `main.require_eligible_screening_for_form_b` runs on
 every Form B create *and* update (including the `NR-` "no PPV needed" path)
 — rejects (422) unless the linked Form A screening is Eligible (GA in
-window, no exclusion, consent Yes / Trial run). A screening with no
+window, no exclusion, consent Yes). A screening with no
 `screening_id` sent at all passes unchecked (nothing to evaluate against).
 
 **Mobile app fix, 30-09-2026 (`Portal_app1` PR #1, `venkatpgi` account, not
 build-tested — no Flutter toolchain available):** both Form B entry points
 (`screening_form.dart` `_formBLocked`, `nurse_dashboard.dart` `formBOpen`)
-now also require no exclusion and consent Yes/Trial run, so a nurse is
+now also require no exclusion and consent Yes, so a nurse is
 stopped before filling in the form, not after saving it.
 
 **`01-0009` / `01-0031`: confirmed trial-run/test data (PI, 30-09-2026)** —

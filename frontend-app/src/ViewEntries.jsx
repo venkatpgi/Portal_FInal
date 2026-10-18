@@ -103,7 +103,7 @@ function formAIsComplete(entry) {
   if (status === "Not Eligible" || status === "Screen Failure") return true;
   const consent = (entry.consent_given || "").trim();
   if (!consent) return false;
-  if (consent === "Yes" || consent === "Trial run") {
+  if (consent === "Yes") {
     return !!(entry.consent_taken_by && entry.relationship_to_participant);
   }
   if (consent === "No") return !!entry.reason_for_consent_refusal;
@@ -158,11 +158,11 @@ function getNextAction(entry, enrollStatus) {
   if (s === "Screen Failure")     return { label: "View Screening",     variant: "secondary", key: "form_a" };
   if (s === "Not Eligible")       return { label: "View Screening",     variant: "secondary", key: "form_a" };
   if (!enrollStatus || !enrollStatus.form_b) return { label: "Start Form B", variant: "primary", key: "form_b" };
-  if (!enrollStatus.form_c)                  return { label: "Open Form C",  variant: "primary", key: "form_c" };
-  /* PPV not required: A–C only — do not push Form D+ */
+  /* PPV not required: Forms A and B only (PI 2026-10-16) */
   if (enrollStatus.no_ppv) {
-    return { label: "A–C complete (no PPV)", variant: "secondary", key: "form_c" };
+    return { label: "A–B complete (no PPV)", variant: "secondary", key: "form_b" };
   }
+  if (!enrollStatus.form_c)                  return { label: "Open Form C",  variant: "primary", key: "form_c" };
   if (!enrollStatus.form_d)                  return { label: "Open Form D",  variant: "primary", key: "form_d" };
   if (!enrollStatus.form_e)                  return { label: "Open Form E",  variant: "primary", key: "form_e" };
   return { label: "Open Form F", variant: "primary", key: "form_f" };
