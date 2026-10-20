@@ -20,7 +20,7 @@ import { formatSiteName } from "./siteLabels";
 const ITEMS = [
   { id: "overview", label: "Dashboard", Icon: LayoutDashboard },
   { id: "recruitment", label: "Recruitment", Icon: Target },
-  { id: "patients", label: "Patients", Icon: Users },
+  { id: "patients", label: "Participants", Icon: Users },
   { id: "tasks", label: "Tasks", Icon: ClipboardList },
   { id: "safety", label: "Safety", Icon: Shield },
   { id: "data", label: "Data", Icon: Database },

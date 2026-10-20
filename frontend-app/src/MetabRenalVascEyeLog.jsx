@@ -912,7 +912,6 @@ export default function MetabRenalVascEyeLog() {
   const hyperRxRequired = isNumericHighGlucose(metabData.highest_glucose);
   const extravasationRequired =
     vascData.peripheral_iv === true || vascData.peripheral_arterial === true;
-  const ropDue = eyeData.rop_screening_due === true;
   const ropScreenedYes = eyeData.rop_screened === true;
 
   const METAB_BASE = [
@@ -965,11 +964,12 @@ export default function MetabRenalVascEyeLog() {
   const vascTotal    = VASC_KEYS.length;
   const vascAnswered = Math.min(VASC_KEYS.filter(k => ans(vascData[k])).length, vascTotal);
 
-  // Eye: #24 gated on #23 Yes; #25 gated on #24 Yes
+  // Eye: #23 and #24 always asked (an eye exam can happen on a day the
+  // protocol did not call due, PI 2026-10-20); #25 gated on #24 Yes
   const EYE_BASE = [
     "rop_screening_due",
-    ...(ropDue ? ["rop_screened"] : []),
-    ...(ropDue && ropScreenedYes ? ["rop_detected"] : []),
+    "rop_screened",
+    ...(ropScreenedYes ? ["rop_detected"] : []),
   ];
   const eyeTotal  = EYE_BASE.length;
   const eyeAnswered = Math.min(EYE_BASE.filter(k => ans(eyeData[k])).length, eyeTotal);
@@ -1124,13 +1124,6 @@ export default function MetabRenalVascEyeLog() {
     if (!isFieldEditable) return;
     setEyeData(p => {
       const next = { ...p, [k]: v };
-      if (k === "rop_screening_due" && v !== true) {
-        next.rop_screened = null;
-        next.rop_detected = null;
-        next.rop_stage = null;
-        next.plus_disease = null;
-        next.rop_treatment = null;
-      }
       if (k === "rop_screened" && v !== true) {
         next.rop_detected = null;
         next.rop_stage = null;
@@ -2533,13 +2526,9 @@ export default function MetabRenalVascEyeLog() {
               <div className="rcn-yn-list">
                 <YNRow label="23. ROP screening due" value={eyeData.rop_screening_due}
                   onChange={v=>setEye("rop_screening_due",v)} disabled={!isFieldEditable}/>
-                {ropDue && (
-                  <div className="rcn-conditional-block">
-                    <YNRow label="24. ROP screened" value={eyeData.rop_screened}
-                      onChange={v=>setEye("rop_screened",v)} disabled={!isFieldEditable}/>
-                  </div>
-                )}
-                {ropDue && ropScreenedYes && (
+                <YNRow label="24. ROP screened" value={eyeData.rop_screened}
+                  onChange={v=>setEye("rop_screened",v)} disabled={!isFieldEditable}/>
+                {ropScreenedYes && (
                   <div className="rcn-conditional-block">
                     <YNRow label="25. ROP detected" value={eyeData.rop_detected}
                       onChange={v=>setEye("rop_detected",v)} disabled={!isFieldEditable}/>

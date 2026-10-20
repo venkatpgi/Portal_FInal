@@ -1031,7 +1031,7 @@ function CoverageTimeline({ tableRows, blockKey }) {
    visualized with CoverageTimeline above), these three are SCHEDULED,
    recurring activities — reconstructing a 12x-a-day record via "log
    another reading" with no sense of the day's coverage is genuinely
-   painful. Each instead generates rows from a chosen cadence (1/2/3-
+   painful. Each instead generates rows from a chosen cadence (1/2/3/6/8/12-
    hourly) and only asks the nurse to fill in that slot's value(s). Real
    entries are still a plain array like every other block — a frequency
    change never touches or merges stored entries, it only changes which
@@ -1043,6 +1043,9 @@ function CoverageTimeline({ tableRows, blockKey }) {
    the same expectedSlots/buildFlowsheetRows row-building. */
 
 const GI_MILK_TYPES = ["FM", "EBM", "PDHM"];
+// "Log every" cadences for the hourly flowsheets (feeds, glucose, vitals);
+// 6/8/12 h added for stable babies (PI 2026-10-20).
+const HOURLY_FREQUENCY_OPTIONS = [1, 2, 3, 6, 8, 12];
 
 function minutesTo24h(mins) {
   const h = Math.floor(mins / 60);
@@ -1149,7 +1152,7 @@ function GiFeedFlowsheet({
       <div className="mml-flowsheet-freq-row">
         <span className="mml-flowsheet-freq-label">Log every</span>
         <div className="mml-flowsheet-freq-pills">
-          {[1, 2, 3].map(h => (
+          {HOURLY_FREQUENCY_OPTIONS.map(h => (
             <button key={h} type="button"
               className={`mml-flowsheet-freq-btn${Number(frequencyHours) === h ? " mml-flowsheet-freq-btn--on" : ""}`}
               onClick={() => !disabled && onChangeFrequency(h)}
@@ -1353,7 +1356,7 @@ function computeMinMaxSummary(entries, columns) {
 
 function ScheduledFlowsheet({
   blockKey, columns, entries, frequencyHours, onChangeFrequency, onChangeField, onAdd, onRemove,
-  disabled, sheetDate, errors, frequencyOptions = [1, 2, 3],
+  disabled, sheetDate, errors, frequencyOptions = HOURLY_FREQUENCY_OPTIONS,
 }) {
   const isToday = sheetDate === realCalendarDateYmd();
   const nowMinutes = (() => {

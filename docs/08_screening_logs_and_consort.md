@@ -167,3 +167,23 @@ no in-period log entry, so it is counted in Box 1 as an orphan — which is
 what keeps Box 1 ≥ Box 3. On the same day all other pre-trial PGIMER Form A
 records and everything linked to them were deleted (25 kept); other sites
 were left unchanged.
+
+## 5. Dashboard "Participants" list (`/screenings/stages`)
+The dashboard's Participants tab ("Screened Participants") lists every Form A,
+with its screening ID and, once randomised, the randomisation number (an
+`NN-X-NNN` enrollment ID; NR- placeholders are not shown). The **Stage**
+column (`backend/patient_stage.py`, PI 2026-10-20) replaces the old
+Active / Failure / Pending badge, which showed refused consent as "Pending":
+
+| Stage | Rule |
+|---|---|
+| Form A incomplete | no GA yet |
+| Consent pending | GA in window, no exclusion, consent not answered |
+| Excluded (A4 / GA unknown) | status Screen Failure |
+| Not eligible (GA) | GA outside 25w0d–31w6d |
+| Consent refused / Not approached for consent | GA in window, consent No / Not approached |
+| Consented, awaiting delivery | Eligible, no Form B |
+| Delivered, Form B incomplete | Form B exists, PPV / randomisation not answered |
+| Delivered, no PPV (A-B only) | Form B PPV required = No |
+| PPV, not randomised | PPV Yes, randomised No |
+| Randomised | Form B randomised Yes |

@@ -1020,6 +1020,32 @@ def get_screening_stats(
         "pending": len(rows) - enrolled - excluded,
     }
 
+@app.get("/screenings/stages")
+def get_screening_stages(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """{screening_id: {stage, label, tone}} for every accessible Form A --
+    the dashboard Screened Participants "Stage" column (patient_stage.py).
+    Declared before /screenings/{screening_id} so "stages" is not read as an ID."""
+    from patient_stage import patient_stage, stage_payload
+    rows = get_accessible_screening_query(db, current_user).all()
+    sids = [r.screening_id for r in rows if r.screening_id]
+    form_b = {}
+    if sids:
+        for b in (db.query(BirthResuscitation.screening_id, BirthResuscitation.required_resuscitation,
+                           BirthResuscitation.randomised)
+                  .filter(BirthResuscitation.screening_id.in_(sids)).all()):
+            form_b[b.screening_id] = b
+    out = {}
+    for r in rows:
+        b = form_b.get(r.screening_id)
+        key = patient_stage(compute_screening_status(r), r.consent_given, r.gestation_weeks,
+                            r.gestation_days, b is not None,
+                            b.required_resuscitation if b else None, b.randomised if b else None)
+        out[r.screening_id] = stage_payload(key)
+    return out
+
 @app.get("/screenings/{screening_id}", response_model=ScreeningClinicalOut)
 def get_screening(
     screening_id: str,
@@ -7960,14 +7986,14 @@ def _metab_completion_pct(r) -> int:
     ]
     vasc_done = sum(1 for k in vasc_keys if ans(getattr(r, k, None)))
 
-    due = getattr(r, "rop_screening_due", None) is True
     screened = getattr(r, "rop_screened", None) is True
     eye_keys = [
         "rop_screening_due",
-        *(["rop_screened"] if due else []),
-        *(["rop_detected"] if due and screened else []),
+        "rop_screened",
+        *(["rop_detected"] if screened else []),
     ]
-    # Mirrors the page (2026-09-26): #23-#25 only. ROP stage / plus / treatment
+    # Mirrors the page: #23 and #24 always asked, whether or not the screen
+    # was due (PI 2026-10-20); #25 only if screened. #23-#25 only (2026-09-26). ROP stage / plus / treatment
     # are recorded per eye in Form G, not counted toward this day's completion.
     eye_total = len(eye_keys)
     eye_done = sum(1 for k in eye_keys if ans(getattr(r, k, None)))
