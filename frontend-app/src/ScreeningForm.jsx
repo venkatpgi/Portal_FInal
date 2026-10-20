@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import PregnancyFollowUp from "./components/PregnancyFollowUp";
 import api from "./api/axios";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -1906,6 +1907,19 @@ export default function ScreeningForm() {
                       </div>
                     )}
 
+                    {/* Readmission rules (PI 2026-10-20, backend/pregnancy_followup.py) */}
+                    {isSaved && formData.consent_given === "No" && (
+                      <div className="alert-warning">
+                        She refused consent. A woman who refused is not approached again, including on a later admission.
+                      </div>
+                    )}
+                    {isSaved && formData.consent_given === "Not approached" && (
+                      <div className="alert-warning">
+                        If she is readmitted she may be approached: while her GA today is 25w0d–31w6d, click Edit,
+                        change consent to Yes and complete the consent details. Do not fill a new Form A.
+                      </div>
+                    )}
+
                     {/* 28. Reason for refusal (if No) */}
                     {formData.consent_given === "No" && (
                       <div className="followup-box">
@@ -2059,6 +2073,10 @@ export default function ScreeningForm() {
 
                   </div>
                 </div>
+              )}
+
+              {isSaved && formData.consent_given === "Yes" && formData.screening_id && (
+                <PregnancyFollowUp screeningId={formData.screening_id} />
               )}
 
             </>)}

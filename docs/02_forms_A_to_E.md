@@ -46,6 +46,24 @@ and, once saved, links back to the log entry (`PATCH /ga-check/{id}/link`).
   **signature pad only for Yes** (a refusal saves without one);
   refusal reasons required for No, not-approached reasons for Not approached.
 - `is_complete` sent on every save = `validate()` found nothing missing.
+- **Consent after Form A is saved** (`pregnancy_followup.consent_change_error`,
+  server 422 on `PUT /screenings/{id}`, PI 2026-10-20; only once
+  `explicitly_saved`; Site PI / Global PI may correct a data-entry mistake):
+  - **Yes stands** for every admission of the pregnancy; it is not changed to
+    No. If the woman herself withdraws, record it in A6.
+  - **No (refused) is final**: she is not approached again.
+  - **Not approached → Yes** is allowed on a later admission while her GA
+    today (Form A GA + days since screening) is 25w0d–31w6d. Edit the same
+    Form A; never a second one (same CR is refused anyway).
+- **A6 Pregnancy follow-up** (consent Yes only; `components/PregnancyFollowUp.jsx`,
+  `PATCH /screenings/{id}/pregnancy-follow-up`, saved without unlocking Form A):
+  discharges home undelivered + readmission dates (in order, only the last may
+  lack a readmission), pregnancy outcome (Delivered here / Delivered elsewhere /
+  Lost to follow-up + date; not "elsewhere/lost" once Form B exists) and
+  **consent withdrawn by the woman** + date (not once Form B exists; Form B is
+  then refused). Columns `screenings.pregnancy_episodes` (JSON),
+  `pregnancy_outcome`, `pregnancy_outcome_date`, `consent_withdrawn`,
+  `consent_withdrawn_date`. CONSORT boxes do not yet show withdrawals separately.
 
 ---
 

@@ -23,6 +23,13 @@ STAGES = {
     "no_ppv": ("Delivered, no PPV (A-B only)", "complete"),
     "not_randomised": ("PPV, not randomised", "complete"),
     "randomised": ("Randomised", "eligible"),
+    # From Form A pregnancy follow-up (pregnancy_followup.py)
+    "consent_withdrawn": ("Consent withdrawn", "failure"),
+    "discharged_undelivered": ("Discharged home undelivered", "pending"),
+    "readmitted_awaiting": ("Readmitted, awaiting delivery", "active"),
+    "delivered_no_form_b": ("Delivered here, Form B missing", "overdue"),
+    "delivered_elsewhere": ("Delivered elsewhere", "discharged"),
+    "lost_to_follow_up": ("Lost to follow-up (undelivered)", "discharged"),
 }
 
 
@@ -57,6 +64,22 @@ def patient_stage(screening_status, consent_given, gestation_weeks, gestation_da
     if required_resuscitation is True and randomised is False:
         return "not_randomised"
     return "form_b_incomplete"
+
+
+def followup_stage(episodes, outcome, consent_withdrawn):
+    """Stage from Form A pregnancy follow-up for a consented woman with no
+    Form B, or None to keep "Consented, awaiting delivery"."""
+    if consent_withdrawn:
+        return "consent_withdrawn"
+    if outcome == "Delivered here":
+        return "delivered_no_form_b"
+    if outcome == "Delivered elsewhere":
+        return "delivered_elsewhere"
+    if outcome == "Lost to follow-up":
+        return "lost_to_follow_up"
+    if episodes:
+        return "readmitted_awaiting" if (episodes[-1] or {}).get("readmitted") else "discharged_undelivered"
+    return None
 
 
 def stage_payload(key):

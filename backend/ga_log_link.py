@@ -79,6 +79,50 @@ def orphan_counts(screenings, entries):
     return out
 
 
+MISSED = "Missed - identified retrospectively"
+
+
+def ga_box_counts(entries):
+    """CONSORT Box 1 log part + Box 2 sub-reasons, counting WOMEN, not log
+    entries (PI 2026-10-20): an undelivered woman sent home and readmitted
+    is logged again ("New contact of the same woman") but approached once.
+    Entries with the same site + normalised CR are one woman; an entry
+    without a CR is its own woman. Each woman is represented by an entry
+    that continued to Form A if any did, else her latest entry.
+
+    entries: in-period dicts with id, site_name, mother_uid, check_date,
+    continued_to_screening, screening_id, identification_type, found_iufd,
+    eligible. Returns {site: {box1, box2_missed, box2_iufd,
+    box2_eligible_gap, box2_not_candidate_older,
+    box2_not_candidate_unreliable}}."""
+    groups = {}
+    for e in entries:
+        key = norm_cr(e.get("mother_uid"))
+        gk = (e["site_name"], key) if key else ("id", e["id"])
+        groups.setdefault(gk, []).append(e)
+    out = {}
+    for members in groups.values():
+        cont = [e for e in members if e.get("continued_to_screening") or e.get("screening_id")]
+        rep = max(cont or members, key=lambda e: _sort_key(e.get("check_date"), e["id"]))
+        c = out.setdefault(rep["site_name"], {k: 0 for k in (
+            "box1", "box2_missed", "box2_iufd", "box2_eligible_gap",
+            "box2_not_candidate_older", "box2_not_candidate_unreliable")})
+        c["box1"] += 1
+        if rep.get("continued_to_screening") is not False or cont:
+            continue
+        if rep.get("identification_type") == MISSED:
+            c["box2_missed"] += 1
+        elif rep.get("found_iufd") is True:
+            c["box2_iufd"] += 1
+        elif rep.get("eligible") is True:
+            c["box2_eligible_gap"] += 1
+        elif rep.get("eligible") is False:
+            c["box2_not_candidate_older"] += 1
+        elif rep.get("eligible") is None:
+            c["box2_not_candidate_unreliable"] += 1
+    return out
+
+
 # ------------------------------------------------------------------ database
 def _screening_rows(db, site_name):
     from models import ParticipantPII, Screening

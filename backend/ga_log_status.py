@@ -185,11 +185,16 @@ def attach_live_status(db, records, today):
              "source": "Log of All Births"}
             for b in db.query(BirthLogEntry).filter(BirthLogEntry.site_name == site).all()
         ]
-        live_sids = {sid for (sid,) in db.query(Screening.screening_id).filter(
-            Screening.site_name == site, Screening.is_deleted.isnot(True)).all()}
+        consent_by_sid = dict(db.query(Screening.screening_id, Screening.consent_given).filter(
+            Screening.site_name == site, Screening.is_deleted.isnot(True)).all())
+        live_sids = set(consent_by_sid)
         pii = {p.screening_id: p for p in db.query(ParticipantPII).filter(
             ParticipantPII.site_name == site).all() if p.screening_id in live_sids}
         form_a_crs = {norm_cr(p.maternal_uid) for p in pii.values() if norm_cr(p.maternal_uid)}
+        # Her Form A consent, shown when she is logged again on a readmission
+        # (refused: not approached again; PI 2026-10-20)
+        consent_by_cr = {norm_cr(p.maternal_uid): consent_by_sid.get(sid)
+                         for sid, p in pii.items() if norm_cr(p.maternal_uid)}
         if pii:
             for fb in db.query(BirthResuscitation).filter(
                     BirthResuscitation.screening_id.in_(list(pii)),
@@ -211,4 +216,5 @@ def attach_live_status(db, records, today):
             for k, v in st.items():
                 setattr(r, k, v)
             r.has_form_a = entry["has_form_a"]
+            r.form_a_consent = consent_by_cr.get(norm_cr(r.mother_uid)) if norm_cr(r.mother_uid) else None
             r.in_gap = still_eligible_gap(entry, st)

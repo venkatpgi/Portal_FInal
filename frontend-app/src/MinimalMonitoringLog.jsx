@@ -458,7 +458,24 @@ function mergeServerOnlyEntries(local, server, skipIds) {
   return changed ? next : local;
 }
 
-function countProgress(entries) {
+/** Stored blocks behind a picker block (5.5 Neurological = neuro_a + neuro_b). */
+function storedBlocks(blockKey) {
+  return blockKey === "neuro_combined" ? ["neuro_a", "neuro_b"] : [blockKey];
+}
+
+const blockHasData = (entries, block) => (entries[block] || []).some(hasEntryData);
+
+/** Blocks marked "Not required today" that still have no reading — a block
+ *  that gets a reading drops out of the list (PI 2026-10-20). */
+function activeNotRequired(entries, notRequired) {
+  return (notRequired || []).filter(b => BLOCK_TO_SECTION[b] && !blockHasData(entries, b));
+}
+
+/** Progress: every filled field of every reading, plus one item per block
+ *  with no reading today, settled only by marking it "Not required today"
+ *  (PI 2026-10-20: a test or treatment not indicated that day showed the
+ *  section as incomplete with no way to say so). */
+function countProgress(entries, notRequired = []) {
   let total = 0;
   let done = 0;
   const bySection = {
@@ -507,6 +524,12 @@ function countProgress(entries) {
         bump(section, block, ans(v));
       });
     });
+  });
+
+  const nr = new Set(notRequired);
+  Object.keys(BLOCK_TO_SECTION).forEach(block => {
+    if (block === "neuro_combined" || blockHasData(entries, block)) return;
+    bump(BLOCK_TO_SECTION[block], block, nr.has(block));
   });
 
   return {
@@ -1671,7 +1694,7 @@ function SectionsGrid({ counts, onOpen }) {
 }
 
 /* ── Level 2: field/variable list within a chosen heading ── */
-function FieldsList({ sectionKey, counts, onOpen, onBack }) {
+function FieldsList({ sectionKey, counts, notRequired, onOpen, onBack }) {
   const meta = SECTION_META[sectionKey];
   const Icon = meta.icon;
   return (
@@ -1689,6 +1712,7 @@ function FieldsList({ sectionKey, counts, onOpen, onBack }) {
           const bMeta = BLOCK_META[blockKey];
           const prog = blockProgressForPicker(blockKey, counts);
           const complete = prog.total > 0 && prog.done >= prog.total;
+          const allNotRequired = storedBlocks(blockKey).every(b => notRequired.includes(b));
           return (
             <button type="button" key={blockKey}
               className={`mml-field-row${complete ? " mml-field-row--done" : ""}`}
@@ -1699,7 +1723,7 @@ function FieldsList({ sectionKey, counts, onOpen, onBack }) {
                 <span className="mml-field-row-desc">{bMeta.desc}</span>
               </span>
               <span className="mml-field-row-right">
-                <span className="mml-quicknav-badge">{prog.done}/{prog.total}</span>
+                <span className="mml-quicknav-badge">{allNotRequired ? "Not required" : `${prog.done}/${prog.total}`}</span>
                 <ChevronRight size={16} />
               </span>
             </button>
@@ -1726,6 +1750,7 @@ export default function MinimalMonitoringLog() {
   const [glucoseFrequencyHours, setGlucoseFrequencyHours] = useState(2);
   const [vitalsFrequencyHours, setVitalsFrequencyHours] = useState(2);
   const [weightFrequencyHours, setWeightFrequencyHours] = useState(24);
+  const [notRequiredBlocks, setNotRequiredBlocks] = useState([]);
   const [patientInfo, setPatientInfo] = useState({ enrollmentId, motherName: "", babyUid: "", gestation: "" });
   const [dobYmd, setDobYmd] = useState("");
   // Yesterday's last DMS weight, for the day-on-day weight change warning.
@@ -1788,7 +1813,11 @@ export default function MinimalMonitoringLog() {
   const backToFields = () => { setView("fields"); setActiveBlock(null); };
 
   const isEditable = true;
-  const counts = useMemo(() => countProgress(entries), [entries]);
+  const notRequiredNow = useMemo(
+    () => activeNotRequired(entries, notRequiredBlocks),
+    [entries, notRequiredBlocks],
+  );
+  const counts = useMemo(() => countProgress(entries, notRequiredNow), [entries, notRequiredNow]);
   const liveFieldWarnings = useMemo(
     () => buildRespBBloodGasWarnings(entries),
     [entries],
@@ -1862,6 +1891,17 @@ export default function MinimalMonitoringLog() {
   const removeFlowsheetEntry = (block, id) => {
     deletedIdsRef.current.add(id);
     setEntries(prev => ({ ...prev, [block]: (prev[block] || []).filter(e => e.id !== id) }));
+    setSaveTick(t => t + 1);
+    dirtyRef.current = true;
+  };
+
+  const toggleNotRequired = (blockKey) => {
+    const blocks = storedBlocks(blockKey).filter(b => !blockHasData(entriesRef.current, b));
+    if (!blocks.length) return;
+    setNotRequiredBlocks(prev => {
+      const on = blocks.every(b => prev.includes(b));
+      return on ? prev.filter(b => !blocks.includes(b)) : [...new Set([...prev, ...blocks])];
+    });
     setSaveTick(t => t + 1);
     dirtyRef.current = true;
   };
@@ -1953,6 +1993,7 @@ export default function MinimalMonitoringLog() {
       setGlucoseFrequencyHours(data.glucose_frequency_hours || 2);
       setVitalsFrequencyHours(data.vitals_frequency_hours || 2);
       setWeightFrequencyHours(data.weight_frequency_hours || 24);
+      setNotRequiredBlocks(Array.isArray(data.not_required_blocks) ? data.not_required_blocks : []);
       rememberMmlSheetDate(enrollmentId, recordDate);
       dirtyRef.current = false;
     } catch (_) {
@@ -1962,6 +2003,7 @@ export default function MinimalMonitoringLog() {
       setGlucoseFrequencyHours(2);
       setVitalsFrequencyHours(2);
       setWeightFrequencyHours(24);
+      setNotRequiredBlocks([]);
       setMessage("Could not load sheet for this date. Please try again.");
     } finally {
       setLoading(false);
@@ -2101,6 +2143,7 @@ export default function MinimalMonitoringLog() {
     glucose_frequency_hours: glucoseFrequencyHours,
     vitals_frequency_hours: vitalsFrequencyHours,
     weight_frequency_hours: weightFrequencyHours,
+    not_required_blocks: activeNotRequired(entriesSnapshot, notRequiredBlocks),
     // Rows removed on this screen: the backend's union merge keeps any row a
     // save omits (it may be another nurse's), so deletions must be explicit.
     deleted_entry_ids: [...deletedIdsRef.current],
@@ -2720,6 +2763,7 @@ export default function MinimalMonitoringLog() {
               <FieldsList
                 sectionKey={activeSection}
                 counts={counts}
+                notRequired={notRequiredNow}
                 onOpen={openBlock}
                 onBack={backToSections}
               />
@@ -2739,6 +2783,24 @@ export default function MinimalMonitoringLog() {
                     ? "Date is fixed to the sheet date above. Use the time range for respiratory support — click Save to add readings to the table below."
                     : "Date is fixed to the sheet date above; time follows the sheet rules. Click Save to add readings to the table below."}
                 </p>
+                {storedBlocks(activeBlock).some(b => !blockHasData(entries, b)) && (() => {
+                  const on = storedBlocks(activeBlock)
+                    .filter(b => !blockHasData(entries, b))
+                    .every(b => notRequiredNow.includes(b));
+                  return (
+                    <div className={`mml-not-required${on ? " mml-not-required--on" : ""}`}>
+                      <button type="button" className="mml-not-required-btn"
+                        onClick={() => toggleNotRequired(activeBlock)}>
+                        {on ? "✓ Not required today (tap to undo)" : "Not required today"}
+                      </button>
+                      <span className="mml-not-required-note">
+                        {on
+                          ? "Counted as complete for this day. Adding a reading clears this."
+                          : "Nothing to record today (test not done / treatment not given)? Mark it so the day is complete."}
+                      </span>
+                    </div>
+                  );
+                })()}
                 {renderBlockBody(activeBlock)}
               </div>
             )}

@@ -1247,3 +1247,38 @@
   font-size: 12.5px;
   font-weight: 600;
 }
+
+/* "Not required today" per block (PI 2026-10-20) */
+.mml-not-required {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px dashed #CBD5E1;
+  border-radius: 8px;
+  background: #F8FAFC;
+}
+.mml-not-required--on {
+  border-style: solid;
+  border-color: #86EFAC;
+  background: #F0FDF4;
+}
+.mml-not-required-btn {
+  border: 1px solid #94A3B8;
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mml-not-required--on .mml-not-required-btn {
+  border-color: #16A34A;
+  color: #166534;
+}
+.mml-not-required-note {
+  font-size: 12px;
+  color: #64748B;
+}

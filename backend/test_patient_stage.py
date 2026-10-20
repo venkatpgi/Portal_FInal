@@ -27,3 +27,12 @@ def test_form_b_stages():
 
 def test_every_stage_has_a_label():
     assert all(len(v) == 2 for v in STAGES.values())
+
+
+def test_followup_stages():
+    from patient_stage import followup_stage
+    assert followup_stage(None, None, True) == "consent_withdrawn"
+    assert followup_stage([{"discharged": "2026-10-05", "readmitted": None}], None, None) == "discharged_undelivered"
+    assert followup_stage([{"discharged": "2026-10-05", "readmitted": "2026-10-09"}], None, None) == "readmitted_awaiting"
+    assert followup_stage(None, "Delivered elsewhere", None) == "delivered_elsewhere"
+    assert followup_stage(None, None, None) is None

@@ -138,7 +138,7 @@ Summary:
 
 | Box | Definition (source) |
 |---|---|
-| 1 Approached for screening | Gestation Log entries **+** Form A records with no log entry ("orphans"). A Form A is not an orphan if an in-period entry is linked to it, or an in-period same-site entry with her CR is not linked to another live Form A (each entry covers one Form A, so Box 1 ≥ Box 3; `ga_log_link.orphan_counts`) |
+| 1 Approached for screening | **Women** in the Gestation Log (entries with the same site + CR are one woman: a readmitted woman logged again counts once, PI 2026-10-20; `ga_log_link.ga_box_counts`, which also gives Box 2's log-based sub-reasons from her entry that continued to Form A, else her latest) **+** Form A records with no log entry ("orphans"). A Form A is not an orphan if an in-period entry is linked to it, or an in-period same-site entry with her CR is not linked to another live Form A (each entry covers one Form A, so Box 1 ≥ Box 3; `ga_log_link.orphan_counts`) |
 | 2 Not approached / not screened | independent computation: never checked (Log of All Births, with its reasons), missed-retrospective, IUFD at screening, checked ≥ 32 wk, checked unreliable |
 | 3 Screened for eligibility | all Form A records |
 | 4a Did not meet inclusion criteria | Form A GA out of window (legacy — Form A now refuses these) |
@@ -187,3 +187,29 @@ Active / Failure / Pending badge, which showed refused consent as "Pending":
 | Delivered, no PPV (A-B only) | Form B PPV required = No |
 | PPV, not randomised | PPV Yes, randomised No |
 | Randomised | Form B randomised Yes |
+| Consent withdrawn / Discharged home undelivered / Readmitted, awaiting delivery / Delivered here, Form B missing / Delivered elsewhere / Lost to follow-up (undelivered) | Consented, no Form B: from Form A A6 pregnancy follow-up (`patient_stage.followup_stage`) |
+
+## 6. Readmission of an undelivered woman (PI 2026-10-20)
+- **Gestation Log**: log her again with "New contact of the same woman". The
+  duplicate-CR note shows her Form A consent (`form_a_consent`): refused → do
+  not approach; consented → consent stands, no new Form A, record the
+  readmission in Form A A6; not approached → may be approached if GA
+  25w0d–31w6d, by editing her existing Form A.
+- **Form A**: one per pregnancy (chapter 02 for the consent rules and A6).
+- **CONSORT** counts her once (§4, Box 1).
+
+## 7. Dashboard Tasks (`backend/ops_tasks.py`, PI 2026-10-20)
+A form is a task only once it is due. Shared by the ops-summary Tasks tab and
+the Data quality action list.
+
+| Task | Rule |
+|---|---|
+| Delivered but Form B not entered | consent Yes, not withdrawn, no Form B, and a **matched** Log of All Births entry or A6 outcome "Delivered here" |
+| Consented, now ≥37 wk, no birth logged | as above but no birth logged and no A6 outcome; GA today = Form A GA + days since screening ≥ 37w0d |
+| PPV baby, Form C missing | Form B PPV Yes (randomised or not), no Form C |
+| Form I due but missing | PPV baby, no Form I, and PMA (Form B GA + age) ≥ 36w0d or stay ended (Form H discharge/death date, or a Helper 5 "did not survive" day) |
+| Helper 2 / 4 / 5 days missing | PPV baby; Day 1 to yesterday (stopping at discharge/death), any helper missing ≥ 2 days |
+| ROP on Helper 5, no Form G for the date; Form H vs G ROP mismatch | unchanged (SQL / `rop_consistency`) |
+
+KPIs: "pending forms" = first, third and fourth rows; "log gaps" = Helper days missing.
+A woman still pregnant is never a task: she shows as "Consented, awaiting delivery" on the Participants list.

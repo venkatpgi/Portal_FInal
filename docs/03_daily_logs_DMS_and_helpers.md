@@ -42,6 +42,13 @@ helpers (and, separately, Form H — chapter 04).
 (5.3.C electrolyte block was retired 19-09-2026 — Helper 5's own Na/K/Ca
 readings feed Form H.)
 
+**Not required today** (PI 2026-10-20): every block with no reading that day
+counts as one open item until it has a reading or the nurse marks it "Not
+required today" (test not done / treatment not given). Stored per sheet in
+`minimal_monitoring_day_logs.not_required_blocks` (JSON list of block keys,
+5.5 = `neuro_a` + `neuro_b`); a block that gets a reading drops out of the
+list on the next save. Display only: nothing downstream reads it.
+
 Flowsheets 5.1.A / 5.3.A / 5.4.A: "Log every" 1, 2, 3, 6, 8 or 12 h
 (6/8/12 added 2026-10-20); 5.7.A Weight: 12 or 24 h. The cadence only
 changes which empty slots are shown, never stored readings.

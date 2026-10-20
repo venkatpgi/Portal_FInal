@@ -52,3 +52,18 @@ def test_orphans_entry_linked_to_deleted_form_a_can_cover():
     screenings = [{"screening_id": "01-0025", "site_name": "PGIMER", "maternal_uid": "X1"}]
     entries = [{"id": 59, "site_name": "PGIMER", "mother_uid": "X1", "screening_id": "01-0029"}]
     assert orphan_counts(screenings, entries) == {}
+
+
+def test_box_counts_count_a_readmitted_woman_once():
+    from ga_log_link import ga_box_counts
+    e = lambda i, cr, **kw: dict({"id": i, "site_name": "PGIMER", "mother_uid": cr, "check_date": date(2026, 10, i),
+                                  "continued_to_screening": False, "screening_id": None,
+                                  "identification_type": "Checked at triage", "found_iufd": False,
+                                  "eligible": True}, **kw)
+    c = ga_box_counts([
+        e(15, "1111"), e(18, "11-11", continued_to_screening=True, screening_id="01-0001"),  # readmitted, Form A
+        e(16, "2222", eligible=False), e(19, "2222", eligible=False),                        # logged twice, older
+        e(17, None), e(20, None),                                                            # no CR: two women
+    ])["PGIMER"]
+    assert c["box1"] == 4
+    assert c["box2_not_candidate_older"] == 1 and c["box2_eligible_gap"] == 2

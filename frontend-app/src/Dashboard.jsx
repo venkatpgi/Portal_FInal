@@ -45,10 +45,11 @@ const C = {
 
 const pctColor = (p) => (p >= 90 ? C.green : p >= 70 ? C.tL : p >= 50 ? C.amber : C.red);
 const TASK_COLORS = {
-  consented_no_form_b: C.amber,
-  randomised_no_form_c: C.blue,
-  randomised_no_form_i: C.red,
-  few_day_logs: C.orange,
+  delivered_no_form_b: C.red,
+  consented_overdue_no_birth: C.amber,
+  ppv_no_form_c: C.blue,
+  form_i_due: C.purple,
+  daily_logs_missing: C.orange,
 };
 const QUICK_AI_QUESTIONS = [
   "What's the current trial status?",

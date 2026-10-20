@@ -179,6 +179,17 @@ class Screening(Base):
     deleted_at = Column(DateTime, nullable=True)
     deleted_by = Column(String, nullable=True)
 
+    # Pregnancy follow-up for a consented woman not yet delivered (PI
+    # 2026-10-20): discharges home undelivered / readmissions, the final
+    # pregnancy outcome, and consent withdrawn by the woman herself. Consent
+    # otherwise stands across readmissions. Saved by PATCH
+    # /screenings/{id}/pregnancy-follow-up, independent of the Form A lock.
+    pregnancy_episodes = Column(JSON, nullable=True)  # [{"discharged": "YYYY-MM-DD", "readmitted": "YYYY-MM-DD"|null}]
+    pregnancy_outcome = Column(String, nullable=True)  # Delivered here / Delivered elsewhere / Lost to follow-up
+    pregnancy_outcome_date = Column(Date, nullable=True)
+    consent_withdrawn = Column(Boolean, nullable=True)
+    consent_withdrawn_date = Column(Date, nullable=True)
+
     screening_datetime = Column(DateTime, default=utcnow)
     created_at = Column(DateTime, default=utcnow)
 
@@ -2146,6 +2157,9 @@ class MinimalMonitoringDayLog(Base):
     # growth_a (Weight) Scheduled Flowsheet — same pattern, but its own
     # cadence menu is 12h/24h (once- or twice-daily), not hourly.
     weight_frequency_hours = Column(Integer, nullable=True)
+    # DMS blocks the nurse marked "Not required today" (no test / treatment
+    # that day), e.g. ["resp_b", "heme_a"]; counted complete (PI 2026-10-20).
+    not_required_blocks = Column(JSON, nullable=True)
 
     imaging_date = Column(String, nullable=True)
     ventriculomegaly_severity = Column(String, nullable=True)
