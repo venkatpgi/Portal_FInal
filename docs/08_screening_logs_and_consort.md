@@ -16,6 +16,13 @@ Page `GACheckLog.jsx`; API `/ga-check/…`; rules `backend/ga_check.py`.
 - Eligible → "Continue to Form A" (seeds Form A; `screening_id` linked back
   when Form A is saved, `PATCH /ga-check/{id}/link`). "Eligible, no Form A
   yet" list = `GET /ga-check/gap`.
+- **Automatic linking by CR** (`ga_log_link.py`, 2026-10-20): a Form A opened
+  from "New screening" (or saved before her log entry) is linked on save to
+  the most recent unlinked Gestation Log entry at the same site with the same
+  CR; a log entry saved after her Form A is linked to the most recent live
+  same-site same-CR Form A that has no log entry yet. A Form A with a linked
+  entry is not relinked; a linked entry is never moved. A directly opened new
+  Form A shows a reminder to log her.
 - Entries can be edited (`PUT /ga-check/{id}`); eligibility is recomputed.
 
 ### Live status (PI / trial nurses 2026-10-14)
@@ -131,7 +138,7 @@ Summary:
 
 | Box | Definition (source) |
 |---|---|
-| 1 Approached for screening | Gestation Log entries **+** Form A records with no log entry ("orphans") |
+| 1 Approached for screening | Gestation Log entries **+** Form A records with no log entry ("orphans"). A Form A is not an orphan if an in-period entry is linked to it, or an in-period same-site entry with her CR is not linked to another live Form A (each entry covers one Form A, so Box 1 ≥ Box 3; `ga_log_link.orphan_counts`) |
 | 2 Not approached / not screened | independent computation: never checked (Log of All Births, with its reasons), missed-retrospective, IUFD at screening, checked ≥ 32 wk, checked unreliable |
 | 3 Screened for eligibility | all Form A records |
 | 4a Did not meet inclusion criteria | Form A GA out of window (legacy — Form A now refuses these) |

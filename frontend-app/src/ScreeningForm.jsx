@@ -275,6 +275,10 @@ export default function ScreeningForm() {
   // A record saved with the retired "Trial run" consent (PI 2026-10-18) opens
   // with consent blank and a notice asking for the real consent.
   const [trialRunConsent, setTrialRunConsent] = useState(false);
+  /* New Form A opened from "New screening", not from the Gestation Log's
+     "Continue to Form A". The server links a same-CR log entry on save
+     (ga_log_link.py); this only reminds the nurse to log her (2026-10-20). */
+  const [openedDirectly, setOpenedDirectly] = useState(false);
   const formDataRef    = useRef(formData);
   const screeningIdRef = useRef(screeningId);
   const autoSaveRef    = useRef(null);
@@ -302,6 +306,7 @@ export default function ScreeningForm() {
   /* ─── Load ── */
   useEffect(() => {
     if (screeningId && screeningId !== "undefined" && screeningId !== "null") {
+      setOpenedDirectly(false);
       loadScreeningData(screeningId); return;
     }
     // No screeningId in the URL means this is a genuinely new screening —
@@ -338,6 +343,7 @@ export default function ScreeningForm() {
       }
     } catch { /* malformed/absent seed -- ignore, start blank as normal */ }
     localStorage.removeItem("ga_check_seed");
+    setOpenedDirectly(pendingGaCheckIdRef.current == null);
 
     setFormData({ ...BLANK_FORM, screening_datetime: toDateTimeLocalValue(new Date()), ...seedFields });
     setIsSaved(false); setIsEditing(false); setDataLoaded(true);
@@ -1406,6 +1412,15 @@ export default function ScreeningForm() {
                 </div>
               </div>
             </div>
+
+            {openedDirectly && !formData.screening_id && (
+              <div className="alert-warning" style={{ marginBottom: 12 }}>
+                Opened directly, not from the Gestation Log. Please also log her in the
+                Gestation (Inclusion Criteria) Screening Log, preferably first and then use
+                its "Continue to Form A" button. A log entry with the same CR number is
+                linked to this Form A automatically.
+              </div>
+            )}
 
             {/* ══════════════════════════════════════
                 A1 — SCREENING

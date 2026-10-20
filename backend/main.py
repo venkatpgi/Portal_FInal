@@ -1174,6 +1174,8 @@ def create_screening(
                     screening_id=screening_id,
                     new_values={"form": "Form A — Screening", "explicitly_saved": True},
                 )
+            # Link a same-CR Gestation Log entry (Form A opened directly; ga_log_link.py)
+            link_screening_to_log(db, db_screening.screening_id, db_screening.site_name)
             db.commit()
             db.refresh(db_screening)
             return db_screening
@@ -1335,6 +1337,8 @@ def update_screening(
         if not entry.screening_id:
             raise HTTPException(status_code=400, detail="Screening ID lost")
 
+        # Link a same-CR Gestation Log entry (ga_log_link.py)
+        link_screening_to_log(db, entry.screening_id, entry.site_name)
         db.commit()
         db.refresh(entry)
 
@@ -9040,6 +9044,7 @@ def get_birth_log_alerts(
 # GA CHECK LOG — near-zero-friction live pre-screening capture (see ga_check.py)
 # ============================================================================
 from ga_check import classify_eligibility
+from ga_log_link import link_screening_to_log, link_log_to_screening
 
 GA_CHECK_WRITE_FIELDS = set(GACheckEntryCreate.model_fields.keys()) - {"site_name", "allow_duplicate_cr"}
 
@@ -9090,6 +9095,8 @@ def create_ga_check_entry(
         record.check_date = clinical_today()
 
     db.add(record)
+    # Link an existing same-CR Form A (added before the log entry; ga_log_link.py)
+    link_log_to_screening(db, record)
     db.commit()
     db.refresh(record)
     return record
@@ -9128,6 +9135,7 @@ def update_ga_check_entry(
     record.eligible = None if payload.get("found_iufd") else classify_eligibility(
         payload.get("gestation_weeks"), payload.get("ga_source")
     )
+    link_log_to_screening(db, record)
     db.commit()
     db.refresh(record)
     return record

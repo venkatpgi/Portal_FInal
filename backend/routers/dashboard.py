@@ -248,6 +248,33 @@ ORPHAN_SCREENINGS_QUERY = text("""
     GROUP BY s.site_name
 """)
 
+
+def _orphan_screenings_by_site(db: Session) -> dict:
+    """Orphans per ORPHAN_SCREENINGS_QUERY, except a Form A whose CR matches an
+    in-period same-site log entry not linked to another live Form A is
+    covered by that entry, not an orphan (2026-10-20: 01-0104 was opened
+    directly, then logged as entry #374 -- she was counted twice). CR numbers
+    are encrypted, so this runs in Python; see ga_log_link.orphan_counts."""
+    from models import GACheckEntry, ParticipantPII, Screening
+    from ga_log_link import orphan_counts
+    from trial_dates import trial_start
+    start = trial_start()
+    rows = (db.query(Screening.screening_id, Screening.site_name)
+            .filter(Screening.is_deleted == False, Screening.site_name.isnot(None),  # noqa: E712
+                    Screening.site_name != "").all())
+    cr = {p.screening_id: p.maternal_uid
+          for p in db.query(ParticipantPII).filter(ParticipantPII.screening_id.isnot(None)).all()}
+    screenings = [{"screening_id": r.screening_id, "site_name": r.site_name,
+                   "maternal_uid": cr.get(r.screening_id)} for r in rows]
+    entries = []
+    for g in db.query(GACheckEntry).all():
+        d = g.check_date or (g.created_at.date() if g.created_at else None)
+        if d is None or d < start:
+            continue
+        entries.append({"id": g.id, "site_name": g.site_name, "mother_uid": g.mother_uid,
+                        "screening_id": g.screening_id})
+    return orphan_counts(screenings, entries)
+
 SCREENING_QUERY = text(f"""
     SELECT
         s.site_name AS site_name,
@@ -506,10 +533,8 @@ def _compute_ga_check_boxes(db: Session):
         never_checked_reasons_by_site.setdefault(site, {})
         never_checked_reasons_by_site[site][row["reason"]] = int(row["n"] or 0)
 
-    for row in db.execute(ORPHAN_SCREENINGS_QUERY, {"trial_start": TRIAL_START_DATE}).mappings():
-        site = row["site_name"]
-        orphan_screenings_by_site.setdefault(site, 0)
-        orphan_screenings_by_site[site] = int(row["n"] or 0)
+    for site, n in _orphan_screenings_by_site(db).items():
+        orphan_screenings_by_site[site] = n
 
     return ga_counts_by_site, never_checked_by_site, never_checked_reasons_by_site, orphan_screenings_by_site
 
