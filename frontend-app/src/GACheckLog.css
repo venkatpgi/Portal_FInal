@@ -337,6 +337,7 @@
 .gac-dup .gac-link-btn { font-size: 12.5px; }
 .gac-dup-allow { display: flex; align-items: center; gap: 4px; margin-top: 6px; color: #334155; font-weight: 600; }
 .gac-dup-allow input { width: auto; margin: 0; }
+.gac-dup-consent { display: block; margin-top: 4px; color: #92400e; font-weight: 600; }
 
 /* Live status (PI / trial nurses 2026-10-14) */
 .gac-badge--delivered { background: var(--gac-green-bg); color: var(--gac-green); }

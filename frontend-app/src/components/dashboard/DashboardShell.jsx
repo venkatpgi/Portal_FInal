@@ -4,7 +4,7 @@ import DashboardHeader from "./DashboardHeader";
 const TAB_LABELS = {
   overview: "Dashboard",
   recruitment: "Recruitment",
-  patients: "Patients",
+  patients: "Participants",
   tasks: "Tasks",
   safety: "Safety",
   data: "Data",

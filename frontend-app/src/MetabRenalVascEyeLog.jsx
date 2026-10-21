@@ -358,6 +358,28 @@ function parseJsonArray(raw) {
   }
 }
 
+/** "7:30", "7.30", "7:30 pm" -> "07:30" / "19:30". The tablet's reading time
+ *  was free text until 2026-10-21 and <input type="time"> shows anything that
+ *  is not exactly HH:MM as blank. Unparseable text is returned unchanged. */
+function normalizeReadingTime(raw) {
+  const t = String(raw ?? "").trim();
+  const m = t.match(/^(\d{1,2})[:.](\d{2})\s*([ap])?\.?\s*m?\.?$/i);
+  if (!m) return t;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ap = (m[3] || "").toLowerCase();
+  if (ap === "p" && h < 12) h += 12;
+  if (ap === "a" && h === 12) h = 0;
+  if (h > 23 || min > 59) return t;
+  return `${pad2(h)}:${pad2(min)}`;
+}
+
+/** Readings JSON from the server, with times made displayable. */
+function parseReadings(raw) {
+  const list = parseJsonArray(raw);
+  return list && list.map(r => (r && r.time ? { ...r, time: normalizeReadingTime(r.time) } : r));
+}
+
 /** Summary for electrolyte columns: most recent non-empty value. */
 function latestReadingSummary(readings, valueKey = "value") {
   if (!Array.isArray(readings)) return null;
@@ -912,7 +934,6 @@ export default function MetabRenalVascEyeLog() {
   const hyperRxRequired = isNumericHighGlucose(metabData.highest_glucose);
   const extravasationRequired =
     vascData.peripheral_iv === true || vascData.peripheral_arterial === true;
-  const ropDue = eyeData.rop_screening_due === true;
   const ropScreenedYes = eyeData.rop_screened === true;
 
   const METAB_BASE = [
@@ -965,11 +986,12 @@ export default function MetabRenalVascEyeLog() {
   const vascTotal    = VASC_KEYS.length;
   const vascAnswered = Math.min(VASC_KEYS.filter(k => ans(vascData[k])).length, vascTotal);
 
-  // Eye: #24 gated on #23 Yes; #25 gated on #24 Yes
+  // Eye: #23 and #24 always asked (an eye exam can happen on a day the
+  // protocol did not call due, PI 2026-10-20); #25 gated on #24 Yes
   const EYE_BASE = [
     "rop_screening_due",
-    ...(ropDue ? ["rop_screened"] : []),
-    ...(ropDue && ropScreenedYes ? ["rop_detected"] : []),
+    "rop_screened",
+    ...(ropScreenedYes ? ["rop_detected"] : []),
   ];
   const eyeTotal  = EYE_BASE.length;
   const eyeAnswered = Math.min(EYE_BASE.filter(k => ans(eyeData[k])).length, eyeTotal);
@@ -1124,13 +1146,6 @@ export default function MetabRenalVascEyeLog() {
     if (!isFieldEditable) return;
     setEyeData(p => {
       const next = { ...p, [k]: v };
-      if (k === "rop_screening_due" && v !== true) {
-        next.rop_screened = null;
-        next.rop_detected = null;
-        next.rop_stage = null;
-        next.plus_disease = null;
-        next.rop_treatment = null;
-      }
       if (k === "rop_screened" && v !== true) {
         next.rop_detected = null;
         next.rop_stage = null;
@@ -1382,10 +1397,10 @@ export default function MetabRenalVascEyeLog() {
         const d = res?.data || {};
         if (d && Object.keys(d).length > 0) {
           const aki = migrateAkiFromLegacy(d);
-          const phReadings = parseJsonArray(d.ph_readings_json) || [blankReading({ ph: "" })];
-          const naReadings = parseJsonArray(d.sodium_readings_json) || [blankReading({ value: "" })];
-          const kReadings = parseJsonArray(d.potassium_readings_json) || [blankReading({ value: "" })];
-          const caReadings = parseJsonArray(d.calcium_readings_json) || [blankReading({ value: "" })];
+          const phReadings = parseReadings(d.ph_readings_json) || [blankReading({ ph: "" })];
+          const naReadings = parseReadings(d.sodium_readings_json) || [blankReading({ value: "" })];
+          const kReadings = parseReadings(d.potassium_readings_json) || [blankReading({ value: "" })];
+          const caReadings = parseReadings(d.calcium_readings_json) || [blankReading({ value: "" })];
           const creatVal = d.creatinine_value
             ?? (d.creatinine != null && d.creatinine !== "" ? String(d.creatinine) : null);
           const acidosisStatus = d.metabolic_acidosis_status ?? null;
@@ -2533,13 +2548,9 @@ export default function MetabRenalVascEyeLog() {
               <div className="rcn-yn-list">
                 <YNRow label="23. ROP screening due" value={eyeData.rop_screening_due}
                   onChange={v=>setEye("rop_screening_due",v)} disabled={!isFieldEditable}/>
-                {ropDue && (
-                  <div className="rcn-conditional-block">
-                    <YNRow label="24. ROP screened" value={eyeData.rop_screened}
-                      onChange={v=>setEye("rop_screened",v)} disabled={!isFieldEditable}/>
-                  </div>
-                )}
-                {ropDue && ropScreenedYes && (
+                <YNRow label="24. ROP screened" value={eyeData.rop_screened}
+                  onChange={v=>setEye("rop_screened",v)} disabled={!isFieldEditable}/>
+                {ropScreenedYes && (
                   <div className="rcn-conditional-block">
                     <YNRow label="25. ROP detected" value={eyeData.rop_detected}
                       onChange={v=>setEye("rop_detected",v)} disabled={!isFieldEditable}/>

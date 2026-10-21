@@ -19,6 +19,7 @@ import { useAuth } from "./context/AuthContext";
 import GlobalSiteFilter, { siteQueryParams } from "./components/dashboard/GlobalSiteFilter";
 import { isGlobalUser } from "./utils/roles";
 import { formatBabyOfLabel } from "./utils/babyName";
+import { COMPLETE_ENROLLMENT_RE } from "./utils/enrollmentId";
 import DashboardShell from "./components/dashboard/DashboardShell";
 import DashboardKpiCard from "./components/dashboard/DashboardKpiCard";
 import DashboardSection from "./components/dashboard/DashboardSection";
@@ -44,10 +45,11 @@ const C = {
 
 const pctColor = (p) => (p >= 90 ? C.green : p >= 70 ? C.tL : p >= 50 ? C.amber : C.red);
 const TASK_COLORS = {
-  consented_no_form_b: C.amber,
-  randomised_no_form_c: C.blue,
-  randomised_no_form_i: C.red,
-  few_day_logs: C.orange,
+  delivered_no_form_b: C.red,
+  consented_overdue_no_birth: C.amber,
+  ppv_no_form_c: C.blue,
+  form_i_due: C.purple,
+  daily_logs_missing: C.orange,
 };
 const QUICK_AI_QUESTIONS = [
   "What's the current trial status?",
@@ -124,6 +126,7 @@ export default function Dashboard() {
 
   const [screenings, setScreenings] = useState([]);
   const [piiByScreening, setPiiByScreening] = useState({});
+  const [stageByScreening, setStageByScreening] = useState({});
   const [ops, setOps] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -156,11 +159,13 @@ export default function Dashboard() {
     setLoading(true);
     setLoadError(null);
     try {
-      const [opsRes, scrRes] = await Promise.all([
+      const [opsRes, scrRes, stageRes] = await Promise.all([
         api.get("/dashboard/ops-summary", { params: siteQueryParams(apiSite) }),
-        api.get("/screenings/", { params: { limit: 100 } }),
+        api.get("/screenings/", { params: { limit: 500 } }),
+        api.get("/screenings/stages").catch(() => ({ data: {} })),
       ]);
       setOps(opsRes.data);
+      setStageByScreening(stageRes.data || {});
       const list = Array.isArray(scrRes.data) ? scrRes.data : [];
       setScreenings(list);
       const sids = list.map(d => d.screening_id).filter(Boolean);
@@ -228,6 +233,7 @@ export default function Dashboard() {
     const q = search.toLowerCase();
     const baby = formatBabyOfLabel(piiByScreening[d.screening_id]).toLowerCase();
     return (
+      (d.screening_id  || "").toLowerCase().includes(q) ||
       (d.enrollment_id || "").toLowerCase().includes(q) ||
       (d.site_name     || "").toLowerCase().includes(q) ||
       baby.includes(q)
@@ -560,11 +566,11 @@ export default function Dashboard() {
 
       {tab === "patients" && (
         <div className="space-y-6">
-          <DashboardSection icon={Users} title="Preterm Patient Registry" sub={`${filtered.length} records`}>
+          <DashboardSection icon={Users} title="Screened Participants" sub={`${filtered.length} Form A records — mother and baby`}>
             <div className="mb-4 grid grid-cols-1 gap-2 rounded-lg bg-portal-surface-low p-2 sm:grid-cols-12">
               <div className="sm:col-span-12">
                 <p className="px-1 text-[12px] text-portal-muted">
-                  Filter uses the header search — baby name, enrollment ID, or site.
+                  Every woman with a Form A, newest first. Filter uses the header search — name, screening ID, randomisation no., or site.
                 </p>
               </div>
             </div>
@@ -572,11 +578,12 @@ export default function Dashboard() {
               <table className="w-full min-w-[720px] border-collapse text-left">
                 <thead>
                   <tr className="border-b border-portal-line bg-portal-surface-low text-[11px] font-semibold uppercase tracking-[0.06em] text-portal-outline">
-                    <th className="py-2.5 pr-3 pl-3">Baby name</th>
-                    <th className="py-2.5 pr-3">Enrollment ID</th>
+                    <th className="py-2.5 pr-3 pl-3">Baby of</th>
+                    <th className="py-2.5 pr-3">Screening ID</th>
+                    <th className="py-2.5 pr-3">Randomisation no.</th>
                     <th className="py-2.5 pr-3">Site</th>
-                    <th className="py-2.5 pr-3">Gestation</th>
-                    <th className="py-2.5 pr-3">Status</th>
+                    <th className="py-2.5 pr-3">GA at screening</th>
+                    <th className="py-2.5 pr-3">Stage</th>
                     <th className="py-2.5 pr-3">Updated</th>
                     <th className="py-2.5 pr-3">Action</th>
                   </tr>
@@ -584,16 +591,18 @@ export default function Dashboard() {
                 <tbody>
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-10 text-center">
+                      <td colSpan={8} className="py-10 text-center">
                         <EmptyState
                           icon={Users}
-                          title={search ? "No matching patients" : "No patients"}
-                          body={search ? "Try a different baby name, enrollment ID, or site." : "Patient records will appear here from live screening data."}
+                          title={search ? "No matching participants" : "No participants"}
+                          body={search ? "Try a different name, screening ID, randomisation no., or site." : "Every Form A record will appear here."}
                         />
                       </td>
                     </tr>
-                  ) : filtered.slice(0, 50).map(r => {
+                  ) : filtered.map(r => {
                     const baby = formatBabyOfLabel(piiByScreening[r.screening_id]) || "—";
+                    const stage = stageByScreening[r.screening_id];
+                    const randNo = COMPLETE_ENROLLMENT_RE.test(r.enrollment_id || "") ? r.enrollment_id : null;
                     return (
                     <tr key={r.screening_id || r.enrollment_id} className="border-b border-portal-line/80 transition-colors hover:bg-portal-surface-low last:border-0">
                       <td className="py-2.5 pr-3 pl-3">
@@ -605,17 +614,17 @@ export default function Dashboard() {
                         </div>
                       </td>
                       <td className="py-2.5 pr-3 font-data-mono text-[12px] font-semibold text-portal-secondary">
-                        {r.enrollment_id || r.screening_id || "—"}
+                        {r.screening_id || "—"}
+                      </td>
+                      <td className="py-2.5 pr-3 font-data-mono text-[12px] text-portal-ink">
+                        {randNo || "—"}
                       </td>
                       <td className="py-2.5 pr-3 text-[12px] text-portal-muted">{formatSiteName(r.site_name) || "—"}</td>
                       <td className="py-2.5 pr-3 font-data-mono text-[12px] tabular-nums">{r.gestation_weeks ? `${r.gestation_weeks}w ${r.gestation_days || 0}d` : "—"}</td>
                       <td className="py-2.5 pr-3">
-                        <StatusBadge
-                          s={
-                            r.screening_status === "Eligible" ? "active" :
-                            r.screening_status === "Screen Failure" ? "failure" : "pending"
-                          }
-                        />
+                        {stage
+                          ? <StatusBadge s={stage.tone} label={stage.label} />
+                          : <span className="text-[12px] text-portal-outline">{r.screening_status || "—"}</span>}
                       </td>
                       <td className="py-2.5 pr-3 font-data-mono text-[11px] text-portal-outline">
                         {r.updated_at ? new Date(r.updated_at).toLocaleDateString("en-IN") : "—"}

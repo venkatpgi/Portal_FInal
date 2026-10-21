@@ -500,6 +500,16 @@ export default function GACheckLog() {
                 Already logged{duplicateCr.check_date ? ` on ${formatDateToDDMMYYYY(duplicateCr.check_date)}` : ""}
                 {duplicateCr.mother_name ? ` (${duplicateCr.mother_name})` : ""}.{" "}
                 <button type="button" className="gac-link-btn" onClick={() => startEdit(duplicateCr)}>Edit that entry</button>
+                {/* Readmission (PI 2026-10-20): consent on her Form A decides what to do */}
+                {duplicateCr.form_a_consent === "No" && (
+                  <span className="gac-dup-consent"> She refused consent on Form A: do not approach her again.</span>
+                )}
+                {duplicateCr.form_a_consent === "Yes" && (
+                  <span className="gac-dup-consent"> She has consented (Form A): consent stands, do not fill a new Form A. Record the readmission under Form A → Pregnancy follow-up.</span>
+                )}
+                {duplicateCr.form_a_consent === "Not approached" && (
+                  <span className="gac-dup-consent"> Not approached before: she may be approached now if her GA is 25w0d–31w6d. Edit her existing Form A consent; do not fill a new one.</span>
+                )}
                 <span className="gac-dup-allow">
                   <input type="checkbox" checked={allowDuplicateCr} onChange={(ev) => setAllowDuplicateCr(ev.target.checked)} />
                   {" "}New contact of the same woman — log again

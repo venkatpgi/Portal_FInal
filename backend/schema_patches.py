@@ -1325,3 +1325,17 @@ BIRTH_LOG_MULTIPLE_BIRTH_PATCHES = [
     "ALTER TABLE birth_log_all_births ADD COLUMN IF NOT EXISTS multiple_birth_count INTEGER",
     "ALTER TABLE birth_log_all_births ADD COLUMN IF NOT EXISTS birth_order INTEGER",
 ]
+
+# Form A pregnancy follow-up + consent withdrawn (2026-10-20).
+SCREENING_PREGNANCY_FOLLOWUP_PATCHES = [
+    "ALTER TABLE screenings ADD COLUMN IF NOT EXISTS pregnancy_episodes JSON",
+    "ALTER TABLE screenings ADD COLUMN IF NOT EXISTS pregnancy_outcome VARCHAR",
+    "ALTER TABLE screenings ADD COLUMN IF NOT EXISTS pregnancy_outcome_date DATE",
+    "ALTER TABLE screenings ADD COLUMN IF NOT EXISTS consent_withdrawn BOOLEAN",
+    "ALTER TABLE screenings ADD COLUMN IF NOT EXISTS consent_withdrawn_date DATE",
+]
+
+# DMS "Not required today" per block (2026-10-20).
+DMS_NOT_REQUIRED_PATCHES = [
+    "ALTER TABLE minimal_monitoring_day_logs ADD COLUMN IF NOT EXISTS not_required_blocks JSON",
+]

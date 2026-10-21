@@ -71,7 +71,7 @@ from models import (
     CranialUSGRecord, SAEReport, AdverseEvents,
     SAEList, User, MRIBrainAssessment, BlenderStudySummary, ParticipantPII, BirthLogEntry, GACheckEntry
 )
-from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, BirthResuscitationCreate,MetabRenalVascEyeDayCreate, MetabRenalVascEyeDaySubmit, MinimalMonitoringDayCreate, MinimalMonitoringDayOut, BirthResuscitationOut, MaternalDetailsCreate, MaternalDetailsOut, PostnatalDay1Create, PostnatalDay1Out,NICUAdmissionCreate,NICUAdmissionOut,NeonatalMorbiditiesCreate,NeonatalMorbiditiesOut,StudyOutcomesCreate, CranialUSGCreate, CranialUSGSubmit, StudyOutcomesOut,CranialUltrasoundCreate, CranialUltrasoundOut,ROPScreeningCreate, ROPScreeningOut,CompositeOutcomeCreate, CompositeOutcomeOut, ExternalHospitalAssessmentCreate, ExternalHospitalAssessmentOut, FiO2AUCLogCreate, FiO2AUCLogOut, RespCVNeuroLogCreate,RespCVNeuroDayCreate, RespCVNeuroDaySubmit, DischargeUpdate, RespCVNeuroLogOut,InfectGIHemaLogCreate, InfectGIHemaLogOut,MetabRenalVascEyeLogCreate,MetabRenalVascEyeLogOut,SAEReportCreate, SAEReportOut, AdverseEventsCreate, AdverseEventsOut ,SAEListCreate, SAEListOut, UserCreate, UserUpdate, UserOut, UserRosterOut, SitePiContactOut, LoginRequest, LoginResponse, RefreshTokenRequest, TokenRefreshResponse, RespiratoryLogCreate, RespiratoryLogBulkCreate, InfectGIHemaDayCreate, InfectGIHemaDaySubmit,  SteroidDataCreate, FirebaseScreeningImportCreate, MRIBrainCreate, MRIBrainSubmit, MRIBrainOut, BlenderSummaryCreate, BlenderSummarySubmit, BlenderSummaryOut, HelperFormRecordOut, HelperFormRecordsPage, BirthLogEntryCreate, BirthLogEntryOut, GACheckEntryCreate, GACheckEntryOut, GACheckLinkRequest
+from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, PregnancyFollowUpUpdate, BirthResuscitationCreate,MetabRenalVascEyeDayCreate, MetabRenalVascEyeDaySubmit, MinimalMonitoringDayCreate, MinimalMonitoringDayOut, BirthResuscitationOut, MaternalDetailsCreate, MaternalDetailsOut, PostnatalDay1Create, PostnatalDay1Out,NICUAdmissionCreate,NICUAdmissionOut,NeonatalMorbiditiesCreate,NeonatalMorbiditiesOut,StudyOutcomesCreate, CranialUSGCreate, CranialUSGSubmit, StudyOutcomesOut,CranialUltrasoundCreate, CranialUltrasoundOut,ROPScreeningCreate, ROPScreeningOut,CompositeOutcomeCreate, CompositeOutcomeOut, ExternalHospitalAssessmentCreate, ExternalHospitalAssessmentOut, FiO2AUCLogCreate, FiO2AUCLogOut, RespCVNeuroLogCreate,RespCVNeuroDayCreate, RespCVNeuroDaySubmit, DischargeUpdate, RespCVNeuroLogOut,InfectGIHemaLogCreate, InfectGIHemaLogOut,MetabRenalVascEyeLogCreate,MetabRenalVascEyeLogOut,SAEReportCreate, SAEReportOut, AdverseEventsCreate, AdverseEventsOut ,SAEListCreate, SAEListOut, UserCreate, UserUpdate, UserOut, UserRosterOut, SitePiContactOut, LoginRequest, LoginResponse, RefreshTokenRequest, TokenRefreshResponse, RespiratoryLogCreate, RespiratoryLogBulkCreate, InfectGIHemaDayCreate, InfectGIHemaDaySubmit,  SteroidDataCreate, FirebaseScreeningImportCreate, MRIBrainCreate, MRIBrainSubmit, MRIBrainOut, BlenderSummaryCreate, BlenderSummarySubmit, BlenderSummaryOut, HelperFormRecordOut, HelperFormRecordsPage, BirthLogEntryCreate, BirthLogEntryOut, GACheckEntryCreate, GACheckEntryOut, GACheckLinkRequest
 from pydantic import BaseModel
 from typing import Optional, List
 from deps import (
@@ -622,6 +622,11 @@ def require_eligible_screening_for_form_b(db: Session, screening_id: str | None)
                 "— check the gestational age, exclusion criteria and consent on Form A."
             ),
         )
+    if screening.consent_withdrawn:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Screening {sid}: the woman withdrew consent (Form A pregnancy follow-up), so Form B is not filled.",
+        )
 
 
 def link_screening_enrollment(
@@ -1020,6 +1025,86 @@ def get_screening_stats(
         "pending": len(rows) - enrolled - excluded,
     }
 
+@app.get("/screenings/stages")
+def get_screening_stages(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """{screening_id: {stage, label, tone}} for every accessible Form A --
+    the dashboard Screened Participants "Stage" column (patient_stage.py).
+    Declared before /screenings/{screening_id} so "stages" is not read as an ID."""
+    from patient_stage import followup_stage, patient_stage, stage_payload
+    rows = get_accessible_screening_query(db, current_user).all()
+    sids = [r.screening_id for r in rows if r.screening_id]
+    form_b = {}
+    if sids:
+        for b in (db.query(BirthResuscitation.screening_id, BirthResuscitation.required_resuscitation,
+                           BirthResuscitation.randomised)
+                  .filter(BirthResuscitation.screening_id.in_(sids)).all()):
+            form_b[b.screening_id] = b
+    out = {}
+    for r in rows:
+        b = form_b.get(r.screening_id)
+        key = patient_stage(compute_screening_status(r), r.consent_given, r.gestation_weeks,
+                            r.gestation_days, b is not None,
+                            b.required_resuscitation if b else None, b.randomised if b else None)
+        if key == "awaiting_delivery":
+            key = followup_stage(r.pregnancy_episodes, r.pregnancy_outcome, r.consent_withdrawn) or key
+        out[r.screening_id] = stage_payload(key)
+    return out
+
+@app.patch("/screenings/{screening_id}/pregnancy-follow-up", response_model=ScreeningClinicalOut)
+def update_pregnancy_follow_up(
+    screening_id: str,
+    data: PregnancyFollowUpUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Discharges undelivered / readmissions, pregnancy outcome and consent
+    withdrawn for a consented woman (pregnancy_followup.py). Saved on its own,
+    so Form A does not need to be unlocked for it."""
+    entry = get_accessible_screening_query(db, current_user).filter(
+        Screening.screening_id == screening_id
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Screening not found")
+    ensure_same_site(entry.site_name, current_user)
+    payload = data.model_dump()
+    has_form_b = db.query(BirthResuscitation.id).filter(
+        BirthResuscitation.screening_id == screening_id).first() is not None
+    screened_on = entry.screening_datetime or entry.created_at
+    errs = followup_errors(payload, entry.consent_given, screened_on.date() if screened_on else None,
+                           has_form_b, date.today())
+    if errs:
+        raise HTTPException(status_code=422, detail=" ".join(errs))
+    old_snapshot = row_snapshot(entry)
+    entry.pregnancy_episodes = [
+        {"discharged": e["discharged"].isoformat(),
+         "readmitted": e["readmitted"].isoformat() if e.get("readmitted") else None}
+        for e in payload["pregnancy_episodes"]
+    ] or None
+    entry.pregnancy_outcome = payload["pregnancy_outcome"] or None
+    entry.pregnancy_outcome_date = payload["pregnancy_outcome_date"] if entry.pregnancy_outcome else None
+    entry.consent_withdrawn = bool(payload["consent_withdrawn"]) or None
+    entry.consent_withdrawn_date = payload["consent_withdrawn_date"] if entry.consent_withdrawn else None
+    entry.updated_by = current_user.username
+    entry.updated_at = datetime.now()
+    record_audit(
+        db,
+        user_id=current_user.id,
+        username=current_user.full_name or current_user.username,
+        action="UPDATE",
+        table_name="screenings",
+        record_id=entry.id,
+        enrollment_id=entry.enrollment_id,
+        screening_id=screening_id,
+        old_values=old_snapshot,
+        new_values=row_snapshot(entry),
+    )
+    db.commit()
+    db.refresh(entry)
+    return entry
+
 @app.get("/screenings/{screening_id}", response_model=ScreeningClinicalOut)
 def get_screening(
     screening_id: str,
@@ -1174,6 +1259,8 @@ def create_screening(
                     screening_id=screening_id,
                     new_values={"form": "Form A — Screening", "explicitly_saved": True},
                 )
+            # Link a same-CR Gestation Log entry (Form A opened directly; ga_log_link.py)
+            link_screening_to_log(db, db_screening.screening_id, db_screening.site_name)
             db.commit()
             db.refresh(db_screening)
             return db_screening
@@ -1256,6 +1343,18 @@ def update_screening(
         update_data = updated_data.model_dump(exclude_unset=True)
         update_data.pop("screening_id", None)
         refuse_trial_run_consent(update_data.get("consent_given"))
+        # Consent rules once Form A is saved (pregnancy_followup.py, PI 2026-10-20)
+        if "consent_given" in update_data:
+            _screened_on = entry.screening_datetime or entry.created_at
+            _consent_err = consent_change_error(
+                entry.consent_given, update_data.get("consent_given"),
+                bool(entry.explicitly_saved),
+                (current_user.role or "").lower() in {ROLE_SUPERADMIN, ROLE_SITE_PI},
+                ga_today_days(entry.gestation_weeks, entry.gestation_days,
+                              _screened_on.date() if _screened_on else None, date.today()),
+            )
+            if _consent_err:
+                raise HTTPException(status_code=422, detail=_consent_err)
 
         # FIX: same reasoning as create_screening above ? don't trust the
         # client's site_id, derive it from site_name server-side so an
@@ -1335,6 +1434,8 @@ def update_screening(
         if not entry.screening_id:
             raise HTTPException(status_code=400, detail="Screening ID lost")
 
+        # Link a same-CR Gestation Log entry (ga_log_link.py)
+        link_screening_to_log(db, entry.screening_id, entry.site_name)
         db.commit()
         db.refresh(entry)
 
@@ -7956,14 +8057,14 @@ def _metab_completion_pct(r) -> int:
     ]
     vasc_done = sum(1 for k in vasc_keys if ans(getattr(r, k, None)))
 
-    due = getattr(r, "rop_screening_due", None) is True
     screened = getattr(r, "rop_screened", None) is True
     eye_keys = [
         "rop_screening_due",
-        *(["rop_screened"] if due else []),
-        *(["rop_detected"] if due and screened else []),
+        "rop_screened",
+        *(["rop_detected"] if screened else []),
     ]
-    # Mirrors the page (2026-09-26): #23-#25 only. ROP stage / plus / treatment
+    # Mirrors the page: #23 and #24 always asked, whether or not the screen
+    # was due (PI 2026-10-20); #25 only if screened. #23-#25 only (2026-09-26). ROP stage / plus / treatment
     # are recorded per eye in Form G, not counted toward this day's completion.
     eye_total = len(eye_keys)
     eye_done = sum(1 for k in eye_keys if ans(getattr(r, k, None)))
@@ -8380,6 +8481,14 @@ def get_minimal_monitoring_on_date(
     return record
 
 
+# DMS entry blocks (MinimalMonitoringLog.jsx BLOCK_TO_SECTION) that can be
+# marked "Not required today".
+DMS_BLOCK_KEYS = frozenset({
+    "cv_a", "cv_b", "cv_c", "cv_d", "resp_a", "resp_b", "resp_c", "resp_d",
+    "met_a", "met_b", "gi_a", "gi_b", "neuro_a", "neuro_b", "heme_a", "growth_a",
+})
+
+
 def _upsert_minimal_monitoring_for_date(
     enrollment_id: str,
     record_date: str,
@@ -8391,6 +8500,10 @@ def _upsert_minimal_monitoring_for_date(
     deleted_entry_ids = payload.pop("deleted_entry_ids", None)
     payload["enrollment_id"] = enrollment_id
     payload["record_date"] = record_date
+    if "not_required_blocks" in payload:
+        payload["not_required_blocks"] = sorted(
+            {b for b in payload["not_required_blocks"] or [] if b in DMS_BLOCK_KEYS}
+        ) or None
     if not payload.get("submission_status") or payload.get("submission_status") == "empty":
         payload["submission_status"] = "draft"
     if "saved_at" not in payload or payload.get("saved_at") is None:
@@ -9040,6 +9153,8 @@ def get_birth_log_alerts(
 # GA CHECK LOG — near-zero-friction live pre-screening capture (see ga_check.py)
 # ============================================================================
 from ga_check import classify_eligibility
+from ga_log_link import link_screening_to_log, link_log_to_screening
+from pregnancy_followup import consent_change_error, followup_errors, ga_today_days
 
 GA_CHECK_WRITE_FIELDS = set(GACheckEntryCreate.model_fields.keys()) - {"site_name", "allow_duplicate_cr"}
 
@@ -9090,6 +9205,8 @@ def create_ga_check_entry(
         record.check_date = clinical_today()
 
     db.add(record)
+    # Link an existing same-CR Form A (added before the log entry; ga_log_link.py)
+    link_log_to_screening(db, record)
     db.commit()
     db.refresh(record)
     return record
@@ -9128,6 +9245,7 @@ def update_ga_check_entry(
     record.eligible = None if payload.get("found_iufd") else classify_eligibility(
         payload.get("gestation_weeks"), payload.get("ga_source")
     )
+    link_log_to_screening(db, record)
     db.commit()
     db.refresh(record)
     return record

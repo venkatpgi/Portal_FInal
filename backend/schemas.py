@@ -477,6 +477,12 @@ class ScreeningClinicalOut(BaseModel):
     updated_by: Optional[str] = None
     updated_at: Optional[datetime] = None
 
+    pregnancy_episodes: Optional[list] = None
+    pregnancy_outcome: Optional[str] = None
+    pregnancy_outcome_date: Optional[date] = None
+    consent_withdrawn: Optional[bool] = None
+    consent_withdrawn_date: Optional[date] = None
+
     screening_datetime: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
@@ -495,6 +501,20 @@ class ScreeningClinicalOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class PregnancyEpisode(BaseModel):
+    discharged: date
+    readmitted: Optional[date] = None
+
+
+class PregnancyFollowUpUpdate(BaseModel):
+    """Form A pregnancy follow-up (PI 2026-10-20). Every field is sent."""
+    pregnancy_episodes: list[PregnancyEpisode] = []
+    pregnancy_outcome: Optional[str] = None
+    pregnancy_outcome_date: Optional[date] = None
+    consent_withdrawn: Optional[bool] = None
+    consent_withdrawn_date: Optional[date] = None
 
 
 # Backward-compatible alias; list/detail screening APIs use clinical view only.
@@ -2796,6 +2816,7 @@ class MinimalMonitoringDayCreate(BaseModel):
     glucose_frequency_hours: Optional[int] = None
     vitals_frequency_hours: Optional[int] = None
     weight_frequency_hours: Optional[int] = None
+    not_required_blocks: Optional[List[str]] = None
     direct_bilirubin: Optional[float] = None
 
     imaging_date: Optional[str] = None
@@ -3094,6 +3115,7 @@ class GACheckEntryOut(GACheckEntryCreate):
     delivered_source: Optional[str] = None
     live_note: Optional[str] = None
     has_form_a: Optional[bool] = None
+    form_a_consent: Optional[str] = None
     in_gap: Optional[bool] = None
     entered_by: Optional[str] = None
     eligible: Optional[bool] = None

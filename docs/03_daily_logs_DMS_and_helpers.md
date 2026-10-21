@@ -42,6 +42,27 @@ helpers (and, separately, Form H — chapter 04).
 (5.3.C electrolyte block was retired 19-09-2026 — Helper 5's own Na/K/Ca
 readings feed Form H.)
 
+**Not required today** (PI 2026-10-20): every block with no reading that day
+counts as one open item until it has a reading or the nurse marks it "Not
+required today" (test not done / treatment not given). Stored per sheet in
+`minimal_monitoring_day_logs.not_required_blocks` (JSON list of block keys,
+5.5 = `neuro_a` + `neuro_b`); a block that gets a reading drops out of the
+list on the next save. Display only: nothing downstream reads it.
+
+**Tablet readings in flowsheets** (2026-10-21): the app saves a reading with
+a time but no `slot_time`; the web files it under the slot its time falls in
+(`buildFlowsheetRows`), so it no longer shows as an extra row with its slot
+still flagged missing.
+
+**Helper 5 reading times** (pH / Na / K / iCa readings JSON): the tablet's
+time was free text until 2026-10-21 (now a 24 h picker); the web normalises
+"7:30", "7.30", "7:30 pm" to HH:MM on load (`normalizeReadingTime`), since a
+time input shows anything else as blank.
+
+Flowsheets 5.1.A / 5.3.A / 5.4.A: "Log every" 1, 2, 3, 6, 8 or 12 h
+(6/8/12 added 2026-10-20); 5.7.A Weight: 12 or 24 h. The cadence only
+changes which empty slots are shown, never stored readings.
+
 DMS saves: entries are merged by id, explicit deletes honoured
 (`concurrent_writes.merge_mml_entries_json`, chapter 01 §5).
 
@@ -103,7 +124,7 @@ server % (fixed 26-09-2026):
 |---|---|---|
 | 2 | `main._compute_completion_pct` | respiratory 22 items (+4b when both CPAP and MAP used; weight 2.1 retired 29-09-2026), CV, neuro (cranial-USG items only when USG done) |
 | 4 | `main._infect_completion_pct` | GI items conditional on NPO / enteral answers |
-| 5 | `main._metab_completion_pct` | AKI and ROP sub-items not counted |
+| 5 | `main._metab_completion_pct` | AKI and ROP sub-items not counted. #23 ROP screening due and #24 ROP screened are both always asked (#24 no longer hidden when not due, PI 2026-10-20); #25 ROP detected only if screened |
 
 Helpers 2 and 5 are scored **after** the DMS overlay (§3a), so a day can reach
 100% from DMS data alone.

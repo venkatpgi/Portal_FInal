@@ -38,6 +38,14 @@ linked-from-a-log-entry or an orphan, mutually exclusive). Box 1 - Box 3
 = G - L, which is always >= 0 since L is by construction a subset of G's
 own rows.
 
+**Counted per woman since 2026-10-20** (PI: an undelivered woman sent home
+and readmitted is logged again but approached once): G is the number of
+women in the log -- entries with the same site + normalised CR are one
+woman (ga_log_link.ga_box_counts) -- and L the women among them who
+continued to Form A. A second Form A with the same CR is refused
+(refuse_duplicate_identifiers), so each woman covers at most one Form A
+and Box 1 >= Box 3 still holds.
+
 Box 2 "Not Screened" is deliberately NOT `Box1 - Box3` — it also counts
 births known only from `birth_log_all_births` with no matching Gestation
 Log entry at all ("never_checked"), a population Box 1's own total does
@@ -136,7 +144,6 @@ ALL_SITES = ["PGIMER", "GMCH", "IOG", "AFMC", "GMCH-A", "AMC"]
 # log entry and so are counted in Box 1 as "orphans" -- which keeps
 # Approached >= Screened. The logs themselves are never filtered or edited.
 from trial_dates import TRIAL_START_DATE  # noqa: E402
-_GA_LOG_IN_TRIAL_SQL = "COALESCE(check_date, CAST(created_at AS DATE)) >= CAST(:trial_start AS DATE)"
 _BIRTH_LOG_IN_TRIAL_SQL = "COALESCE(date_of_birth, CAST(created_at AS DATE)) >= CAST(:trial_start AS DATE)"
 
 
@@ -163,42 +170,10 @@ _GA_OUT_OR_UNKNOWN_SQL = (
     f"OR {_GA_DAYS_SQL} > 31 * 7 + 6)"
 )
 
-# Box 1 + Box 2's ga_check_log-sourced sub-reasons, mutually exclusive via
-# CASE precedence: continued_to_screening rows are excluded from every
-# Box-2 bucket (they produced a real Form A row, already counted in Box 3
-# separately); identification_type='Missed...' takes precedence over
-# found_iufd/eligible so a retroactively-logged miss is never
-# double-classified as also being an eligibility-gap case.
-GA_CHECK_QUERY = text(f"""
-    SELECT
-        site_name,
-        COUNT(*) AS box1,
-        SUM(CASE WHEN continued_to_screening = FALSE
-                 AND identification_type = 'Missed - identified retrospectively'
-            THEN 1 ELSE 0 END) AS box2_missed,
-        SUM(CASE WHEN continued_to_screening = FALSE
-                 AND identification_type IS DISTINCT FROM 'Missed - identified retrospectively'
-                 AND found_iufd = TRUE
-            THEN 1 ELSE 0 END) AS box2_iufd,
-        SUM(CASE WHEN continued_to_screening = FALSE
-                 AND identification_type IS DISTINCT FROM 'Missed - identified retrospectively'
-                 AND found_iufd IS NOT TRUE
-                 AND eligible = TRUE
-            THEN 1 ELSE 0 END) AS box2_eligible_gap,
-        SUM(CASE WHEN continued_to_screening = FALSE
-                 AND identification_type IS DISTINCT FROM 'Missed - identified retrospectively'
-                 AND found_iufd IS NOT TRUE
-                 AND eligible = FALSE
-            THEN 1 ELSE 0 END) AS box2_not_candidate_older,
-        SUM(CASE WHEN continued_to_screening = FALSE
-                 AND identification_type IS DISTINCT FROM 'Missed - identified retrospectively'
-                 AND found_iufd IS NOT TRUE
-                 AND eligible IS NULL
-            THEN 1 ELSE 0 END) AS box2_not_candidate_unreliable
-    FROM ga_check_log
-    WHERE {_GA_LOG_IN_TRIAL_SQL}
-    GROUP BY site_name
-""")
+# Box 1 + Box 2's ga_check_log-sourced sub-reasons are counted per woman in
+# Python (ga_log_link.ga_box_counts, 2026-10-20), with the same mutually
+# exclusive precedence the old per-entry GA_CHECK_QUERY used:
+# continued_to_screening -> Missed -> IUFD -> eligible / older / unreliable.
 
 # Box 2's other sub-reason: births known only from the Log of All Births,
 # in the GA-eligible range, with NO matching Form A AND no Gestation Log
@@ -247,6 +222,42 @@ ORPHAN_SCREENINGS_QUERY = text("""
                       AND COALESCE(g.check_date, CAST(g.created_at AS DATE)) >= CAST(:trial_start AS DATE))
     GROUP BY s.site_name
 """)
+
+
+def _orphan_screenings_by_site(db: Session) -> dict:
+    """Orphans per ORPHAN_SCREENINGS_QUERY, except a Form A whose CR matches an
+    in-period same-site log entry not linked to another live Form A is
+    covered by that entry, not an orphan (2026-10-20: 01-0104 was opened
+    directly, then logged as entry #374 -- she was counted twice). CR numbers
+    are encrypted, so this runs in Python; see ga_log_link.orphan_counts."""
+    from models import ParticipantPII, Screening
+    from ga_log_link import orphan_counts
+    rows = (db.query(Screening.screening_id, Screening.site_name)
+            .filter(Screening.is_deleted == False, Screening.site_name.isnot(None),  # noqa: E712
+                    Screening.site_name != "").all())
+    cr = {p.screening_id: p.maternal_uid
+          for p in db.query(ParticipantPII).filter(ParticipantPII.screening_id.isnot(None)).all()}
+    screenings = [{"screening_id": r.screening_id, "site_name": r.site_name,
+                   "maternal_uid": cr.get(r.screening_id)} for r in rows]
+    return orphan_counts(screenings, _ga_log_in_period_entries(db))
+
+
+def _ga_log_in_period_entries(db: Session) -> list:
+    """Gestation Log entries checked on/after the trial start, as dicts."""
+    from models import GACheckEntry
+    from trial_dates import trial_start
+    start = trial_start()
+    entries = []
+    for g in db.query(GACheckEntry).all():
+        d = g.check_date or (g.created_at.date() if g.created_at else None)
+        if d is None or d < start:
+            continue
+        entries.append({"id": g.id, "site_name": g.site_name, "mother_uid": g.mother_uid,
+                        "screening_id": g.screening_id, "check_date": d,
+                        "continued_to_screening": g.continued_to_screening,
+                        "identification_type": g.identification_type,
+                        "found_iufd": g.found_iufd, "eligible": g.eligible})
+    return entries
 
 SCREENING_QUERY = text(f"""
     SELECT
@@ -489,12 +500,11 @@ def _compute_ga_check_boxes(db: Session):
     never_checked_reasons_by_site = {site: {} for site in ALL_SITES}
     orphan_screenings_by_site = {site: 0 for site in ALL_SITES}
 
-    for row in db.execute(GA_CHECK_QUERY, {"trial_start": TRIAL_START_DATE}).mappings():
-        site = row["site_name"]
-        if site not in ga_counts_by_site:
-            ga_counts_by_site[site] = _blank_ga_check_counts()
-        for key in _blank_ga_check_counts():
-            ga_counts_by_site[site][key] = int(row[key] or 0)
+    # Counted per woman, not per log entry (ga_log_link.ga_box_counts, PI
+    # 2026-10-20): a readmitted woman logged twice is approached once.
+    from ga_log_link import ga_box_counts
+    for site, counts in ga_box_counts(_ga_log_in_period_entries(db)).items():
+        ga_counts_by_site.setdefault(site, _blank_ga_check_counts()).update(counts)
 
     for row in db.execute(NEVER_CHECKED_QUERY, {"trial_start": TRIAL_START_DATE}).mappings():
         site = row["site_name"]
@@ -506,10 +516,8 @@ def _compute_ga_check_boxes(db: Session):
         never_checked_reasons_by_site.setdefault(site, {})
         never_checked_reasons_by_site[site][row["reason"]] = int(row["n"] or 0)
 
-    for row in db.execute(ORPHAN_SCREENINGS_QUERY, {"trial_start": TRIAL_START_DATE}).mappings():
-        site = row["site_name"]
-        orphan_screenings_by_site.setdefault(site, 0)
-        orphan_screenings_by_site[site] = int(row["n"] or 0)
+    for site, n in _orphan_screenings_by_site(db).items():
+        orphan_screenings_by_site[site] = n
 
     return ga_counts_by_site, never_checked_by_site, never_checked_reasons_by_site, orphan_screenings_by_site
 
@@ -982,35 +990,9 @@ TIMELINESS_DAY_LOGS_QUERY = text("""
       AND s.is_deleted = FALSE AND s.site_name IS NOT NULL AND s.site_name != ''
 """)
 
+# Form-missing tasks live in ops_tasks.py (PI 2026-10-20); only the ROP
+# check stays in SQL.
 ACTION_LIST_QUERY = text("""
-    SELECT 'consented_no_form_b' AS issue, s.site_name, s.screening_id AS ref_id
-    FROM screenings s
-    WHERE s.consent_given = 'Yes' AND s.is_deleted = FALSE
-      AND s.site_name IS NOT NULL AND s.site_name != ''
-      AND NOT EXISTS (SELECT 1 FROM birth_resuscitation br WHERE br.screening_id = s.screening_id)
-    UNION ALL
-    SELECT 'randomised_no_form_c' AS issue, s.site_name, br.enrollment_id AS ref_id
-    FROM birth_resuscitation br
-    JOIN screenings s ON s.screening_id = br.screening_id
-    WHERE br.randomised = TRUE AND s.is_deleted = FALSE
-      AND s.site_name IS NOT NULL AND s.site_name != ''
-      AND NOT EXISTS (SELECT 1 FROM maternal_details md WHERE md.enrollment_id = br.enrollment_id)
-    UNION ALL
-    SELECT 'randomised_no_form_i' AS issue, s.site_name, br.enrollment_id AS ref_id
-    FROM birth_resuscitation br
-    JOIN screenings s ON s.screening_id = br.screening_id
-    WHERE br.randomised = TRUE AND s.is_deleted = FALSE
-      AND s.site_name IS NOT NULL AND s.site_name != ''
-      AND NOT EXISTS (SELECT 1 FROM study_outcomes so WHERE so.enrollment_id = br.enrollment_id)
-    UNION ALL
-    SELECT 'few_day_logs' AS issue, s.site_name, br.enrollment_id AS ref_id
-    FROM birth_resuscitation br
-    JOIN screenings s ON s.screening_id = br.screening_id
-    WHERE br.randomised = TRUE AND br.date_of_birth IS NOT NULL
-      AND (CURRENT_DATE - br.date_of_birth) >= 7
-      AND s.is_deleted = FALSE AND s.site_name IS NOT NULL AND s.site_name != ''
-      AND (SELECT COUNT(*) FROM resp_cv_neuro_day_logs dl WHERE dl.enrollment_id = br.enrollment_id) < 7
-    UNION ALL
     SELECT 'rop_detected_no_form_g' AS issue, sub.site_name, sub.enrollment_id AS ref_id
     FROM (
         SELECT DISTINCT s.site_name, dl.enrollment_id
@@ -1202,19 +1184,15 @@ def get_data_quality(
         timeliness.append(_timed_row(f"{tbl_label} Daily Logs", log_lags.get(tbl_key, {})))
 
     # ── 4. Action list ────────────────────────────────────────────────────
-    ACTION_LABELS = {
-        "consented_no_form_b": "Consented but Form B (Birth Resuscitation) not yet entered",
-        "randomised_no_form_c": "Randomised but Form C (Maternal Details) missing",
-        "randomised_no_form_i": "Randomised but Form I (Study Outcomes) missing",
-        "few_day_logs": "Randomised ≥7 days old with <7 Resp/CV/Neuro daily log entries",
-        "rop_detected_no_form_g": "ROP detected on Helper Form 4 log but Form G not updated for that date",
-        "rop_form_mismatch": "Form H vs Form G ROP fields differ (unreviewed)",
-    }
+    from ops_tasks import ACTION_LABELS, iter_form_tasks
     action_counts = {key: {s: 0 for s in ALL_SITES} for key in ACTION_LABELS}
     for row in db.execute(ACTION_LIST_QUERY).mappings():
         site = row["site_name"]
         issue = row["issue"]
         if site in site_set and issue in action_counts:
+            action_counts[issue][site] = action_counts[issue].get(site, 0) + 1
+    for issue, site, _ref, _detail in iter_form_tasks(db):
+        if site in site_set:
             action_counts[issue][site] = action_counts[issue].get(site, 0) + 1
 
     from rop_consistency import iter_rop_mismatch_enrollments
@@ -2269,26 +2247,23 @@ def get_ops_summary(
         pct = round(100 * n / overall_total, 1) if overall_total else 0
         form_completion.append({"key": key, "label": label, "n": n, "total": overall_total, "pct": pct})
 
-    ACTION_LABELS = {
-        "consented_no_form_b": "Consented but Form B not entered",
-        "randomised_no_form_c": "Randomised but Form C missing",
-        "randomised_no_form_i": "Randomised but Form I missing",
-        "few_day_logs": "Randomised >=7 days with <7 Resp/CV/Neuro logs",
-        "rop_detected_no_form_g": "ROP detected on Helper Form 4 — Form G screening missing for date",
-        "rop_form_mismatch": "Form H vs Form G ROP mismatch (unreviewed)",
-    }
+    from ops_tasks import ACTION_LABELS, LOG_GAP_KEYS, PENDING_FORM_KEYS, iter_form_tasks
     action_items = {k: [] for k in ACTION_LABELS}
     action_counts = {k: 0 for k in ACTION_LABELS}
-    for row in db.execute(ACTION_LIST_QUERY).mappings():
-        site = row["site_name"]
+
+    def _add_action(issue, site, ref, detail=""):
         if site_set and site not in site_set:
-            continue
-        issue = row["issue"]
+            return
         if issue not in ACTION_LABELS:
-            continue
+            return
         action_counts[issue] += 1
         if len(action_items[issue]) < 8:
-            action_items[issue].append({"site": site, "ref": row["ref_id"]})
+            action_items[issue].append({"site": site, "ref": ref, "detail": detail})
+
+    for row in db.execute(ACTION_LIST_QUERY).mappings():
+        _add_action(row["issue"], row["site_name"], row["ref_id"])
+    for issue, site, ref, detail in iter_form_tasks(db):
+        _add_action(issue, site, ref, detail)
 
     from rop_consistency import iter_rop_mismatch_enrollments
 
@@ -2304,16 +2279,13 @@ def get_ops_summary(
             "key": k,
             "title": ACTION_LABELS[k],
             "count": action_counts[k],
-            "items": [f"{it['ref']} · {it['site']}" for it in action_items[k]],
+            "items": [" · ".join(x for x in (it["ref"], it["site"], it.get("detail")) if x)
+                      for it in action_items[k]],
         }
         for k in ACTION_LABELS
     ]
-    pending_forms = (
-        action_counts.get("consented_no_form_b", 0)
-        + action_counts.get("randomised_no_form_c", 0)
-        + action_counts.get("randomised_no_form_i", 0)
-    )
-    log_gaps = action_counts.get("few_day_logs", 0)
+    pending_forms = sum(action_counts.get(k, 0) for k in PENDING_FORM_KEYS)
+    log_gaps = sum(action_counts.get(k, 0) for k in LOG_GAP_KEYS)
 
     sae_rows = []
     for r in db.execute(SAE_LIST_Q).mappings().all():

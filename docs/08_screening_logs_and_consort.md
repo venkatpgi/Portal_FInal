@@ -16,6 +16,13 @@ Page `GACheckLog.jsx`; API `/ga-check/…`; rules `backend/ga_check.py`.
 - Eligible → "Continue to Form A" (seeds Form A; `screening_id` linked back
   when Form A is saved, `PATCH /ga-check/{id}/link`). "Eligible, no Form A
   yet" list = `GET /ga-check/gap`.
+- **Automatic linking by CR** (`ga_log_link.py`, 2026-10-20): a Form A opened
+  from "New screening" (or saved before her log entry) is linked on save to
+  the most recent unlinked Gestation Log entry at the same site with the same
+  CR; a log entry saved after her Form A is linked to the most recent live
+  same-site same-CR Form A that has no log entry yet. A Form A with a linked
+  entry is not relinked; a linked entry is never moved. A directly opened new
+  Form A shows a reminder to log her.
 - Entries can be edited (`PUT /ga-check/{id}`); eligibility is recomputed.
 
 ### Live status (PI / trial nurses 2026-10-14)
@@ -131,7 +138,7 @@ Summary:
 
 | Box | Definition (source) |
 |---|---|
-| 1 Approached for screening | Gestation Log entries **+** Form A records with no log entry ("orphans") |
+| 1 Approached for screening | **Women** in the Gestation Log (entries with the same site + CR are one woman: a readmitted woman logged again counts once, PI 2026-10-20; `ga_log_link.ga_box_counts`, which also gives Box 2's log-based sub-reasons from her entry that continued to Form A, else her latest) **+** Form A records with no log entry ("orphans"). A Form A is not an orphan if an in-period entry is linked to it, or an in-period same-site entry with her CR is not linked to another live Form A (each entry covers one Form A, so Box 1 ≥ Box 3; `ga_log_link.orphan_counts`) |
 | 2 Not approached / not screened | independent computation: never checked (Log of All Births, with its reasons), missed-retrospective, IUFD at screening, checked ≥ 32 wk, checked unreliable |
 | 3 Screened for eligibility | all Form A records |
 | 4a Did not meet inclusion criteria | Form A GA out of window (legacy — Form A now refuses these) |
@@ -160,3 +167,49 @@ no in-period log entry, so it is counted in Box 1 as an orphan — which is
 what keeps Box 1 ≥ Box 3. On the same day all other pre-trial PGIMER Form A
 records and everything linked to them were deleted (25 kept); other sites
 were left unchanged.
+
+## 5. Dashboard "Participants" list (`/screenings/stages`)
+The dashboard's Participants tab ("Screened Participants") lists every Form A,
+with its screening ID and, once randomised, the randomisation number (an
+`NN-X-NNN` enrollment ID; NR- placeholders are not shown). The **Stage**
+column (`backend/patient_stage.py`, PI 2026-10-20) replaces the old
+Active / Failure / Pending badge, which showed refused consent as "Pending":
+
+| Stage | Rule |
+|---|---|
+| Form A incomplete | no GA yet |
+| Consent pending | GA in window, no exclusion, consent not answered |
+| Excluded (A4 / GA unknown) | status Screen Failure |
+| Not eligible (GA) | GA outside 25w0d–31w6d |
+| Consent refused / Not approached for consent | GA in window, consent No / Not approached |
+| Consented, awaiting delivery | Eligible, no Form B |
+| Delivered, Form B incomplete | Form B exists, PPV / randomisation not answered |
+| Delivered, no PPV (A-B only) | Form B PPV required = No |
+| PPV, not randomised | PPV Yes, randomised No |
+| Randomised | Form B randomised Yes |
+| Consent withdrawn / Discharged home undelivered / Readmitted, awaiting delivery / Delivered here, Form B missing / Delivered elsewhere / Lost to follow-up (undelivered) | Consented, no Form B: from Form A A6 pregnancy follow-up (`patient_stage.followup_stage`) |
+
+## 6. Readmission of an undelivered woman (PI 2026-10-20)
+- **Gestation Log**: log her again with "New contact of the same woman". The
+  duplicate-CR note shows her Form A consent (`form_a_consent`): refused → do
+  not approach; consented → consent stands, no new Form A, record the
+  readmission in Form A A6; not approached → may be approached if GA
+  25w0d–31w6d, by editing her existing Form A.
+- **Form A**: one per pregnancy (chapter 02 for the consent rules and A6).
+- **CONSORT** counts her once (§4, Box 1).
+
+## 7. Dashboard Tasks (`backend/ops_tasks.py`, PI 2026-10-20)
+A form is a task only once it is due. Shared by the ops-summary Tasks tab and
+the Data quality action list.
+
+| Task | Rule |
+|---|---|
+| Delivered but Form B not entered | consent Yes, not withdrawn, no Form B, and a **matched** Log of All Births entry or A6 outcome "Delivered here" |
+| Consented, now ≥37 wk, no birth logged | as above but no birth logged and no A6 outcome; GA today = Form A GA + days since screening ≥ 37w0d |
+| PPV baby, Form C missing | Form B PPV Yes (randomised or not), no Form C |
+| Form I due but missing | PPV baby, no Form I, and PMA (Form B GA + age) ≥ 36w0d or stay ended (Form H discharge/death date, or a Helper 5 "did not survive" day) |
+| Helper 2 / 4 / 5 days missing | PPV baby; Day 1 to yesterday (stopping at discharge/death), any helper missing ≥ 2 days |
+| ROP on Helper 5, no Form G for the date; Form H vs G ROP mismatch | unchanged (SQL / `rop_consistency`) |
+
+KPIs: "pending forms" = first, third and fourth rows; "log gaps" = Helper days missing.
+A woman still pregnant is never a task: she shows as "Consented, awaiting delivery" on the Participants list.
