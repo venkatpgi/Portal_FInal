@@ -1,13 +1,16 @@
+import { toPersonNameCase } from "./personName";
+
 /**
  * NICU shorthand for the baby, e.g. "B/o Seema".
  * Prefers an explicit baby_name; otherwise uses the mother's first name.
  */
+
 function usableName(value) {
   const s = String(value || "").trim();
   if (!s) return "";
   const upper = s.toUpperCase();
   if (upper === "DRAFT" || upper === "NAME PENDING") return "";
-  return s;
+  return toPersonNameCase(s);
 }
 
 export function formatBabyOfLabel(pii) {
@@ -21,8 +24,8 @@ export function formatBabyOfLabel(pii) {
     }
     return baby;
   }
-  const first = usableName(pii.mother_first_name);
-  if (first) return `B/o ${first}`;
+  const mother = formatMotherFullName(pii);
+  if (mother) return `B/o ${mother}`;
   return "";
 }
 
@@ -31,13 +34,19 @@ export function formatMotherFirstName(pii) {
   return usableName(pii?.mother_first_name);
 }
 
+function formatMotherFullName(pii) {
+  return [formatMotherFirstName(pii), usableName(pii?.mother_surname)]
+    .filter(Boolean)
+    .join(" ");
+}
+
 /**
  * View Entries name column:
- * Form A only → mother's first name
- * Form B started (draft or saved) → "B/o {mother first name}"
+ * Form A only → mother's name (each word capitalised, e.g. Shobha Devi)
+ * Form B started (draft or saved) → "B/o {mother name}"
  */
 export function formatParticipantListName(pii, { formBStarted } = {}) {
-  const mother = formatMotherFirstName(pii);
+  const mother = formatMotherFullName(pii);
   if (!mother) return "";
   if (formBStarted) return `B/o ${mother}`;
   return mother;

@@ -805,13 +805,15 @@ export default function ViewEntries() {
     const enr = e.enrollment_id ? enrollData[e.enrollment_id] : null;
     const baby = listNameForEntry(pii, enr);
     const mother = formatMotherFirstName(pii);
+    const surname = (pii?.mother_surname || "").toLowerCase();
     const matchQ = !q ||
       (e.screening_id  || "").toLowerCase().includes(q) ||
       (e.enrollment_id || "").toLowerCase().includes(q) ||
       (e.site_name     || "").toLowerCase().includes(q) ||
       (e.screened_by   || "").toLowerCase().includes(q) ||
       baby.toLowerCase().includes(q) ||
-      String(mother).toLowerCase().includes(q);
+      String(mother).toLowerCase().includes(q) ||
+      surname.includes(q);
     const matchSite = !siteFilter || canonicalSiteKey(e.site_name) === siteFilter;
     return matchQ && matchSite;
   }), [entries, search, siteFilter, piiByScreening, enrollData]);

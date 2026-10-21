@@ -25,7 +25,7 @@ import { relativeTime, toDateTimeLocalValue, formatDateToDDMMYYYY, toDateOnlyVal
 import { resolveConsentSignatureFromRecord, resolvePiSignatureFromRecord } from "./utils/consentSignature";
 import { sanitizeScreeningCreatePayload } from "./utils/screeningPayload";
 import { printPatientPdf } from "./utils/printPatientPdf";
-import { PERSON_NAME_FIELDS, stripDigits } from "./utils/personName";
+import { PERSON_NAME_FIELDS, stripDigits, toPersonNameCase } from "./utils/personName";
 import { mobilePairErrors, PRIMARY_MOBILE_LABEL, SECONDARY_MOBILE_LABEL } from "./utils/mobileNumbers";
 
 /* ─── YesNoToggle — animated sliding segment ──────────────── */
@@ -768,7 +768,7 @@ export default function ScreeningForm() {
        The old /[^a-zA-Z ]/ filter stripped Indian-script and accented names to "" —
        so Husband's First Name looked filled but stayed empty → required popup. */
     if (["screened_by","mother_first_name","mother_surname","husband_first_name","husband_surname"].includes(name)) {
-      const cleaned = value.replace(/[^\p{L}\s.'-]/gu, "");
+      const cleaned = toPersonNameCase(value.replace(/[^\p{L}\s.'-]/gu, ""));
       set({ [name]: cleaned });
       if (cleaned.trim()) {
         setErrors(prev => ({ ...prev, [name]: "" }));
@@ -811,7 +811,7 @@ export default function ScreeningForm() {
     }
     if (PERSON_NAME_FIELDS.includes(name)) {
       // No numbers in a name (PI 2026-10-18; server: identity_rules.py).
-      set({ [name]: stripDigits(value) });
+      set({ [name]: toPersonNameCase(stripDigits(value)) });
       return;
     }
     if (name === "maternal_uid") {
