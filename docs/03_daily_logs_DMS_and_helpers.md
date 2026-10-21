@@ -49,6 +49,16 @@ required today" (test not done / treatment not given). Stored per sheet in
 5.5 = `neuro_a` + `neuro_b`); a block that gets a reading drops out of the
 list on the next save. Display only: nothing downstream reads it.
 
+**Tablet readings in flowsheets** (2026-10-21): the app saves a reading with
+a time but no `slot_time`; the web files it under the slot its time falls in
+(`buildFlowsheetRows`), so it no longer shows as an extra row with its slot
+still flagged missing.
+
+**Helper 5 reading times** (pH / Na / K / iCa readings JSON): the tablet's
+time was free text until 2026-10-21 (now a 24 h picker); the web normalises
+"7:30", "7.30", "7:30 pm" to HH:MM on load (`normalizeReadingTime`), since a
+time input shows anything else as blank.
+
 Flowsheets 5.1.A / 5.3.A / 5.4.A: "Log every" 1, 2, 3, 6, 8 or 12 h
 (6/8/12 added 2026-10-20); 5.7.A Weight: 12 or 24 h. The cadence only
 changes which empty slots are shown, never stored readings.

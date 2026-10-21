@@ -358,6 +358,28 @@ function parseJsonArray(raw) {
   }
 }
 
+/** "7:30", "7.30", "7:30 pm" -> "07:30" / "19:30". The tablet's reading time
+ *  was free text until 2026-10-21 and <input type="time"> shows anything that
+ *  is not exactly HH:MM as blank. Unparseable text is returned unchanged. */
+function normalizeReadingTime(raw) {
+  const t = String(raw ?? "").trim();
+  const m = t.match(/^(\d{1,2})[:.](\d{2})\s*([ap])?\.?\s*m?\.?$/i);
+  if (!m) return t;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ap = (m[3] || "").toLowerCase();
+  if (ap === "p" && h < 12) h += 12;
+  if (ap === "a" && h === 12) h = 0;
+  if (h > 23 || min > 59) return t;
+  return `${pad2(h)}:${pad2(min)}`;
+}
+
+/** Readings JSON from the server, with times made displayable. */
+function parseReadings(raw) {
+  const list = parseJsonArray(raw);
+  return list && list.map(r => (r && r.time ? { ...r, time: normalizeReadingTime(r.time) } : r));
+}
+
 /** Summary for electrolyte columns: most recent non-empty value. */
 function latestReadingSummary(readings, valueKey = "value") {
   if (!Array.isArray(readings)) return null;
@@ -1375,10 +1397,10 @@ export default function MetabRenalVascEyeLog() {
         const d = res?.data || {};
         if (d && Object.keys(d).length > 0) {
           const aki = migrateAkiFromLegacy(d);
-          const phReadings = parseJsonArray(d.ph_readings_json) || [blankReading({ ph: "" })];
-          const naReadings = parseJsonArray(d.sodium_readings_json) || [blankReading({ value: "" })];
-          const kReadings = parseJsonArray(d.potassium_readings_json) || [blankReading({ value: "" })];
-          const caReadings = parseJsonArray(d.calcium_readings_json) || [blankReading({ value: "" })];
+          const phReadings = parseReadings(d.ph_readings_json) || [blankReading({ ph: "" })];
+          const naReadings = parseReadings(d.sodium_readings_json) || [blankReading({ value: "" })];
+          const kReadings = parseReadings(d.potassium_readings_json) || [blankReading({ value: "" })];
+          const caReadings = parseReadings(d.calcium_readings_json) || [blankReading({ value: "" })];
           const creatVal = d.creatinine_value
             ?? (d.creatinine != null && d.creatinine !== "" ? String(d.creatinine) : null);
           const acidosisStatus = d.metabolic_acidosis_status ?? null;

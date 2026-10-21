@@ -1100,10 +1100,18 @@ function buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes) {
   const slots = expectedSlots(frequencyHours);
   const bySlot = new Map();
   const orphans = [];
+  const stepMin = Math.max(1, Number(frequencyHours) || 2) * 60;
   for (const e of real) {
-    if (slots.includes(e.slot_time)) {
-      if (!bySlot.has(e.slot_time)) bySlot.set(e.slot_time, []);
-      bySlot.get(e.slot_time).push(e);
+    // A reading from the tablet has a time but no slot_time (the app has no
+    // slots): file it under the slot its time falls in (PI 2026-10-21).
+    let slot = e.slot_time;
+    if (!slot) {
+      const t = hhmmToMinutes(e.time);
+      if (t != null) slot = minutesTo24h(Math.floor(t / stepMin) * stepMin);
+    }
+    if (slots.includes(slot)) {
+      if (!bySlot.has(slot)) bySlot.set(slot, []);
+      bySlot.get(slot).push(e);
     } else {
       orphans.push(e);
     }
