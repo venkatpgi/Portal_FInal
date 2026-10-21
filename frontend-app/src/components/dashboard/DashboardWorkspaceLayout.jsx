@@ -13,7 +13,18 @@ const RL_MAP = {
   monitor: "Trial Monitor",
 };
 
-/** Shared layout for /entries, /manage-staff, /trial-monitoring, /audit-trail */
+const RL_COL = {
+  superadmin: "#7c3aed",
+  global_scientist: "#006398",
+  admin: "#7c3aed",
+  pi: "#0E7C7B",
+  scientist: "#006398",
+  nurse: "#059669",
+  deo: "#d97706",
+  monitor: "#ea580c",
+};
+
+/** Shared layout for /entries, /manage-staff, /trial-monitoring, /audit-trail, /data-queries */
 export default function DashboardWorkspaceLayout({
   pageTitle,
   search = "",
@@ -54,7 +65,7 @@ export default function DashboardWorkspaceLayout({
         onNotifToggle: () => {},
         onNotifClose: () => {},
         roleLabel: RL_MAP[user?.role] || user?.role || "User",
-        roleColor: "#64748b",
+        roleColor: RL_COL[user?.role] || "#006398",
         onAskAi: () => navigate("/dashboard", { state: { dashboardTab: "ai-insights" } }),
         onRefresh,
       }}

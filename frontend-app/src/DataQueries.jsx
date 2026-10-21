@@ -6,6 +6,9 @@
 // all sites, and the second sign-off.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  AlertTriangle, Clock, ListChecks, RefreshCw, ShieldAlert,
+} from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import DashboardWorkspaceLayout from "./components/dashboard/DashboardWorkspaceLayout";
@@ -96,19 +99,43 @@ export default function DataQueries() {
   }
 
   return (
-    <DashboardWorkspaceLayout pageTitle="Data Queries">
+    <DashboardWorkspaceLayout pageTitle="Data Queries" onRefresh={load}>
       <div className="dqy-root">
-        <p className="dqy-lead">
-          Problems found automatically in the data. A query closes by itself once the record is corrected;
-          if the data is right, confirm it with a reason.
-        </p>
+        <div className="dqy-hero">
+          <div className="dqy-hero-icon" aria-hidden="true">
+            <ListChecks size={20} />
+          </div>
+          <div>
+            <h1>Data Queries</h1>
+            <p>
+              Problems found automatically in the data. A query closes by itself once the record is corrected;
+              if the data is right, confirm it with a reason.
+            </p>
+          </div>
+        </div>
 
         {summary && (
           <div className="dqy-tiles">
-            <div className="dqy-tile"><b>{summary.total}</b><span>Open</span></div>
-            <div className="dqy-tile dqy-tile--amber"><b>{summary.amber || 0}</b><span>Over 72 h</span></div>
-            <div className="dqy-tile dqy-tile--red"><b>{summary.red || 0}</b><span>Over 7 days</span></div>
-            <div className="dqy-tile"><b>{summary.awaiting_signoff || 0}</b><span>Awaiting sign-off</span></div>
+            <div className="dqy-tile">
+              <span className="dqy-tile-label">Open</span>
+              <ListChecks size={16} aria-hidden="true" />
+              <b>{summary.total}</b>
+            </div>
+            <div className="dqy-tile dqy-tile--amber">
+              <span className="dqy-tile-label">Over 72 h</span>
+              <Clock size={16} aria-hidden="true" />
+              <b>{summary.amber || 0}</b>
+            </div>
+            <div className="dqy-tile dqy-tile--red">
+              <span className="dqy-tile-label">Over 7 days</span>
+              <AlertTriangle size={16} aria-hidden="true" />
+              <b>{summary.red || 0}</b>
+            </div>
+            <div className="dqy-tile dqy-tile--violet">
+              <span className="dqy-tile-label">Awaiting sign-off</span>
+              <ShieldAlert size={16} aria-hidden="true" />
+              <b>{summary.awaiting_signoff || 0}</b>
+            </div>
           </div>
         )}
 
@@ -118,7 +145,10 @@ export default function DataQueries() {
             <option value="closed">Closed</option>
             <option value="all">All</option>
           </select>
-          <button type="button" onClick={load} disabled={loading}>Refresh</button>
+          <button type="button" className="dqy-refresh" onClick={load} disabled={loading}>
+            <RefreshCw size={14} aria-hidden="true" />
+            {loading ? "Loading…" : "Refresh"}
+          </button>
         </div>
 
         {error && <div className="dqy-error">{error}</div>}
@@ -172,7 +202,11 @@ export default function DataQueries() {
                         )}
                       </td>
                       <td className="dqy-nowrap">{fmtDate(q.due_at)}</td>
-                      <td className="dqy-nowrap">{STATUS_LABEL[q.status] || q.status}</td>
+                      <td className="dqy-nowrap">
+                        <span className={`dqy-status dqy-status--${q.status || "open"}`}>
+                          {STATUS_LABEL[q.status] || q.status}
+                        </span>
+                      </td>
                       <td className="dqy-actions">
                         {q.status === "open" && (
                           <button type="button" disabled={busy === q.id} onClick={() => act(q, "acknowledge")}>Acknowledge</button>

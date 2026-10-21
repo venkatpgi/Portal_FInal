@@ -25,7 +25,10 @@ import {
   Maximize2,
   X,
   ScanSearch,
+  FileText,
 } from "lucide-react";
+
+const AE_SCALE_PDF = "/documents/PORTAL_Trial_v2_AdvEvents.pdf";
 
 const GRADES = ["1", "2", "3", "4", "5"];
 
@@ -554,6 +557,15 @@ export default function AdverseEventsForm() {
           <p className="form-main-subtitle">
             Report any adverse event as per INC Adverse Event scale v1.0
           </p>
+          <a
+            className="ae-scale-btn"
+            href={AE_SCALE_PDF}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <FileText size={15} />
+            Open INC AE Scale
+          </a>
         </div>
         <div className="form-header-meta-area">
           <div className="screening-id-badge">

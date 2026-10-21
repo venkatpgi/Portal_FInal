@@ -2,7 +2,7 @@
 
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation } from "react-router-dom";
-import { Activity, ClipboardList, Home, Plus, Users } from "lucide-react";
+import { Activity, ClipboardList, Home, Hospital, Plus, Search, Users } from "lucide-react";
 
 import { FormProgressProvider } from "./context/FormProgressContext";
 import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
@@ -73,12 +73,15 @@ function AppContent() {
   const isChangePasswordPage = location.pathname === "/change-password";
   const isDashboardPage = location.pathname === "/dashboard";
   const isAuthChromePage = isLoginPage || isChangePasswordPage;
+  const isGaCheckPage = location.pathname === "/ga-check";
+  const isBirthLogPage = location.pathname === "/log-of-all-births";
   // Workspace links leave /dashboard. Do not re-show the pre-Stitch header/navbar.
   const isWorkspaceDest =
     location.pathname === "/entries" ||
     location.pathname === "/manage-staff" ||
     location.pathname === "/trial-monitoring" ||
-    location.pathname === "/audit-trail";
+    location.pathname === "/audit-trail" ||
+    location.pathname === "/data-queries";
   const usesDashboardLayout = isDashboardPage || isWorkspaceDest;
 
   const isFormPage =
@@ -169,6 +172,25 @@ function AppContent() {
               >
                 <Plus size={16} /> <span>New Entry</span>
               </NavLink>
+
+              {isBirthLogPage && (
+                <NavLink
+                  to="/ga-check"
+                  className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
+                >
+                  <Search size={16} />
+                  <span>Gestation (Inclusion Criteria) Screening Log</span>
+                </NavLink>
+              )}
+              {isGaCheckPage && (
+                <NavLink
+                  to="/log-of-all-births"
+                  className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
+                >
+                  <Hospital size={16} />
+                  <span>Log of All Births</span>
+                </NavLink>
+              )}
 
               <NavLink
                 to="/entries"

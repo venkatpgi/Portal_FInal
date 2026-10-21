@@ -121,6 +121,28 @@
   color: #475569;
 }
 
+.ae-scale-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  width: fit-content;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  background: var(--ae-accent-deep);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(17, 94, 89, 0.28);
+}
+.ae-scale-btn:hover {
+  background: var(--ae-accent);
+  color: #ffffff;
+}
+
 .ae-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
