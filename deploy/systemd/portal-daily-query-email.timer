@@ -1,0 +1,9 @@
+[Unit]
+Description=Send the PORTAL daily data-query email at 08:00 IST
+
+[Timer]
+OnCalendar=*-*-* 08:00:00 Asia/Kolkata
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -136,6 +136,17 @@ and details hold ids, numbers and dates only.
   debounced to one run a minute per worker. `run_checks` takes a Postgres
   advisory lock (`RUN_LOCK_KEY`), so overlapping runs skip. A full run takes
   about 2 s.
+- **Daily email** (PI 2026-10-25, `backend/daily_query_email.py`): every day
+  at 08:00 IST (`deploy/systemd/portal-daily-query-email.timer`). Site PI and
+  Site Scientist get their own site; Project Scientist / Global Scientist and
+  the Global PI one all-sites email with a by-site table. Each lists open /
+  new (24 h) / red / amber / awaiting sign-off / closed (24 h) counts and the
+  new, red and closed queries. **Sent on quiet days too** ("nil to report",
+  PI). Runs the checks first. One send per IST day (audit `EMAIL`, table
+  `daily_query_email`); `--dry-run` builds without sending, `--only EMAIL`
+  sends one test copy (audit `EMAIL_TEST`, does not count). Query text holds
+  IDs only, so the email carries no names, CR or phone numbers. Needs
+  `SES_SENDER_EMAIL` (trial `.env` only; training never sends).
 
 ## Glossary
 

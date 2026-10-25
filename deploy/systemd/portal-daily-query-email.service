@@ -1,0 +1,10 @@
+[Unit]
+Description=PORTAL daily data-query email (trial database)
+After=network.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/portal/backend
+EnvironmentFile=/home/ubuntu/portal/backend/.env
+ExecStart=/home/ubuntu/portal/backend/venv/bin/python -W ignore daily_query_email.py
