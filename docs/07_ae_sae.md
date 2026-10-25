@@ -65,5 +65,10 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
   `GET /dashboard/safety/summary-report` (`sae_summary_report.py`) — SAE line
   listing + all-AE listing by site for a chosen date range; rows with an
   unparseable onset date are included, never dropped.
-- SAE e-mail notification (`email_service.py`) — needs SES permissions on the
-  server; failures never block saving.
+- SAE e-mail notification (`email_service.py`, recipients
+  `main._sae_notification_recipients`), sent when a Form Y is saved: the
+  site's active Site Scientist(s), the site PI email in `sae_config.py`, and
+  (PI 2026-10-25) the Global PI and Overall Project Scientist for **every**
+  site (active superadmin / project_scientist / global_scientist accounts
+  with an email). Duplicates removed ignoring case. SES production access
+  granted 2026-10-25; failures never block saving.

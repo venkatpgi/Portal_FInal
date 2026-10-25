@@ -5751,9 +5751,10 @@ def _sae_payload(data: SAEReportCreate) -> dict:
 
 
 def _sae_notification_recipients(db: Session, site: str) -> list[str]:
-    """Site scientist emails on file plus the configured PI email."""
+    """Site scientist emails on file, the configured site PI email, and (PI
+    2026-10-25) the Global PI and Overall Project Scientist for every site."""
     import sae_config
-    from deps import ROLE_SITE_SCIENTIST
+    from deps import ROLE_GLOBAL_SCIENTIST, ROLE_PROJECT_SCIENTIST, ROLE_SITE_SCIENTIST, ROLE_SUPERADMIN
 
     recipients = []
     scientists = (
@@ -5778,12 +5779,23 @@ def _sae_notification_recipients(db: Session, site: str) -> list[str]:
     else:
         logger.warning("SAE notify: no pi_email configured for site=%r", site)
 
+    central = (
+        db.query(User)
+        .filter(
+            User.role.in_([ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_GLOBAL_SCIENTIST]),
+            User.is_active.is_(True),
+        )
+        .all()
+    )
+    recipients.extend(u.email for u in central if u.email)
+
     seen = set()
     unique = []
     for addr in recipients:
-        if addr not in seen:
-            seen.add(addr)
-            unique.append(addr)
+        key = addr.strip().lower()   # the PGIMER PI is also the Global PI
+        if key not in seen:
+            seen.add(key)
+            unique.append(addr.strip())
     return unique
 
 
