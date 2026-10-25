@@ -79,6 +79,11 @@ in Excel). One row per Form A; every row starts with site, screening ID,
 enrollment number (+ optional Stage). Forms A/B join on `screening_id`, C–J on
 `enrollment_id`; if a table has two rows for one baby the latest (highest id)
 is used. Day-by-day logs are not offered.
+- **Column names** (PI 2026-10-25): the picker shows a plain-English name with
+  the variable name in brackets (`backend/report_labels.py`: hand-written
+  OVERRIDES, else the variable name with abbreviations expanded). Columns are
+  click-to-toggle tiles (no Ctrl). CSV headings: "English (variable)" (default),
+  English only, or variable names only (for Stata / R / SPSS).
 - **Who**: Global PI and Overall Project Scientist all sites; Site PI and Site
   Scientist own site; nurses and tech support refused.
 - **Never offered** (PI: IDs only): any column whose name has the word name /

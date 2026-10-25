@@ -41,6 +41,7 @@ from deps import (ROLE_GLOBAL_SCIENTIST, ROLE_PROJECT_SCIENTIST, ROLE_SITE_PI, R
 from models import Base, User
 from participant_counts import COUNT_KEYS, members, scoped_screenings, stage_items
 from patient_stage import stage_payload
+from report_labels import label as column_label
 from pii_service import (BIRTH_PII_FIELDS, MATERNAL_PII_FIELDS, NICU_PII_FIELDS, POSTNATAL_PII_FIELDS,
                          SCREENING_PII_FIELDS)
 from trial_dates import trial_start
@@ -78,6 +79,8 @@ BLINDED_COLUMNS = {"study_outcomes": re.compile(r"^fio2_\d+$")}
 SKIP_COLUMNS = frozenset({"id", "is_deleted", "screening_id", "enrollment_id", "site_name"})
 
 ID_HEADERS = ["site", "screening_id", "enrollment_id"]
+ID_LABELS = ["Site", "Screening ID", "Enrollment (randomisation) number"]
+HEADINGS = ("both", "variable", "english")   # CSV headings: "Birth weight (B_birth_weight)" / code / English
 PREVIEW_ROWS = 50
 MAX_COLUMNS = 300
 
@@ -97,7 +100,7 @@ def _scope_sites(user: User, site: str | None) -> list[str]:
 
 def _offered(table_name: str, col) -> bool:
     name = col.name
-    if name in SKIP_COLUMNS or name in PII_FIELDS or "admission_number" in name:
+    if name in SKIP_COLUMNS or name in PII_FIELDS or "admission_number" in name or "admission_no" in name:
         return False
     if PII_WORDS & set(name.split("_")) and name not in CLINICAL_DESPITE_WORDS:
         return False
@@ -125,14 +128,15 @@ def catalogue() -> list[dict]:
     out = []
     for key, label, table_name, _ in FORMS:
         table = Base.metadata.tables[table_name]
-        fields = [{"id": f"{key}.{c.name}", "column": c.name, "header": f"{key}_{c.name}", "kind": _kind(c)}
+        fields = [{"id": f"{key}.{c.name}", "column": c.name, "header": f"{key}_{c.name}",
+                   "label": column_label(key, c.name), "kind": _kind(c)}
                   for c in table.columns if _offered(table_name, c)]
         out.append({"form": key, "label": label, "fields": fields})
     return out
 
 
 def _field_index():
-    return {f["id"]: (form["form"], f["column"], f["header"])
+    return {f["id"]: (form["form"], f["column"], f["header"], f["label"])
             for form in catalogue() for f in form["fields"]}
 
 
@@ -155,6 +159,7 @@ class ReportRequest(BaseModel):
     screened_to: date | None = None
     trial_only: bool = False          # screened on or after trial_dates.trial_start()
     include_stage: bool = True
+    headings: str = "both"            # one of HEADINGS
 
 
 def _cell(v):
@@ -170,7 +175,7 @@ def _cell(v):
 
 
 def build_report(db: Session, user: User, req: ReportRequest):
-    """(headers, rows) for a report request; rows are lists of cell values."""
+    """(variable headers, English labels, rows) for a report request; rows are lists of cell values."""
     sites = _scope_sites(user, req.site)
     if not req.columns:
         raise HTTPException(status_code=422, detail="Pick at least one column.")
@@ -180,6 +185,8 @@ def build_report(db: Session, user: User, req: ReportRequest):
     unknown = [c for c in req.columns if c not in index]
     if unknown:
         raise HTTPException(status_code=422, detail=f"Not available in reports: {', '.join(unknown[:5])}")
+    if req.headings not in HEADINGS:
+        raise HTTPException(status_code=422, detail=f"Unknown headings {req.headings!r}")
     if req.group and req.group not in COUNT_KEYS:
         raise HTTPException(status_code=422, detail=f"Unknown group {req.group!r}")
 
@@ -204,7 +211,7 @@ def build_report(db: Session, user: User, req: ReportRequest):
 
     by_form: dict[str, list[str]] = {}
     for c in dict.fromkeys(req.columns):
-        form, column, _ = index[c]
+        form, column = index[c][:2]
         by_form.setdefault(form, []).append(column)
 
     sids = [it[0].screening_id for it in items if it[0].screening_id]
@@ -224,31 +231,41 @@ def build_report(db: Session, user: User, req: ReportRequest):
 
     headers = list(ID_HEADERS) + (["stage"] if req.include_stage else [])
     headers += [index[c][2] for c in dict.fromkeys(req.columns)]
+    labels = list(ID_LABELS) + (["Stage"] if req.include_stage else [])
+    labels += [index[c][3] for c in dict.fromkeys(req.columns)]
     out = []
     for r, _, stage, _ in items:
         line = [r.site_name, r.screening_id, r.enrollment_id or ""]
         if req.include_stage:
             line.append(stage_payload(stage)["label"])
         for c in dict.fromkeys(req.columns):
-            form, column, _ = index[c]
+            form, column = index[c][:2]
             join = FORMS_BY_KEY[form][3]
             key = r.screening_id if join == "screening_id" else r.enrollment_id
             line.append(_cell((values[form].get(key) or {}).get(column)))
         out.append(line)
-    return headers, out
+    return headers, labels, out
+
+
+def csv_headings(headers, labels, style):
+    if style == "variable":
+        return headers
+    if style == "english":
+        return labels
+    return [f"{lab} ({code})" for code, lab in zip(headers, labels)]
 
 
 @router.post("/preview")
 def preview_report(req: ReportRequest, db: Session = Depends(get_db),
                    current_user: User = Depends(get_current_user)):
-    headers, rows = build_report(db, current_user, req)
-    return {"headers": headers, "rows": rows[:PREVIEW_ROWS], "total": len(rows)}
+    headers, labels, rows = build_report(db, current_user, req)
+    return {"headers": headers, "labels": labels, "rows": rows[:PREVIEW_ROWS], "total": len(rows)}
 
 
 @router.post("/csv")
 def download_report(req: ReportRequest, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
-    headers, rows = build_report(db, current_user, req)
+    headers, labels, rows = build_report(db, current_user, req)
     record_audit(
         db,
         user_id=current_user.id,
@@ -262,7 +279,7 @@ def download_report(req: ReportRequest, db: Session = Depends(get_db),
     buf = io.StringIO()
     buf.write("﻿")   # BOM so Excel reads UTF-8 (em dashes, Hindi text)
     w = csv.writer(buf)
-    w.writerow(headers)
+    w.writerow(csv_headings(headers, labels, req.headings))
     w.writerows(rows)
     name = f"portal_report_{datetime.now():%Y%m%d_%H%M}.csv"
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv; charset=utf-8",

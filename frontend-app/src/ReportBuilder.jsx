@@ -4,7 +4,7 @@
 // nothing that could unblind. Global PI + Overall Project Scientist: all
 // sites; Site PI / Site Scientist: own site. Downloads go to the audit trail.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Eye, FileSpreadsheet, Save, Search, Trash2 } from "lucide-react";
+import { Check, Download, Eye, FileSpreadsheet, Save, Search, Trash2, X } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import DashboardWorkspaceLayout from "./components/dashboard/DashboardWorkspaceLayout";
@@ -29,6 +29,11 @@ function storeSaved(list) {
   try { localStorage.setItem(SAVED_KEY, JSON.stringify(list)); } catch { /* private window */ }
 }
 
+// Column search matches the English name or the variable name.
+function fieldMatches(x, q) {
+  return !q || x.label.toLowerCase().includes(q) || x.column.toLowerCase().includes(q);
+}
+
 function apiError(err, fallback) {
   const d = err?.response?.data?.detail;
   return typeof d === "string" ? d : fallback;
@@ -46,6 +51,7 @@ export default function ReportBuilder() {
   const [fieldSearch, setFieldSearch] = useState("");
   const [filters, setFilters] = useState({
     site: "", group: "", screened_from: "", screened_to: "", trial_only: true, include_stage: true,
+    headings: "both",
   });
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState("");
@@ -76,7 +82,7 @@ export default function ReportBuilder() {
     setPreview(null);
   };
   const setForm = (form, on) => {
-    const ids = form.fields.filter(x => !q || x.column.toLowerCase().includes(q)).map(x => x.id);
+    const ids = form.fields.filter(x => fieldMatches(x, q)).map(x => x.id);
     setSelected(prev => (on ? [...prev, ...ids.filter(id => !prev.includes(id))] : prev.filter(id => !ids.includes(id))));
     setPreview(null);
   };
@@ -93,6 +99,7 @@ export default function ReportBuilder() {
     screened_to: filters.screened_to || null,
     trial_only: filters.trial_only,
     include_stage: filters.include_stage,
+    headings: filters.headings || "both",
   }), [selected, filters, global]);
 
   const runPreview = async () => {
@@ -217,6 +224,14 @@ export default function ReportBuilder() {
               <input type="checkbox" checked={filters.include_stage} onChange={e => setFilter("include_stage", e.target.checked)} />
               Add a Stage column
             </label>
+            <label className="rb-field rb-field-gap">
+              <span>CSV column headings</span>
+              <select value={filters.headings} onChange={e => setFilter("headings", e.target.value)}>
+                <option value="both">English (variable name)</option>
+                <option value="english">English only</option>
+                <option value="variable">Variable names only (for Stata / R / SPSS)</option>
+              </select>
+            </label>
 
             <h2 className="rb-h2-gap">Saved reports</h2>
             {saved.length === 0 ? (
@@ -242,17 +257,31 @@ export default function ReportBuilder() {
               <div className="rb-search">
                 <Search size={14} aria-hidden="true" />
                 <input
-                  placeholder="Find a column, e.g. weight"
+                  placeholder="Find a column, e.g. birth weight"
                   value={fieldSearch}
                   onChange={e => setFieldSearch(e.target.value)}
                   aria-label="Find a column"
                 />
               </div>
             </div>
-            <p className="rb-note">Every report starts with site, screening ID and enrollment (randomisation) number.</p>
+            <p className="rb-note">
+              Every report starts with site, screening ID and enrollment (randomisation) number. Click a column to
+              pick it; click again to remove it. The variable name is shown in brackets.
+            </p>
+            {selected.length > 0 && (
+              <div className="rb-picked" aria-label="Picked columns">
+                {selected.map(id => fieldById[id] && (
+                  <button key={id} type="button" className="rb-chip" onClick={() => toggle(id)} title={`Remove ${fieldById[id].label}`}>
+                    <span className="rb-chip-form">{id.split(".")[0]}</span>
+                    {fieldById[id].label}
+                    <X size={12} aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="rb-forms">
               {forms.map(form => {
-                const shown = form.fields.filter(x => !q || x.column.toLowerCase().includes(q));
+                const shown = form.fields.filter(x => fieldMatches(x, q));
                 const picked = form.fields.filter(x => selectedSet.has(x.id)).length;
                 const open = q ? shown.length > 0 : openForm === form.form;
                 if (q && shown.length === 0) return null;
@@ -269,12 +298,25 @@ export default function ReportBuilder() {
                           <button type="button" className="rb-link" onClick={() => setForm(form, false)}>Clear</button>
                         </div>
                         <div className="rb-fields">
-                          {shown.map(x => (
-                            <label key={x.id} className="rb-fieldcheck" title={`${x.header} (${x.kind})`}>
-                              <input type="checkbox" checked={selectedSet.has(x.id)} onChange={() => toggle(x.id)} />
-                              <span>{x.column}</span>
-                            </label>
-                          ))}
+                          {shown.map(x => {
+                            const on = selectedSet.has(x.id);
+                            return (
+                              <button
+                                key={x.id}
+                                type="button"
+                                className={`rb-fieldbtn${on ? " rb-fieldbtn--on" : ""}`}
+                                aria-pressed={on}
+                                onClick={() => toggle(x.id)}
+                                title={`${x.label} (${x.header}, ${x.kind})`}
+                              >
+                                <span className="rb-tick" aria-hidden="true">{on && <Check size={12} strokeWidth={3} />}</span>
+                                <span className="rb-fieldtext">
+                                  <span className="rb-fieldlabel">{x.label}</span>
+                                  <span className="rb-fieldcode">({x.column})</span>
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -305,7 +347,16 @@ export default function ReportBuilder() {
             <h2>Preview <span className="rb-muted">— {preview.total} row{preview.total === 1 ? "" : "s"}{preview.total > preview.rows.length ? `, first ${preview.rows.length} shown` : ""}</span></h2>
             <div className="rb-table-wrap">
               <table className="rb-table">
-                <thead><tr>{preview.headers.map(h => <th key={h}>{h}</th>)}</tr></thead>
+                <thead>
+                  <tr>
+                    {preview.headers.map((h, i) => (
+                      <th key={h}>
+                        {(preview.labels || [])[i] || h}
+                        <span className="rb-th-code">{h}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
                   {preview.rows.length === 0 ? (
                     <tr><td colSpan={preview.headers.length} className="rb-muted">No one matches these filters.</td></tr>
