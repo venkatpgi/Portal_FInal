@@ -2,14 +2,14 @@
 
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation } from "react-router-dom";
-import { Activity, ClipboardList, Home, Hospital, Plus, Search, Users } from "lucide-react";
+import { Activity, ClipboardList, FileSpreadsheet, Home, Hospital, Plus, Search, Users } from "lucide-react";
 
 import { FormProgressProvider } from "./context/FormProgressContext";
 import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PatientProvider } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
-import { canSeeAnalytics, canSeeDataQueries, isReadOnlyUser } from "./utils/roles";
+import { canSeeAnalytics, canSeeDataQueries, canUseReports, isReadOnlyUser } from "./utils/roles";
 
 import ScreeningForm from "./ScreeningForm";
 import BirthResuscitation from "./BirthResuscitationForm";
@@ -40,6 +40,7 @@ import LogOfAllBirths from "./LogOfAllBirths";
 import GACheckLog from "./GACheckLog";
 import AuditTrail from "./AuditTrail";
 import DataQueries from "./DataQueries";
+import ReportBuilder from "./ReportBuilder";
 import DataQueriesNavLink from "./components/DataQueriesNavLink";
 import EditScreening from "./EditScreening";
 import Dashboard from "./Dashboard";
@@ -81,7 +82,8 @@ function AppContent() {
     location.pathname === "/manage-staff" ||
     location.pathname === "/trial-monitoring" ||
     location.pathname === "/audit-trail" ||
-    location.pathname === "/data-queries";
+    location.pathname === "/data-queries" ||
+    location.pathname === "/reports";
   const usesDashboardLayout = isDashboardPage || isWorkspaceDest;
 
   const isFormPage =
@@ -208,6 +210,14 @@ function AppContent() {
                 </NavLink>
               )}
               {canSeeDataQueries(user) && <DataQueriesNavLink />}
+              {canUseReports(user) && (
+                <NavLink
+                  to="/reports"
+                  className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
+                >
+                  <FileSpreadsheet size={16} /> <span>Reports</span>
+                </NavLink>
+              )}
               {canSeeAnalytics(user) && (
                 <NavLink
                   to="/trial-monitoring"
@@ -257,6 +267,7 @@ function AppContent() {
                       <Route path="/log-of-all-births" element={<ProtectedRoute><LogOfAllBirths /></ProtectedRoute>} />
                       <Route path="/audit-trail" element={<ProtectedRoute><AuditTrail /></ProtectedRoute>} />
                       <Route path="/data-queries" element={<ProtectedRoute><DataQueries /></ProtectedRoute>} />
+                      <Route path="/reports" element={<ProtectedRoute><ReportBuilder /></ProtectedRoute>} />
                       <Route path="/edit/:id" element={<ProtectedRoute><EditScreening /></ProtectedRoute>} />
                       <Route path="/form-a/:screeningId?" element={<ProtectedRoute><FormLayout currentForm="form_a"><ScreeningForm /></FormLayout></ProtectedRoute>} />
                       {SCREENING_ID_FORM_REDIRECTS.map(({ basePath, currentForm, label }) => (

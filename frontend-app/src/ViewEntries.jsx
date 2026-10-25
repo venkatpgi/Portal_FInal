@@ -10,7 +10,7 @@ import {
   Eye, Edit, Trash2, ArrowRight, Filter, AlertTriangle,
   RefreshCw, Users, FileText, Activity, ShieldAlert,
   CheckCircle2, Clock, XCircle, ClipboardList, X,
-  History, Baby, Hourglass, Ban,
+  History, Baby, Hourglass, Ban, Shuffle,
 } from "lucide-react";
 import "./ViewEntries.css";
 import { formatMotherFirstName, formatParticipantListName } from "./utils/babyName";
@@ -18,6 +18,7 @@ import { resolveConsentSignatureFromRecord } from "./utils/consentSignature";
 import { formatSiteName, formatSiteShort, canonicalSiteKey, isKnownTrialSite } from "./components/dashboard/siteLabels";
 import { SITE_ORDER } from "./utils/siteNames";
 import { formatDateTimeDisplay24 } from "./utils/datetime";
+import { SCREENING_TILES, RANDOMISATION_TILES, PARTICIPANT_TILES } from "./utils/participantCounts";
 
 /* ─── Form definitions (from formsConfig.js) ────────────────── */
 const FORM_LABELS = [
@@ -71,11 +72,6 @@ function statusKey(status) {
 
 function formBHasStarted(enrollStatus) {
   return !!(enrollStatus?.form_b_started || enrollStatus?.form_b);
-}
-
-function entryIsDelivered(entry, enrollData = {}) {
-  if (!entry?.enrollment_id) return false;
-  return formBHasStarted(enrollData[entry.enrollment_id]);
 }
 
 function entryHasExclusion(entry) {
@@ -183,39 +179,37 @@ function entriesBySite(entries) {
   });
 }
 
-function buildKPIs(entries, saeCount = 0, enrollData = {}) {
+const TONE_COLOR = { primary: "blue", success: "green", muted: "purple", danger: "red", warning: "amber", teal: "teal" };
+const TILE_ICON = {
+  screened: <Users size={20}/>, eligible: <CheckCircle2 size={20}/>, not_eligible: <XCircle size={20}/>,
+  screen_failures: <Ban size={20}/>, pending: <Clock size={20}/>, consented: <FileText size={20}/>,
+  awaiting_delivery: <Hourglass size={20}/>, delivered: <Baby size={20}/>, needed_ppv: <Activity size={20}/>,
+  randomised: <Shuffle size={20}/>, not_randomised: <AlertTriangle size={20}/>, no_ppv: <CheckCircle2 size={20}/>,
+};
+
+/* Same tiles and counts as the Dashboard (server: /screenings/summary). */
+function buildKpiGroups(summary, entries, saeCount = 0) {
+  const counts = summary?.counts || {};
+  const tile = t => ({ key: t.key, label: t.label, value: counts[t.key] ?? 0, icon: TILE_ICON[t.key], color: TONE_COLOR[t.tone] });
   return [
-    { key: "total",          label: "Total Screened",  value: entries.length,                                                              icon: <Users size={20}/>,        color: "blue"  },
-    { key: "eligible",       label: "Eligible",        value: entries.filter(e => e.screening_status === "Eligible").length,               icon: <CheckCircle2 size={20}/>,  color: "green" },
-    { key: "delivered",      label: "Delivered",       value: entries.filter(e => entryIsDelivered(e, enrollData)).length,                 icon: <Baby size={20}/>,          color: "teal"  },
-    { key: "undelivered",    label: "Undelivered",     value: entries.filter(e => !entryIsDelivered(e, enrollData)).length,                icon: <Hourglass size={20}/>,     color: "amber" },
-    { key: "screen_failure", label: "Screen Failures", value: entries.filter(e => e.screening_status === "Screen Failure").length,         icon: <XCircle size={20}/>,       color: "red"   },
-    { key: "pending",        label: "Pending",         value: entries.filter(e => !e.screening_status || e.screening_status==="Pending").length, icon: <Clock size={20}/>,    color: "amber" },
-    { key: "consented",      label: "Consented",       value: entries.filter(e => e.consent_given === "Yes").length,                       icon: <FileText size={20}/>,      color: "teal"  },
-    { key: "exclusion",      label: "Exclusion Present", value: entries.filter(entryHasExclusion).length,                                 icon: <Ban size={20}/>,           color: "red"   },
-    { key: "sites",          label: "Sites Active",    value: entriesBySite(entries).length,                                              icon: <Activity size={20}/>,      color: "purple"},
-    { key: "sae",            label: "SAE / Safety",    value: saeCount,                                                                    icon: <ShieldAlert size={20}/>,   color: "red"   },
+    { title: "Screening (Form A)", tiles: SCREENING_TILES.map(tile) },
+    { title: "Delivery & randomisation (Form B)", tiles: RANDOMISATION_TILES.map(tile) },
+    { title: "Safety & data", tiles: [
+      { key: "exclusion", label: "Exclusion Present", value: entries.filter(entryHasExclusion).length, icon: <Ban size={20}/>,         color: "red"    },
+      { key: "sites",     label: "Sites Active",      value: entriesBySite(entries).length,           icon: <Activity size={20}/>,    color: "purple" },
+      { key: "sae",       label: "SAE / Safety",      value: saeCount,                                icon: <ShieldAlert size={20}/>, color: "red"    },
+    ] },
   ];
 }
 
-function recordsForKpi(key, entries, saeItems, enrollData = {}) {
-  if (key === "eligible") {
-    return { kind: "participants", rows: entries.filter(e => e.screening_status === "Eligible") };
-  }
-  if (key === "screen_failure") {
-    return { kind: "participants", rows: entries.filter(e => e.screening_status === "Screen Failure") };
-  }
-  if (key === "pending") {
-    return { kind: "participants", rows: entries.filter(e => !e.screening_status || e.screening_status === "Pending") };
-  }
-  if (key === "consented") {
-    return { kind: "participants", rows: entries.filter(e => e.consent_given === "Yes") };
-  }
-  if (key === "delivered") {
-    return { kind: "participants", rows: entries.filter(e => entryIsDelivered(e, enrollData)) };
-  }
-  if (key === "undelivered") {
-    return { kind: "participants", rows: entries.filter(e => !entryIsDelivered(e, enrollData)) };
+function entriesInTile(key, entries, summary) {
+  const ids = new Set(summary?.ids?.[key] || []);
+  return entries.filter(e => ids.has(e.screening_id));
+}
+
+function recordsForKpi(key, entries, saeItems, summary) {
+  if (PARTICIPANT_TILES.some(t => t.key === key)) {
+    return { kind: "participants", rows: entriesInTile(key, entries, summary) };
   }
   if (key === "exclusion") {
     return { kind: "exclusions", rows: entries.filter(entryHasExclusion) };
@@ -710,6 +704,9 @@ export default function ViewEntries() {
   const [piiByScreening, setPiiByScreening] = useState({});
   const [saeCount,   setSaeCount]   = useState(0);
   const [saeItems,   setSaeItems]   = useState([]);
+  const [summary,    setSummary]    = useState(null);
+  const [stageByScreening, setStageByScreening] = useState({});
+  const [tileFilter, setTileFilter] = useState("");
   const [kpiModal,   setKpiModal]   = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
@@ -722,9 +719,15 @@ export default function ViewEntries() {
   const fetchEntries = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await api.get("/screenings/?limit=200");
+      const [res, sumRes, stageRes] = await Promise.all([
+        api.get("/screenings/?limit=500"),
+        api.get("/screenings/summary").catch(() => ({ data: null })),
+        api.get("/screenings/stages").catch(() => ({ data: {} })),
+      ]);
       const list = Array.isArray(res.data) ? res.data : [];
       setEntries(list);
+      setSummary(sumRes.data);
+      setStageByScreening(stageRes.data || {});
       try {
         const saeRes = await api.get("/sae-list/summary");
         setSaeCount(Number(saeRes.data?.total) || 0);
@@ -799,6 +802,7 @@ export default function ViewEntries() {
   };
 
   /* ── Filter ── */
+  const tileIds = useMemo(() => new Set(summary?.ids?.[tileFilter] || []), [summary, tileFilter]);
   const filtered = useMemo(() => entries.filter(e => {
     const q = search.toLowerCase();
     const pii = piiByScreening[e.screening_id];
@@ -815,8 +819,9 @@ export default function ViewEntries() {
       String(mother).toLowerCase().includes(q) ||
       surname.includes(q);
     const matchSite = !siteFilter || canonicalSiteKey(e.site_name) === siteFilter;
-    return matchQ && matchSite;
-  }), [entries, search, siteFilter, piiByScreening, enrollData]);
+    const matchTile = !tileFilter || tileIds.has(e.screening_id);
+    return matchQ && matchSite && matchTile;
+  }), [entries, search, siteFilter, tileFilter, tileIds, piiByScreening, enrollData]);
 
   const siteOptions = useMemo(() => {
     const seen = new Map();
@@ -830,8 +835,8 @@ export default function ViewEntries() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-  const kpis  = buildKPIs(entries, saeCount, enrollData);
-  const kpiModalRecords = kpiModal ? recordsForKpi(kpiModal.key, entries, saeItems, enrollData) : null;
+  const kpiGroups = buildKpiGroups(summary, entries, saeCount);
+  const kpiModalRecords = kpiModal ? recordsForKpi(kpiModal.key, entries, saeItems, summary) : null;
 
   const layoutProps = {
     pageTitle: "All Participants",
@@ -883,15 +888,20 @@ export default function ViewEntries() {
       </div>
 
       {/* ── KPI strip ── */}
-      <div className="ve-kpis">
-        {kpis.map(k => (
-          <KPICard
-            key={k.key}
-            {...k}
-            onClick={() => setKpiModal({ key: k.key, label: k.label, value: k.value })}
-          />
-        ))}
-      </div>
+      {kpiGroups.map(g => (
+        <section key={g.title} className="ve-kpi-group" aria-label={g.title}>
+          <h2 className="ve-kpi-group-title">{g.title}</h2>
+          <div className="ve-kpis">
+            {g.tiles.map(k => (
+              <KPICard
+                key={k.key}
+                {...k}
+                onClick={() => setKpiModal({ key: k.key, label: k.label, value: k.value })}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
 
       {/* ── Controls (Unified single horizontal row without Consent dropdown) ── */}
       <div className="ve-controls">
@@ -923,6 +933,23 @@ export default function ViewEntries() {
             </select>
             <ChevronDown size={13} className="ve-site-dd-icon" aria-hidden="true"/>
           </label>
+          <label className={`ve-site-dd${tileFilter ? " ve-filter--dd-active" : ""}`}>
+            <span className="ve-site-dd-label">
+              {tileFilter ? PARTICIPANT_TILES.find(t => t.key === tileFilter)?.label : "Show"}
+            </span>
+            <select
+              className="ve-site-select"
+              value={tileFilter}
+              onChange={e => { setTileFilter(e.target.value); setPage(1); }}
+              aria-label="Show only participants in a group"
+            >
+              <option value="">Everyone</option>
+              {PARTICIPANT_TILES.filter(t => t.key !== "screened").map(t => (
+                <option key={t.key} value={t.key}>{t.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={13} className="ve-site-dd-icon" aria-hidden="true"/>
+          </label>
         </div>
       </div>
 
@@ -945,6 +972,7 @@ export default function ViewEntries() {
                 <th className="ve-th">Form Progress</th>
                 <th className="ve-th">Completion</th>
                 <th className="ve-th ve-th--center">Status</th>
+                <th className="ve-th">Stage</th>
                 <th className="ve-th ve-th--center">Consent</th>
                 <th className="ve-th">Next Action</th>
                 <th className="ve-th ve-th--right">Actions</th>
@@ -953,7 +981,7 @@ export default function ViewEntries() {
             <tbody>
               {paged.length === 0 ? (
                 <tr>
-                    <td colSpan={11} className="ve-empty">
+                    <td colSpan={12} className="ve-empty">
                     <ClipboardList size={32} opacity={0.3}/>
                     <p>No participants match your filters.</p>
                   </td>
@@ -1023,6 +1051,11 @@ export default function ViewEntries() {
                         <Badge sk={sk} label={entry.screening_status || "Pending"}/>
                       </td>
 
+                      {/* Stage (server, same as the Dashboard list) */}
+                      <td className="ve-td ve-td--md">
+                        {stageByScreening[entry.screening_id]?.label || "—"}
+                      </td>
+
                       {/* Consent */}
                       <td className="ve-td ve-td--center">
                         <span className={`consent-pill consent-pill--${(entry.consent_given||"").toLowerCase()==="yes"?"yes":"no"}`}>
@@ -1074,7 +1107,7 @@ export default function ViewEntries() {
 
                     {expanded === entry.id && (
                       <tr className="ve-exp-row">
-                        <td colSpan={11} className="ve-exp-cell" onClick={e => e.stopPropagation()}>
+                        <td colSpan={12} className="ve-exp-cell" onClick={e => e.stopPropagation()}>
                           <ExpandedPanel
                             entry={entry}
                             forms={forms}

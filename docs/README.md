@@ -51,7 +51,7 @@ Enforced on the server (`deps.py`, `pii_service.py`); the UI only mirrors it (`u
 | Site Scientist (PRS3-NM, PRS2-M) | `site_scientist` | Own site | Yes, incl. delete | Own site | Data quality / site views | No |
 | Project Nurse (PN3) | `nurse` | Own site | Yes, **no delete**, no CONSORT | Own site | Data quality only | No |
 
-- Read-only roles (`project_scientist`, `global_scientist`, `tech_support`): every POST/PUT/PATCH/DELETE is refused (403) except `/auth/*`, `/pii/batch` (a read) and, for analytics roles, `/dashboard/ai-insights` (`deps.refuse_role_restricted_request`, run inside `get_current_user`).
+- Read-only roles (`project_scientist`, `global_scientist`, `tech_support`): every POST/PUT/PATCH/DELETE is refused (403) except `/auth/*`, `/pii/batch` (a read), `/data-queries/`, `/reports/` (running a report is a read; tech support is refused `/reports` outright) and, for analytics roles, `/dashboard/ai-insights` (`deps.refuse_role_restricted_request`, run inside `get_current_user`).
 - Trial-wide analytics (CONSORT CSV, safety, baseline, clinical quality, enrolment trend, ops summary, AI Insights) = `CENTRAL_ANALYTICS_ROLES` (Global PI, Overall Project Scientist). Opening the site-scoped views to Site PI / Site Scientist (SOP change 3) is still to do.
 - Placeholder roles (`pi`, `scientist`, `deo`, `monitor`) no longer see identity data and are being retired.
 
@@ -70,6 +70,30 @@ way (`utils/maternalUid.js`, `utils/personName.js`, Form A `idFieldRule`).
   save (`main.refuse_trial_run_consent`, 422) and no longer counts as consent
   in `compute_screening_status` (such a record becomes Pending, so Form B is
   refused). A record saved with it opens with consent blank and a notice.
+
+## Report builder (PI 2026-10-24)
+`/reports` page, `backend/routers/reports.py`. Pick columns from Forms A–J,
+filter (site, tile group such as Randomised, screening dates, trial period
+from `TRIAL_START_DATE`), preview 50 rows, download CSV (UTF-8 with BOM, opens
+in Excel). One row per Form A; every row starts with site, screening ID,
+enrollment number (+ optional Stage). Forms A/B join on `screening_id`, C–J on
+`enrollment_id`; if a table has two rows for one baby the latest (highest id)
+is used. Day-by-day logs are not offered.
+- **Column names** (PI 2026-10-25): the picker shows a plain-English name with
+  the variable name in brackets (`backend/report_labels.py`: hand-written
+  OVERRIDES, else the variable name with abbreviations expanded). Columns are
+  click-to-toggle tiles (no Ctrl). CSV headings: "English (variable)" (default),
+  English only, or variable names only (for Stata / R / SPSS).
+- **Who**: Global PI and Overall Project Scientist all sites; Site PI and Site
+  Scientist own site; nurses and tech support refused.
+- **Never offered** (PI: IDs only): any column whose name has the word name /
+  contact / phone / mobile / address / email / uid / aadhaar / signature /
+  image / photo / pincode / landmark / cr, admission numbers, the
+  `pii_service` field lists; and, for blinding, Form I `fio2_0..fio2_10`,
+  Form K and Form L. Columns come only from this fixed list (no SQL from the
+  browser); an unknown column is a 422.
+- Each download is an audit row: action `EXPORT`, table `report`, with the
+  columns, filters and row count. Saved reports are kept in the browser only.
 
 ## Data queries (Phase 1, PI 2026-10-15)
 Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems
