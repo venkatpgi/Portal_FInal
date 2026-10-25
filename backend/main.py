@@ -84,6 +84,7 @@ from routers import staff as staff_router
 from routers import audit as audit_router
 from routers import data_queries as data_queries_router
 from routers import dashboard as dashboard_router
+from routers import reports as reports_router
 from routers import auth as auth_router
 from baby_uid_duplicate import (
     find_baby_uid_conflict,
@@ -118,6 +119,7 @@ from staff_service import seed_site_staff, deactivate_stale_site_staff
 from user_service import seed_login_users, backfill_pilot_designations, backfill_staff_emails
 import security_monitor
 from crypto import decrypt_value
+from screening_status import compute_screening_status
 from pii_service import (
     SCREENING_PII_FIELDS,
     BIRTH_PII_FIELDS,
@@ -174,6 +176,7 @@ app.include_router(staff_router.router)
 app.include_router(audit_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(data_queries_router.router)
+app.include_router(reports_router.router)
 
 
 @app.on_event("startup")
@@ -448,47 +451,6 @@ def refuse_trial_run_consent(consent) -> None:
             status_code=422,
             detail="'Trial run' is no longer a consent option. Record the real consent (Yes or No).",
         )
-
-
-def compute_screening_status(data):
-    """Authoritative screening_status for web + mobile (Form A).
-
-    Labels match Screening Form / ViewEntries banners:
-      Screen Failure — GA undeterminable (Neither) OR any exclusion Yes
-      Not Eligible   — GA outside 25w0d–31w6d, OR consent No / Not approached
-      Eligible       — GA in window, no exclusion, consent Yes
-                       ("Trial run" no longer counts as consent: PI
-                       2026-10-18, after the trial started)
-      Pending        — screening incomplete (no GA yet) OR clinically OK
-                       but consent not yet recorded
-    """
-    gestation_known = getattr(data, "gestation_known", None)
-    ga_source = getattr(data, "ga_source", None)
-    if gestation_known == "No" and ga_source == "Neither":
-        return "Screen Failure"
-
-    if data.gestation_weeks is None:
-        return "Pending"
-
-    weeks = int(data.gestation_weeks)
-    days = int(getattr(data, "gestation_days", None) or 0)
-    total_days = weeks * 7 + days
-    # Eligible window: 25w0d – 31w6d inclusive (Form A GA banner = Not Eligible)
-    if total_days < 25 * 7 or total_days > 31 * 7 + 6:
-        return "Not Eligible"
-
-    if data.exclusion_present:
-        return "Screen Failure"
-
-    consent = getattr(data, "consent_given", None)
-    if consent == "Yes":
-        return "Eligible"
-
-    if consent in ("No", "Not approached"):
-        return "Not Eligible"
-
-    # Clinically passed inclusion; consent not answered yet
-    return "Pending"
 
 
 def mirror_consent_signature_fields(entry: Screening) -> None:
@@ -1031,27 +993,28 @@ def get_screening_stages(
     current_user: User = Depends(get_current_user),
 ):
     """{screening_id: {stage, label, tone}} for every accessible Form A --
-    the dashboard Screened Participants "Stage" column (patient_stage.py).
-    Declared before /screenings/{screening_id} so "stages" is not read as an ID."""
-    from patient_stage import followup_stage, patient_stage, stage_payload
+    the Stage column on the dashboard Screened Participants list and on View
+    Entries (patient_stage.py). Declared before /screenings/{screening_id}
+    so "stages" is not read as an ID."""
+    from participant_counts import stage_items
+    from patient_stage import stage_payload
     rows = get_accessible_screening_query(db, current_user).all()
-    sids = [r.screening_id for r in rows if r.screening_id]
-    form_b = {}
-    if sids:
-        for b in (db.query(BirthResuscitation.screening_id, BirthResuscitation.required_resuscitation,
-                           BirthResuscitation.randomised)
-                  .filter(BirthResuscitation.screening_id.in_(sids)).all()):
-            form_b[b.screening_id] = b
-    out = {}
-    for r in rows:
-        b = form_b.get(r.screening_id)
-        key = patient_stage(compute_screening_status(r), r.consent_given, r.gestation_weeks,
-                            r.gestation_days, b is not None,
-                            b.required_resuscitation if b else None, b.randomised if b else None)
-        if key == "awaiting_delivery":
-            key = followup_stage(r.pregnancy_episodes, r.pregnancy_outcome, r.consent_withdrawn) or key
-        out[r.screening_id] = stage_payload(key)
-    return out
+    return {r.screening_id: stage_payload(key) for r, _, key, _ in stage_items(db, rows)}
+
+
+@app.get("/screenings/summary")
+def get_screening_summary(
+    site: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Participant tiles for View Entries; the Dashboard's ops-summary uses
+    the same counts (participant_counts.py), so the two pages always agree.
+    Global roles may narrow to one site with ?site=."""
+    from participant_counts import counts_by_site, members, scoped_screenings, stage_items
+    items = stage_items(db, scoped_screenings(db, dashboard_router._dashboard_sites(current_user, site)))
+    ids = members(items)
+    return {"counts": {k: len(v) for k, v in ids.items()}, "ids": ids, "by_site": counts_by_site(items)}
 
 @app.patch("/screenings/{screening_id}/pregnancy-follow-up", response_model=ScreeningClinicalOut)
 def update_pregnancy_follow_up(

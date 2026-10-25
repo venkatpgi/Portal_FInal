@@ -189,6 +189,32 @@ Active / Failure / Pending badge, which showed refused consent as "Pending":
 | Randomised | Form B randomised Yes |
 | Consent withdrawn / Discharged home undelivered / Readmitted, awaiting delivery / Delivered here, Form B missing / Delivered elsewhere / Lost to follow-up (undelivered) | Consented, no Form B: from Form A A6 pregnancy follow-up (`patient_stage.followup_stage`) |
 
+View Entries shows the same Stage column (both read `GET /screenings/stages`).
+
+### Participant tiles — View Entries and Dashboard (PI 2026-10-24)
+Both pages show the same tiles with the same numbers, from
+`backend/participant_counts.py` (View Entries: `GET /screenings/summary`;
+Dashboard: `GET /dashboard/ops-summary` `kpis`). Before this the two pages
+counted separately and disagreed (no randomised tile on View Entries, no
+delivered tile on the Dashboard, Not Eligible on neither). Counted: every
+non-deleted Form A at the sites in scope (DRAFT / blank-site shells left out).
+
+| Tile | Rule |
+|---|---|
+| Screened | every Form A |
+| Eligible / Not eligible / Screen failures / Pending | `compute_screening_status` (these four add up to Screened) |
+| Consented | `consent_given` = Yes |
+| Awaiting delivery | Stage Consented awaiting delivery, Discharged home undelivered or Readmitted awaiting delivery |
+| Delivered (Form B) | a Form B row exists (any mother status) |
+| Needed PPV | Form B PPV required = Yes, or randomised = Yes |
+| Randomised | Form B randomised = Yes (the Dashboard's "Enrolled", target 700) |
+| PPV, not randomised | PPV Yes, randomised No |
+| No PPV (A–B only) | PPV required = No |
+
+No arm is shown: allocation is not in this database (blinded). Clicking a
+View Entries tile lists exactly the records counted (`ids` in the summary);
+the "Show" filter narrows the table to one tile.
+
 ## 6. Readmission of an undelivered woman (PI 2026-10-20)
 - **Gestation Log**: log her again with "New contact of the same woman". The
   duplicate-CR note shows her Form A consent (`form_a_consent`): refused → do

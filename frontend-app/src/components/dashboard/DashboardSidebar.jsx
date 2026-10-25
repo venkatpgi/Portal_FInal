@@ -11,10 +11,11 @@ import {
   Activity,
   History,
   ListChecks,
+  FileSpreadsheet,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { canViewAudit, canSeeAnalytics, canSeeDataQueries } from "../../utils/roles";
+import { canViewAudit, canSeeAnalytics, canSeeDataQueries, canUseReports } from "../../utils/roles";
 import { formatSiteName } from "./siteLabels";
 
 const ITEMS = [
@@ -135,6 +136,15 @@ export default function DashboardSidebar({
             className={workspaceNavClass}
           >
             <ListChecks size={14} aria-hidden="true" /> Data Queries
+          </NavLink>
+        )}
+        {canUseReports(user) && (
+          <NavLink
+            to="/reports"
+            onClick={onClose}
+            className={workspaceNavClass}
+          >
+            <FileSpreadsheet size={14} aria-hidden="true" /> Reports
           </NavLink>
         )}
         {canViewAudit(user) && (

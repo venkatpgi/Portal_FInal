@@ -100,9 +100,15 @@
 /* ============================================================
    KPI STRIP
    ============================================================ */
+.ve-kpi-group { display: flex; flex-direction: column; gap: 6px; }
+.ve-kpi-group-title {
+  margin: 0;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ve-muted);
+}
 .ve-kpis {
   display: grid;
-  grid-template-columns: repeat(10, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
 }
 .kpi-card {
@@ -823,10 +829,7 @@ button.pdot {
    RESPONSIVE
    ============================================================ */
 @media (max-width: 1200px) {
-  .ve-kpis {
-    grid-template-columns: repeat(10, minmax(88px, 1fr));
-    overflow-x: auto;
-  }
+  .ve-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 1024px) {
   .ve-controls {
@@ -842,6 +845,7 @@ button.pdot {
 }
 @media (max-width: 900px) {
   .ve-wrap { padding: 16px; }
+  .ve-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ve-header { flex-direction: column; align-items: flex-start; }
   .exp-grid  { grid-template-columns: repeat(2, 1fr); }
 }
