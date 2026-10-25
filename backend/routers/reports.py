@@ -43,7 +43,7 @@ from participant_counts import COUNT_KEYS, members, scoped_screenings, stage_ite
 from patient_stage import stage_payload
 from pii_service import (BIRTH_PII_FIELDS, MATERNAL_PII_FIELDS, NICU_PII_FIELDS, POSTNATAL_PII_FIELDS,
                          SCREENING_PII_FIELDS)
-from trial_dates import TRIAL_START_DATE
+from trial_dates import trial_start
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -143,7 +143,7 @@ def get_fields(current_user: User = Depends(get_current_user)):
     return {
         "forms": catalogue(),
         "groups": [{"key": k} for k in COUNT_KEYS],
-        "trial_start_date": TRIAL_START_DATE.isoformat(),
+        "trial_start_date": trial_start().isoformat(),
     }
 
 
@@ -153,7 +153,7 @@ class ReportRequest(BaseModel):
     group: str | None = None          # a participant_counts tile, e.g. "randomised"
     screened_from: date | None = None
     screened_to: date | None = None
-    trial_only: bool = False          # screened on or after TRIAL_START_DATE
+    trial_only: bool = False          # screened on or after trial_dates.trial_start()
     include_stage: bool = True
 
 
@@ -184,7 +184,7 @@ def build_report(db: Session, user: User, req: ReportRequest):
         raise HTTPException(status_code=422, detail=f"Unknown group {req.group!r}")
 
     rows = scoped_screenings(db, sites)
-    start = TRIAL_START_DATE if req.trial_only else None
+    start = trial_start() if req.trial_only else None
     if req.screened_from and (start is None or req.screened_from > start):
         start = req.screened_from
 
