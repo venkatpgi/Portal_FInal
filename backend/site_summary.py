@@ -281,7 +281,7 @@ def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> d
 
     # W9 death without an SAE report
     if died and not b.get("has_sae_report"):
-        watch.append(("W9", f"Died{(' ' + _fmt(end)) if end else ''}: no SAE report (Form Y)"))
+        watch.append(("W9", f"Died{(' ' + _fmt(end)) if end else ''}: no SAE report with a diagnosis (Form Y)"))
 
     # W10 SAE reporting deadlines (SAE list)
     for r in b.get("sae_rows") or []:
@@ -444,7 +444,8 @@ def _load(db, sites: list[str], now: datetime) -> list[dict]:
             "end_date": end, "died": died, "candidates": cand.get("candidates") or [],
             "pending_usg": cand.get("pending_cranial_usg_findings") or [],
             "ae_events": (ae.events if ae else None) or [], "sae_rows": (sae.rows if sae else None) or [],
-            "has_sae_report": q(SAEReport).first() is not None,
+            # an empty Form Y (no diagnosis) is not a report (01-B-001, PI 2026-10-26)
+            "has_sae_report": any(answered(r.diagnosis) for r in q(SAEReport).all()),
             "resp_logs": resp, "inf_logs": inf, "metab_logs": metab,
             "nec_stage": nm.nec_stage if nm else None,
             "rop": q(ROPScreening, ROPScreening.id.desc()).first(),

@@ -34,12 +34,20 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
   severity description, grade (1–5), converted to SAE.
 - An event that an SAE report is linked to shows "Linked to SAE report" with
   **Apply: Yes** for "Converted to SAE" (never automatic).
+- **Save rules (PI 2026-10-26, `main._clean_ae_events`, web + mobile + API):**
+  rows with nothing in them are dropped; a row with a grade, date or SAE
+  answer but no event (description, or a definition other than "NA") is
+  refused with its row number ("enter the event (term) or delete the row").
 
 ## 3. SAE list (`sae_list`) and SAE report — Form Y (`sae_reports`)
 - SAE list: one row per SAE with 24-h / 14-day notification dates (India NDCT
   Rules 2019 timeline).
 - Form Y: one record per report (Initial / Follow-up / Final). Severity uses
   the INC NAESS 5 grades (old 3-level values mapped on load).
+- **Form Y needs a diagnosis** to save (create or update, 422 otherwise;
+  `main._refuse_empty_sae_report`, PI 2026-10-26). An empty report had been
+  saved for 01-B-001 and sent the SAE alert email. The site summary also
+  counts only reports with a diagnosis.
 - **Linking an AE** (Form Y "Prefill from a recorded AE") saves a **copy** of that
   AE on the report (`linked_ae`: description, dates, grade, evidence) — the
   report keeps what was reported even if the AE list changes; Form Y warns if

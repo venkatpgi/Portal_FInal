@@ -5630,6 +5630,18 @@ def create_metab_renal_vasc_eye_log(
 # SERIOUS ADVERSE EVENT ENDPOINTS
 # ============================================================================
 
+def _refuse_empty_sae_report(data: SAEReportCreate) -> None:
+    """A Form Y report must say what the SAE is (PI 2026-10-26): an empty
+    report (01-B-001, 21 Oct) looked like a reported SAE and sent the SAE
+    alert email. report_date is not enough, the new form fills it in."""
+    if not fc.answered(data.diagnosis):
+        raise HTTPException(
+            status_code=422,
+            detail="Enter the diagnosis (what the SAE is) before saving the SAE report. "
+                   "Pick the event from the AE form to fill it in.",
+        )
+
+
 def _sae_payload(data: SAEReportCreate) -> dict:
     """Full dump filtered to model columns; normalize list/bool defaults."""
     allowed = set(SAEReport.__table__.columns.keys()) - {
@@ -5701,6 +5713,7 @@ def create_sae_report(
 ):
     """Create a new SAE report (multiple reports allowed per enrollment)."""
     require_enrollment_access(data.enrollment_id, db, current_user)
+    _refuse_empty_sae_report(data)
     payload = _sae_payload(data)
     record = SAEReport(**payload)
     db.add(record)
@@ -5754,6 +5767,7 @@ def update_sae_report(
     require_enrollment_access(record.enrollment_id, db, current_user)
     if data.enrollment_id and data.enrollment_id != record.enrollment_id:
         require_enrollment_access(data.enrollment_id, db, current_user)
+    _refuse_empty_sae_report(data)
 
     payload = _sae_payload(data)
     for key, value in payload.items():
@@ -5951,6 +5965,29 @@ def download_sae_report_document(
     )
 
 
+def _clean_ae_events(events) -> list:
+    """AE form rows (PI 2026-10-26): drop rows with nothing in them and refuse
+    a row that has a grade, date or SAE answer but no event ("NA" alone is not
+    an event). 01-B-001 had 11 graded rows with no term."""
+    keep, unnamed = [], []
+    for i, e in enumerate(events or [], start=1):
+        if not isinstance(e, dict):
+            continue
+        named = fc.answered(e.get("description")) or (
+            fc.answered(e.get("definition_no")) and str(e.get("definition_no")).strip().upper() != "NA")
+        if named:
+            keep.append(e)
+        elif any(fc.answered(v) for v in e.values()):
+            unnamed.append(i)
+    if unnamed:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Adverse event row{'s' if len(unnamed) > 1 else ''} {', '.join(map(str, unnamed))}: "
+                   "enter the event (term) or delete the row.",
+        )
+    return keep
+
+
 @app.post("/adverse-events/", response_model=AdverseEventsOut)
 def create_adverse_events(
     data: AdverseEventsCreate,
@@ -5964,8 +6001,7 @@ def create_adverse_events(
         "id", "created_at", "updated_at",
     }
     raw = {k: v for k, v in data.model_dump().items() if k in allowed or k in AE_PII_FIELDS}
-    if raw.get("events") is None:
-        raw["events"] = []
+    raw["events"] = _clean_ae_events(raw.get("events"))
 
     payload = split_and_store_pii(
         db,
@@ -6035,8 +6071,7 @@ def update_adverse_events(
         "id", "created_at", "updated_at", "enrollment_id",
     }
     raw = {k: v for k, v in data.model_dump().items() if k in allowed or k in AE_PII_FIELDS}
-    if raw.get("events") is None:
-        raw["events"] = []
+    raw["events"] = _clean_ae_events(raw.get("events"))
     raw["enrollment_id"] = enrollment_id
 
     payload = split_and_store_pii(
