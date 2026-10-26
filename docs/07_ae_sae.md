@@ -9,7 +9,14 @@ Definitions and grade text: `backend/ae_reference.py` `AE_DEFINITIONS`
 
 The AE form's "Scan daily logs / Form H" button asks for **candidates**; they
 are added as suggested rows (badge "auto-detected", evidence quoted) and
-**never saved until a person saves the AE form**. Grade 5 (death) is never
+**never saved until a person saves the AE form**. The page sends the rows on screen
+(`POST /adverse-events/candidates/{id}`) and skips a candidate the form
+already records (`ae_terms.duplicate_of`, PI 2026-10-26): same term, matched
+by key, CDISC / MedDRA code or name (case, spacing, a bracketed abbreviation
+and a leading "Neonatal" / "Infantile" ignored), and its start within 3 days
+of the row's start..end, or a start date missing. The scan message names the
+skipped ones and their row numbers. A later episode of the same term is
+still offered. Grade 5 (death) is never
 auto-assigned; a grade the scale leaves undefined steps down to the highest
 defined grade below it (`_resolve_grade`).
 

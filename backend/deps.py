@@ -121,6 +121,7 @@ def get_current_user(
 
     refuse_role_restricted_request(request, user)
     refuse_non_live_site_write(request, user)
+    db.info["audit_user"] = (user.id, user.username)   # audit_trail.py: who made this request's changes
     return user
 
 

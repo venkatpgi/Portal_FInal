@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks, Query
+﻿from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter
@@ -54,6 +54,9 @@ from cr_duplicates import normalize_cr, find_duplicate
 from identifier_duplicates import refuse_duplicate_identifiers
 from identity_rules import require_valid_identity, stored_values
 import form_completion as fc
+from ae_terms import duplicate_of
+import audit_trail
+audit_trail.install()   # every form table audited when AUDIT_ALL_FORMS=1 (PI 2026-10-26)
 import composite_suggestion as cs
 from brain_injury_suggestion import suggest_brain_injury, grade_rank as bi_grade_rank, record as bi_record
 from nec_suggestion import suggest_nec, stage_rank as nec_stage_rank, finding as nec_finding, highest_stage as nec_highest_stage
@@ -6170,6 +6173,25 @@ def get_adverse_event_candidates(
     go complete/update Form H."""
     require_enrollment_access(enrollment_id, db, current_user)
     return collect_ae_candidates(db, enrollment_id)
+
+
+@app.post("/adverse-events/candidates/{enrollment_id}")
+def match_adverse_event_candidates(
+    enrollment_id: str,
+    body: dict = Body(default_factory=dict),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The GET above, with each candidate marked `duplicate_of` = the
+    1-based row of `body["events"]` (the AE form as it is on screen, saved
+    or not) that already records it, else null (PI 2026-10-26: the scan
+    re-added hand-typed AEs). Matching: ae_terms.duplicate_of. Read-only."""
+    require_enrollment_access(enrollment_id, db, current_user)
+    out = collect_ae_candidates(db, enrollment_id)
+    rows = body.get("events") if isinstance(body.get("events"), list) else []
+    for c in out.get("candidates") or []:
+        c["duplicate_of"] = duplicate_of(c, rows)
+    return out
 
 
 @app.post("/sae-list/", response_model=SAEListOut)

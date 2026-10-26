@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import re
 import sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -40,6 +39,7 @@ logging.basicConfig(level=logging.WARNING)
 
 from ae_candidates import collect_ae_candidates  # noqa: E402
 from ae_reference import AE_DEFINITIONS  # noqa: E402
+from ae_terms import term_of  # noqa: E402,F401  (AE-form row -> term; also used by the tests)
 from bpd_suggestion import INVASIVE_MODES  # noqa: E402
 from clinical_time import clinical_now  # noqa: E402
 from data_checks import OPEN_STATES, colour  # noqa: E402
@@ -130,27 +130,6 @@ def _modes(log) -> set:
 
 def _invasive(log) -> bool:
     return getattr(log, "endotracheal_intubation", None) is True or bool(_modes(log) & INVASIVE_MODES)
-
-
-_CODES = {slug: set(re.findall(r"\b(?:C\d{5,}|\d{8})\b", d.get("definition") or ""))
-          for slug, d in AE_DEFINITIONS.items()}
-_NAMES = {re.sub(r"[^a-z0-9]+", " ", d["name"].lower()).strip(): slug for slug, d in AE_DEFINITIONS.items()}
-
-
-def term_of(e) -> str | None:
-    """The NAESS term of an AE row. The AE form's "No." is free text: staff type
-    the term key, its CDISC / MedDRA codes ("C154928 | 10082059") or nothing,
-    so match the key, then the codes, then the description against the term name."""
-    no = str((e or {}).get("definition_no") or "").strip()
-    if no in AE_DEFINITIONS:
-        return no
-    codes = set(re.findall(r"\b(?:C\d{5,}|\d{8})\b", no))
-    if codes:
-        for slug, known in _CODES.items():
-            if codes & known:
-                return slug
-    desc = re.sub(r"[^a-z0-9]+", " ", str((e or {}).get("description") or "").lower()).strip()
-    return _NAMES.get(desc)
 
 
 def _fmt_pma(days) -> str:

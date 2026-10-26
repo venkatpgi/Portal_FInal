@@ -190,6 +190,21 @@ text. Gestation is Form B's (no NBS override). `--dry-run` / `--only` /
 `--force` as for the daily email (audit `EMAIL` / `EMAIL_TEST`; a test does
 not move the W2 baseline).
 
+## Audit trail for every form (PI 2026-10-26)
+
+`backend/audit_trail.py`: an after_flush listener writes one `audit_log` row
+per insert / update / delete on every table except `audit_log`, `screenings`
+(Form A is audited by hand in main.py), `data_queries` (system-generated)
+and `users`. UPDATE stores only the changed columns, old and new. The user
+is the request's login (`deps.get_current_user` sets `db.info["audit_user"]`);
+scripts are "system". Identity is never stored: encrypted columns, names,
+UIDs, contacts, address, annual number and signature images are written as
+"[redacted]"; `participant_pii` keeps only its keys. Bulk `query().update()`
+/ `delete()` bypass it (only the legacy `/respiratory-log-bulk`). On only
+where `AUDIT_ALL_FORMS=1` is in the backend env file (training first, then
+trial). Before 2026-10-26 only Form A, day-log override unlocks, data
+queries and emails were audited.
+
 ## Glossary
 
 | Term | Meaning |
