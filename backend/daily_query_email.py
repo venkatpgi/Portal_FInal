@@ -7,7 +7,8 @@ Who gets what:
   - Overall Project Scientist (and Global Scientist) and the Global PI
     (superadmin): one email covering all sites.
 Each email lists queries new in the last 24 h, overdue (red, 7 days past
-due), and resolved / confirmed correct in the last 24 h, with open counts.
+due), and resolved / confirmed correct in the last 24 h, with open counts,
+plus the site summary's urgent safety items (W1, W3, W9, W10).
 It is sent on quiet days too: "nil to report" is itself the report (PI).
 
 Content is the query text, which carries IDs, numbers and dates only
@@ -42,6 +43,7 @@ from deps import (ROLE_GLOBAL_SCIENTIST, ROLE_PROJECT_SCIENTIST, ROLE_SITE_PI,  
 from email_service import send_email  # noqa: E402
 from models import AuditLog, DataQuery, User  # noqa: E402
 import sae_config  # noqa: E402
+import site_summary  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
 SITE_ROLES = {ROLE_SITE_PI, ROLE_SITE_SCIENTIST}
@@ -142,12 +144,22 @@ def build_email(db, scope: str, now: datetime) -> tuple[str, str, dict]:
     queries = qy.order_by(DataQuery.site_name, DataQuery.due_at.asc().nulls_last(), DataQuery.id).all()
     counts, new, red, closed = _sections(queries, now, since)
     all_sites = scope == ALL_SITES
+    try:   # site summary rules W1, W3, W9, W10 (PI 2026-10-26); the query email goes out regardless
+        urgent = site_summary.urgent_items(db, scope)
+        urgent_html = site_summary.rule_table(urgent, all_sites)
+    except Exception:
+        logging.exception("urgent safety items failed for %s", scope)
+        db.rollback()
+        urgent, urgent_html = [], ('<p style="margin:0;color:#b91c1c;font-size:13px;">Could not be checked today; '
+                                   'see the site summary in the portal.</p>')
+    counts["urgent"] = len(urgent)
     where = "All sites" if all_sites else _site_display(scope)
     day = now.replace(tzinfo=timezone.utc).astimezone(IST).strftime("%d %b %Y")
-    nil = not (counts["new"] or counts["red"] or counts["closed"] or counts["open"])
+    nil = not (counts["new"] or counts["red"] or counts["closed"] or counts["open"] or counts["urgent"])
     subject = (f"PORTAL data queries — {where} — {day}: "
                + ("nil to report" if nil else
-                  f"{counts['new']} new, {counts['red']} overdue, {counts['open']} open"))
+                  (f"{counts['urgent']} URGENT safety, " if counts["urgent"] else "")
+                  + f"{counts['new']} new, {counts['red']} overdue, {counts['open']} open"))
 
     tiles = [("Open", counts["open"], "#0f172a"), ("New (24 h)", counts["new"], "#0369a1"),
              ("Overdue (red)", counts["red"], "#b91c1c"), ("Ageing (amber)", counts["amber"], "#b45309"),
@@ -184,7 +196,7 @@ def build_email(db, scope: str, now: datetime) -> tuple[str, str, dict]:
 
     nil_line = ('<p style="margin:16px 0 0;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;'
                 'border-radius:8px;color:#166534;font-size:14px;"><strong>Nil to report.</strong> No open, new, '
-                'overdue or closed data queries.</p>') if nil else ""
+                'overdue or closed data queries and no urgent safety items.</p>') if nil else ""
 
     html = f"""<!doctype html><html><body style="margin:0;padding:0;background:#f8fafc;">
 <div style="max-width:760px;margin:0 auto;padding:20px 16px;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
@@ -197,6 +209,10 @@ def build_email(db, scope: str, now: datetime) -> tuple[str, str, dict]:
   Queries are raised automatically by the portal's data checks.</p>
   <table style="border-collapse:separate;border-spacing:6px;width:100%;"><tr>{tile_html}</tr></table>
   {nil_line}
+  <h3 style="margin:22px 0 8px;font-size:15px;color:#b91c1c;">Urgent safety items ({len(urgent)})</h3>
+  <p style="margin:0 0 6px;color:#64748b;font-size:12px;">Serious AE not reviewed for SAE, severe brain scan not
+  in Form H, death without an SAE report, SAE reporting deadline. Full list in the twice-weekly site summary.</p>
+  {urgent_html}
   {by_site}
   {_table("New in the last 24 hours", new, all_sites, "None.", "new")}
   {_table("Overdue (red: 7 days past due)", red, all_sites, "None.", "red")}

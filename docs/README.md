@@ -146,7 +146,44 @@ and details hold ids, numbers and dates only.
   `daily_query_email`); `--dry-run` builds without sending, `--only EMAIL`
   sends one test copy (audit `EMAIL_TEST`, does not count). Query text holds
   IDs only, so the email carries no names, CR or phone numbers. Needs
-  `SES_SENDER_EMAIL` (trial `.env` only; training never sends).
+  `SES_SENDER_EMAIL` (trial `.env` only; training never sends). It also
+  lists the site summary's **urgent safety items** (W1, W3, W9, W10, below).
+
+## Site summary (PI 2026-10-26)
+
+`backend/site_summary.py`, page `/site-summary` (`GET /site-summary`), email
+**Monday and Thursday 08:00 IST** (`deploy/systemd/portal-site-summary.timer`),
+same recipients as the daily email; nil summaries are sent. Covers enrolled
+(PPV) babies born since the trial start, by enrolment ID only, never by arm.
+**Rule-based only, no AI.** Rules approved by the PI (rule sheet
+https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
+
+| Rule | Fires when |
+|---|---|
+| W1 Serious AE not reviewed for SAE | AE grade ≥ 3 on the AE form with "Converted to SAE" blank, or auto-detected grade ≥ 3 whose term is not on the AE form |
+| W2 Grade going up | a term's grade is higher than at the last live send (grades kept in the audit row, table `site_summary`) |
+| W3 Severe brain scan not in Form H | `detect_pending_cranial_usg_findings` (IVH III/IV, cPVL ≥ II) |
+| W4 Proven infection | culture-positive sepsis or meningitis starting in the last 7 days |
+| W5 Suspected NEC | Helper 4 NEC suspected / stage I in the last 7 days and no stage IIA+ anywhere |
+| W6 Grade 2 band | last 3 days: Na 120–129 or 151–160, K 6.5–8.0, AKI stage ≥ 2; last 7 days: glucose 20–40 on ≥ 2 days or any < 20 |
+| W7 Escalating support | invasive ventilation (intubated or SIMV/AC/PSV/HFOV) or inotropes started in the last 3 days (previous day logged without it) |
+| W8 Acute event | Helper 2 pneumothorax, pulmonary haemorrhage, shock, clinical / EEG seizure in the last 7 days |
+| W9 Death without SAE report | died (Form H outcome or Helper 5) and no Form Y report |
+| W10 SAE deadline | SAE list row: 24-h notification blank after the start day; detailed (initial) report blank within 3 days of, or past, start + 14 days |
+| M1 / M7 / M8 | existing Dashboard tasks: daily logs ≥ 2 days missing, Form C missing, delivered without Form B |
+| M2 Cranial USG | a Form F schedule window (< 28 wk or < 1000 g: Day 1–3, 4–7, 10–14, 28, 36 and 40 wk PMA; else Day 4–7, 10–14, 28, 40 wk PMA) ended 2 days ago with no scan in it (± tolerance), skipping windows after the stay ended |
+| M3 | Helper 2 IVH / cPVL flag and no Form F scan |
+| M4 ROP | no real Form G visit by DOL 30 (national ROP operational guidelines, RBSK / NPCB), or discharged before one; auto-suggested visit unfilled |
+| M5 | Form I 36 / 40 / 44 wk checkpoint date passed with no encounter method or death recorded |
+| M6 | Form H or Form I incomplete 48 h after discharge / death (**not Form L**: it is filled after unblinding) |
+| M9 | an auto-detected AE whose term is not on the AE form |
+| M10 | red data queries (count per site) |
+
+AE-form rows are matched to terms by key, CDISC / MedDRA code ("C154928 |
+10082059") or term name (`term_of`), because the AE form's "No." is free
+text. Gestation is Form B's (no NBS override). `--dry-run` / `--only` /
+`--force` as for the daily email (audit `EMAIL` / `EMAIL_TEST`; a test does
+not move the W2 baseline).
 
 ## Glossary
 
