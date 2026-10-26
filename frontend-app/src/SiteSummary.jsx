@@ -1,7 +1,9 @@
-// Site summary (PI 2026-10-26): the Monday / Thursday email, live. Enrolled
-// (PPV) babies by enrolment ID only -- watch list (close to an SAE), active
-// morbidities, missed data collection. Rules are fixed in
-// backend/site_summary.py; nothing here is shown or grouped by arm.
+// Site summary (PI 2026-10-26): the Monday / Thursday email, live. Randomised
+// babies by enrolment ID, with the name when the server sends one (viewer may
+// see that site's PII; the email stays IDs only) -- watch list (close to an
+// SAE), active morbidities, missed data collection. Rules are fixed in
+// backend/site_summary.py; their W / M codes are not shown. Nothing here is
+// shown or grouped by arm.
 // Global PI + Project Scientist: any or all sites; Site PI / Site Scientist:
 // own site.
 import React, { useEffect, useMemo, useState } from "react";
@@ -19,6 +21,15 @@ function apiError(err, fallback) {
   return typeof d === "string" ? d : fallback;
 }
 
+function Baby({ id, name }) {
+  return (
+    <>
+      <span className="ss-id">{id}</span>
+      {name && <div className="ss-name">{name}</div>}
+    </>
+  );
+}
+
 function RuleTable({ items, showSite }) {
   if (!items.length) return <p className="ss-none">None.</p>;
   return (
@@ -28,7 +39,7 @@ function RuleTable({ items, showSite }) {
           <tr>
             {showSite && <th>Site</th>}
             <th>Baby</th>
-            <th>Rule</th>
+            <th>Concern</th>
             <th>Detail</th>
           </tr>
         </thead>
@@ -36,8 +47,8 @@ function RuleTable({ items, showSite }) {
           {items.map((x, i) => (
             <tr key={i}>
               {showSite && <td>{formatSiteName(x.site)}</td>}
-              <td className="ss-id">{x.enrollment_id || `Form A ${x.screening_id}`}</td>
-              <td><strong>{x.rule}</strong> {x.title}</td>
+              <td><Baby id={x.enrollment_id || `Form A ${x.screening_id}`} name={x.name} /></td>
+              <td><strong>{x.title}</strong></td>
               <td>{x.detail}</td>
             </tr>
           ))}
@@ -69,9 +80,9 @@ export default function SiteSummary() {
 
   const showSite = data?.scope === "ALL";
   const babies = data?.babies || [];
-  const watch = useMemo(() => babies.flatMap(b => b.watch.map(w => ({ ...w, site: b.site, enrollment_id: b.enrollment_id }))), [babies]);
+  const watch = useMemo(() => babies.flatMap(b => b.watch.map(w => ({ ...w, site: b.site, enrollment_id: b.enrollment_id, name: b.name }))), [babies]);
   const missed = useMemo(() => [
-    ...babies.flatMap(b => b.missed.map(m => ({ ...m, site: b.site, enrollment_id: b.enrollment_id }))),
+    ...babies.flatMap(b => b.missed.map(m => ({ ...m, site: b.site, enrollment_id: b.enrollment_id, name: b.name }))),
     ...(data?.mothers || []),
   ], [babies, data]);
   const active = babies.filter(b => b.status === "In NICU" && b.active.length);
@@ -100,9 +111,10 @@ export default function SiteSummary() {
           <div>
             <h1>Site summary</h1>
             <p>
-              Enrolled (PPV) babies born since the trial start, by enrolment ID. Every item comes from a fixed rule
-              on the data in the portal; check the baby's forms before acting. Emailed Monday and Thursday at
-              08:00 IST; urgent items (W1, W3, W9, W10) also go in the daily 8 am email.
+              Randomised babies born since the trial start. Every item comes from a fixed rule on the data in the
+              portal; check the baby's forms before acting. Emailed Monday and Thursday at 08:00 IST (enrolment IDs
+              only, no names); the urgent items (serious AE not reviewed for SAE, severe brain scan not in Form H,
+              death without an SAE report, SAE reporting deadline) also go in the daily 8 am email.
               {data?.since && <> "Since last" means since {data.since}.</>}
             </p>
           </div>
@@ -169,7 +181,7 @@ export default function SiteSummary() {
                       {active.map(b => (
                         <tr key={b.enrollment_id}>
                           {showSite && <td>{formatSiteName(b.site)}</td>}
-                          <td className="ss-id">{b.enrollment_id}</td>
+                          <td><Baby id={b.enrollment_id} name={b.name} /></td>
                           <td>DOL {b.dol} · {b.pma}</td>
                           <td>{b.active.join("; ")}</td>
                         </tr>
@@ -195,7 +207,7 @@ export default function SiteSummary() {
                       {census.map(b => (
                         <tr key={b.enrollment_id}>
                           {showSite && <td>{formatSiteName(b.site)}</td>}
-                          <td className="ss-id">{b.enrollment_id}</td>
+                          <td><Baby id={b.enrollment_id} name={b.name} /></td>
                           <td>DOL {b.dol} · {b.pma}</td>
                           <td>{b.status}{b.ended_on ? ` (${b.ended_on})` : ""}</td>
                         </tr>

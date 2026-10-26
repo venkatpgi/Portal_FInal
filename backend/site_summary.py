@@ -6,14 +6,16 @@ One email per site (Site PI + Site Scientists) and one for all sites (Global
 PI, Project Scientist), same recipients as the daily query email. The same
 content is served live at GET /site-summary for the portal page.
 
-Every enrolled (PPV) baby born since the trial start is checked against the
+Every randomised baby born since the trial start is checked against the
 rules the PI approved on 2026-10-26 (rule sheet:
 https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
   W1-W10  watch list: close to an SAE
   active  morbidities still running
   M1-M10  missed data collection
-Rule-based only; no AI. Babies appear by enrolment ID only and nothing is
-grouped or shown by arm. A nil summary is still sent.
+Rule-based only; no AI. Nothing is grouped or shown by arm. The email names
+babies by enrolment ID only; the portal page adds the name for people who may
+see the site's PII (pii_names). The W / M codes are internal: neither the
+page nor the email shows them (PI 2026-10-26). A nil summary is still sent.
 
 W2 (grade going up) compares with the grades stored by the last live send
 (audit row, table site_summary). W1, W3, W9 and W10 are also listed in the
@@ -72,7 +74,7 @@ RULES = {
     "M4": "ROP screen",
     "M5": "Form I checkpoint",
     "M6": "Forms after discharge or death",
-    "M7": "Form C for PPV baby",
+    "M7": "Form C (maternal details)",
     "M8": "Form B after delivery",
     "M9": "AE review",
     "M10": "Old data queries",
@@ -398,7 +400,7 @@ def _load(db, sites: list[str], now: datetime) -> list[dict]:
     rows = (db.query(BirthResuscitation, Screening.site_name)
             .join(Screening, Screening.screening_id == BirthResuscitation.screening_id)
             .filter(Screening.is_deleted.isnot(True), Screening.site_name.in_(sites),
-                    BirthResuscitation.required_resuscitation.is_(True),
+                    BirthResuscitation.randomised.is_(True),
                     BirthResuscitation.enrollment_id.isnot(None),
                     BirthResuscitation.date_of_birth >= trial_start())
             .order_by(Screening.site_name, BirthResuscitation.enrollment_id).all())
@@ -437,7 +439,7 @@ def _load(db, sites: list[str], now: datetime) -> list[dict]:
                             "death_day": min(death_days) if death_days else None,
                             "helper_days": helper_days}, now)
         babies.append({
-            "enrollment_id": eid, "site": site, "dob": dob, "ga_days": ga_days,
+            "enrollment_id": eid, "screening_id": br.screening_id, "site": site, "dob": dob, "ga_days": ga_days,
             "birth_weight": getattr(br, "birth_weight", None),
             "end_date": end, "died": died, "candidates": cand.get("candidates") or [],
             "pending_usg": cand.get("pending_cranial_usg_findings") or [],
@@ -481,7 +483,7 @@ def build(db, scope: str, now: datetime | None = None, snapshot=None) -> dict:
         pma = b["ga_days"] + dol - 1 if b["ga_days"] is not None and dol else None
         end = b["end_date"]
         babies.append({
-            "enrollment_id": b["enrollment_id"], "site": b["site"], "dol": dol, "pma": _fmt_pma(pma),
+            "enrollment_id": b["enrollment_id"], "screening_id": b["screening_id"], "site": b["site"], "dol": dol, "pma": _fmt_pma(pma),
             "status": ("Died" if b["died"] else "Stay ended") if end else "In NICU",
             "ended_on": end.isoformat() if end else None,
             "ended_since_last": bool(end and end >= since),
@@ -523,6 +525,21 @@ def build(db, scope: str, now: datetime | None = None, snapshot=None) -> dict:
             "counts": counts, "per_site": per_site, "babies": babies, "mothers": mothers}
 
 
+def pii_names(db, screening_ids) -> dict:
+    """{screening_id: {"baby": "Baby of <mother>", "mother": "<mother>"}} from
+    participant_pii, for the portal page only (the caller checks PII rights).
+    A baby name typed on Form E wins unless it is itself "Baby of ..."."""
+    from models import ParticipantPII
+    ids = sorted({x for x in screening_ids if x})
+    out = {}
+    for p in db.query(ParticipantPII).filter(ParticipantPII.screening_id.in_(ids)).all() if ids else []:
+        mother = " ".join(x for x in (p.mother_first_name, p.mother_surname) if x).strip() or None
+        own = (p.baby_name or "").strip()
+        baby = own if own and not own.lower().startswith("baby of") else (f"Baby of {mother}" if mother else own)
+        out[p.screening_id] = {"baby": baby or None, "mother": mother}
+    return out
+
+
 def urgent_items(db, scope: str, now: datetime | None = None) -> list[dict]:
     """W1, W3, W9, W10 for the daily query email: [{site, enrollment_id, rule, title, detail}]."""
     s = build(db, scope, now, snapshot=(None, {}))
@@ -554,11 +571,11 @@ def _rows_table(cols, rows):
 
 
 def rule_table(items, show_site) -> str:
-    """Rows of {site, enrollment_id or screening_id, rule, title, detail} as an HTML table."""
-    cols = (["Site"] if show_site else []) + ["Baby", "Rule", "Detail"]
+    """Rows of {site, enrollment_id or screening_id, rule, title, detail} as an HTML table (no rule code)."""
+    cols = (["Site"] if show_site else []) + ["Baby", "Concern", "Detail"]
     rows = [([escape(_site_display(x["site"]))] if show_site else [])
             + [escape(x.get("enrollment_id") or f"Form A {x.get('screening_id')}"),
-               f"<strong>{escape(x['rule'])}</strong> {escape(x['title'])}", escape(x["detail"])]
+               f"<strong>{escape(x['title'])}</strong>", escape(x["detail"])]
             for x in items]
     return _rows_table(cols, rows)
 
@@ -597,7 +614,7 @@ def render_email(s: dict) -> tuple[str, str]:
             [[escape(_site_display(site)), p["in_nicu"], p["watch"], p["missed"], p["red_queries"]]
              for site, p in s["per_site"].items()])
     nil_line = ('<p style="margin:16px 0 0;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;'
-                'border-radius:8px;color:#166534;font-size:14px;"><strong>Nil to report.</strong> No enrolled baby '
+                'border-radius:8px;color:#166534;font-size:14px;"><strong>Nil to report.</strong> No randomised baby '
                 'in the NICU, nothing on the watch list and no missed data.</p>') if nil else ""
     site_col = ["Site"] if all_sites else []
     html = f"""<!doctype html><html><body style="margin:0;padding:0;background:#f8fafc;">
@@ -607,7 +624,7 @@ def render_email(s: dict) -> tuple[str, str]:
   <div style="font-size:18px;font-weight:700;margin-top:2px;">{escape(where)} · {escape(day)}</div>
 </div>
 <div style="background:#fff;border:1px solid #e2e8f0;border-top:0;padding:16px 18px;border-radius:0 0 10px 10px;">
-  <p style="margin:0 0 12px;font-size:13px;color:#475569;">Enrolled (PPV) babies born since the trial start.
+  <p style="margin:0 0 12px;font-size:13px;color:#475569;">Randomised babies born since the trial start.
   "Since last" means since {escape(s['since'])}. Every item comes from a fixed rule on the data in the portal;
   check the baby's forms before acting.</p>
   <table style="border-collapse:separate;border-spacing:6px;width:100%;"><tr>{tile_html}</tr></table>
@@ -620,7 +637,7 @@ def render_email(s: dict) -> tuple[str, str]:
   <p style="margin:22px 0 0;"><a href="{PORTAL_URL}" style="display:inline-block;background:#00132c;color:#fff;
   text-decoration:none;padding:10px 16px;border-radius:8px;font-size:14px;">Open the site summary in the portal</a></p>
   <p style="margin:18px 0 0;font-size:11px;color:#94a3b8;">IDs only: no names, CR or phone numbers, and nothing by
-  study arm. Sent Monday and Thursday at 08:00 IST to Site PIs and Site Scientists (own site), the Project
+  study arm (names are on the portal page for staff who may see them). Sent Monday and Thursday at 08:00 IST to Site PIs and Site Scientists (own site), the Project
   Scientist and the Global PI (all sites). Do not reply; this mailbox is not read.</p>
 </div></div></body></html>"""
     return subject, html

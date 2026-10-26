@@ -147,14 +147,19 @@ and details hold ids, numbers and dates only.
   sends one test copy (audit `EMAIL_TEST`, does not count). Query text holds
   IDs only, so the email carries no names, CR or phone numbers. Needs
   `SES_SENDER_EMAIL` (trial `.env` only; training never sends). It also
-  lists the site summary's **urgent safety items** (W1, W3, W9, W10, below).
+  lists the site summary's **urgent safety items** (W1, W3, W9, W10, below; IDs only).
 
 ## Site summary (PI 2026-10-26)
 
 `backend/site_summary.py`, page `/site-summary` (`GET /site-summary`), email
 **Monday and Thursday 08:00 IST** (`deploy/systemd/portal-site-summary.timer`),
-same recipients as the daily email; nil summaries are sent. Covers enrolled
-(PPV) babies born since the trial start, by enrolment ID only, never by arm.
+same recipients as the daily email; nil summaries are sent. Covers
+**randomised** babies born since the trial start (Form B `randomised`; PPV
+babies who were not randomised are left out), never by arm. The email shows
+enrolment IDs only; the page also shows "Baby of <mother>" (or the Form E
+baby name) to viewers who may see that site's PII (`can_view_pii_for_site`),
+and the mother's name on Form B-missing rows. The W / M codes below are
+internal: page and email show only the rule name (PI 2026-10-26).
 **Rule-based only, no AI.** Rules approved by the PI (rule sheet
 https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
 
