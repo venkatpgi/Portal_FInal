@@ -41,6 +41,7 @@ AE_DEFINITIONS exists for lookup only (report text, slug → name/
 definition/section), with no auto-detection attempted yet.
 """
 
+import html
 import json
 from datetime import datetime, timedelta
 
@@ -459,6 +460,123 @@ AE_DEFINITIONS = {
             1: "Swelling of extremity",
             2: "Superficial skin necrosis",
             3: "Deep skin necrosis",
+            4: "-",
+            5: "-",
+        },
+    },
+
+    # ------------------------------------------------------------------
+    # Domain 8 (added 2026-10-27, PI): the pending terms that a form
+    # already captures. Only HIE is auto-graded (Form I's own grade); the
+    # rest are detect-only. Porencephalic cyst (Form F free text only) and
+    # the terms no form captures stay manual.
+    # ------------------------------------------------------------------
+
+    "hie": {
+        "name": "Hypoxic Ischemic Encephalopathy (HIE)",
+        "section": "Neurological",
+        "definition": "Injury to the central nervous system that occurs when there is insufficient delivery of oxygen to all or part of the brain. (MedDRA 10070512; CDISC C154945)",
+        "grades": {
+            1: "Mild transient clinical signs of encephalopathy resulting from a perinatal asphyxia event; meeting criteria for observation and additional care",
+            2: "Moderate clinical signs of encephalopathy resulting from a perinatal asphyxia event necessitating therapeutic hypothermia",
+            3: "Severe clinical signs of encephalopathy resulting from a perinatal asphyxia event",
+            4: "An event clinically classified as perinatal asphyxia, but not resulting in encephalopathy with life-threatening consequences (e.g. respiratory depression, refractory seizures)",
+            5: "Death",
+        },
+    },
+    "hypotension": {
+        "name": "Neonatal Hypotension",
+        "section": "Cardiovascular",
+        "definition": "Abnormally low blood pressure, which is usually symptomatic. (MedDRA 10049223; CDISC C154930)",
+        "grades": {
+            1: "Transient (<60/min), asymptomatic hypotension; not affecting perfusion; not requiring intervention",
+            2: "Persistent (>60/min) hypotension; not affecting perfusion; requiring minor care changes (e.g. additional fluids)",
+            3: "Persistent hypotension affecting perfusion; requiring major care change (e.g. vaso-active drugs or hydrocortisone).",
+            4: "Life-threatening consequences (e.g. shock, organ failure).",
+            5: "Death",
+        },
+    },
+    "thromboembolism": {
+        "name": "Thromboembolism",
+        "section": "Cardiovascular",
+        "definition": "A disorder characterized by thromboembolic phenomenon involving a vascular support",
+        "grades": {
+            1: "Asymptomatic, NOT needing treatment",
+            2: "Causing gangrene of distal phalanx",
+            3: "Causing gangrene extending > 1 phalanx of any digit or metacarpals/metatarsals",
+            4: "Causing gangrene including long bones of limbs or any internal organs like brain, kidneys or lungs",
+            5: "-",
+        },
+    },
+    "rds": {
+        "name": "Neonatal Respiratory Distress Syndrome (RDS)",
+        "section": "Respiratory",
+        "definition": "Progressive alveolar atelectasis from birth due to an abnormality of synthesis, function or metabolism of surfactant, characterized by respiratory failure and an abnormal chest radiograph showing diffuse reticulogranular densities and air bronchograms. (MedDRA 10028974; CDISC C154950)",
+        "grades": {
+            1: "Radiological evidence without clinical signs; clinical evidence of mildly increased respiratory distress (e.g. increased work of breathing) without significant deterioration in gas exchange; no supportive care required",
+            2: "Clinical evidence of increased respiratory distress without significant deterioration in gas exchange (increase in pCO2 or decrease in oxygenation); corrected by minor adjustments in current ventilator support, supplemental oxygen or non-invasive support",
+            3: "Clinical evidence of increased respiratory distress with relevant deterioration in gas exchange (increase in pCO2 or decrease in oxygenation); requiring major care change (e.g. start invasive support)",
+            4: "Life-threatening respiratory and/or hemodynamic compromise; requiring urgent care change (e.g. urgent intubation)",
+            5: "Death",
+        },
+    },
+    "vap": {
+        "name": "Ventilator-associated Pneumonia",
+        "section": "Respiratory",
+        "definition": "A disorder characterized by appearance of new infiltrates or shadows in chest x-ray in a neonate receiving respiratory support",
+        "grades": {
+            1: "-",
+            2: "-",
+            3: "New infiltrates or shadows in chest x-ray along with increased oxygen or ventilation requirements resulting in prolongation of assisted ventilation",
+            4: "New infiltrates or shadows in chest x-ray along with increased oxygen or ventilation requirements resulting in need of high frequency ventilation due to hypoxia or hypercarbia",
+            5: "Death",
+        },
+    },
+    "administration_site": {
+        "name": "Neonatal Administration Site Complication",
+        "section": "Infectious",
+        "definition": "Local irritation or complication at the administration site of a drug. (MedDRA 10082193; CDISC C154947)",
+        "grades": {
+            1: "Painless edema",
+            2: "Erythema with associated symptoms (e.g., edema, pain, induration, phlebitis)",
+            3: "Ulceration or necrosis; severe tissue damage; operative intervention indicated",
+            4: "Life-threatening consequences; urgent intervention indicated",
+            5: "Death",
+        },
+    },
+    "bone_joint_infection": {
+        "name": "Bone-joint infection",
+        "section": "Infectious",
+        "definition": "A disorder characterized by infection of bone or joint space",
+        "grades": {
+            1: "-",
+            2: "-",
+            3: "Bone-joint infection without shock or end-organ failure requiring antibiotic therapy and causing prolongation of hospital stay",
+            4: "Accompanied by cardiorespiratory compromise",
+            5: "Death",
+        },
+    },
+    "uti": {
+        "name": "Urinary Tract Infection (UTI)",
+        "section": "Renal",
+        "definition": "A disorder of urinary tract caused by micro-organisms",
+        "grades": {
+            1: "-",
+            2: "UTI NOT associated with complications such as pyelonephritis, or prolongation of hospital stay or requiring new hospital admission",
+            3: "UTI necessitating admission to hospital or prolongation of hospital stay",
+            4: "-",
+            5: "-",
+        },
+    },
+    "osteopenia": {
+        "name": "Osteopenia",
+        "section": "Others",
+        # the source document still queries this definition ("is this okay??")
+        "definition": "A disorder characterized by reduction in body mass or density",
+        "grades": {
+            1: "Asymptomatic, diagnosed on imaging studies",
+            2: "Causing fracture or prolongation of respiratory support",
+            3: "-",
             4: "-",
             5: "-",
         },
@@ -1455,5 +1573,111 @@ def detect_resp_misc_candidates(nm, resp_logs, inf_logs, metab_logs, day1_date=N
             f"Extravasation injury recorded on NICU day {ev_day} (Metab/Renal/Vasc/Eye day log) "
             f"-- no Form H field exists for this term."
         ))
+
+    return out
+
+
+# --------------------------------------------------------------------------
+# Domain 8 -- the pending document terms a form already captures (PI
+# 2026-10-27): HIE, hypotension, thromboembolism, RDS, VAP,
+# administration-site complication, bone-joint infection, UTI, osteopenia.
+# HIE takes Form I's own grade (Mild/Moderate/Severe -> G1/G2/G3); every
+# other term is detect-only. Same Form-H-primary rule as domains 5-7 where
+# a day log has the same item (an explicit Form H "No" suppresses it).
+# --------------------------------------------------------------------------
+
+_HIE_GRADE = {"mild": 1, "mod": 2, "moderate": 2, "severe": 3}
+
+
+def _episode_start(e, day1_date):
+    return _hours_to_date(e.get("sepsis_onset_age"), day1_date)
+
+
+def detect_domain8_candidates(nm, postnatal, outcomes, resp_logs, inf_logs, metab_logs, day1_date=None):
+    """nm = Form H, postnatal = Form D, outcomes = Form I (each a row or
+    None); the day logs are Helpers 2/4/5. Returns AE-candidate dicts."""
+    resp_logs = resp_logs or []
+    inf_logs = inf_logs or []
+    metab_logs = metab_logs or []
+    episodes = _infection_episodes(nm)
+    out = []
+
+    # HIE: Form I's grade, dated from birth (a perinatal event)
+    hie = str(getattr(outcomes, "hie_grade", None) or "").strip().lower()
+    if hie in _HIE_GRADE:
+        out.append(_fh_candidate(
+            "hie", _HIE_GRADE[hie], day1_date.isoformat() if day1_date else None,
+            f"Form I records HIE grade {getattr(outcomes, 'hie_grade')}; graded from Form I. "
+            "Check it against the clinical notes."))
+
+    # Hypotension: Form H only
+    if nm is not None and _fh_truthy(getattr(nm, "hypotension", None)):
+        kind = [k for k, a in (("systolic", "hypotension_systolic"), ("diastolic", "hypotension_diastolic"),
+                               ("systolic and diastolic", "hypotension_both")) if getattr(nm, a, None) is True]
+        out.append(_fh_candidate(
+            "hypotension", None, None,
+            "Form H records hypotension" + (f" ({', '.join(kind)})" if kind else "") + "."))
+
+    # Central-line complications on Form H
+    for slug, attr, what in (("thromboembolism", "line_comp_thrombosis", "line thrombosis"),
+                             ("administration_site", "line_comp_phlebitis", "line phlebitis")):
+        if nm is not None and getattr(nm, attr, None) is True:
+            out.append(_fh_candidate(slug, None, None, f"Form H records a central-line complication: {what}."))
+
+    # RDS: surfactant given (Form D at birth, else the first Helper 2 day)
+    if postnatal is not None and getattr(postnatal, "surfactant_required", None) is True:
+        ind = html.unescape(str(getattr(postnatal, "surfactant_indication", None) or ""))
+        out.append(_fh_candidate(
+            "rds", None, day1_date.isoformat() if day1_date else None,
+            "Form D records surfactant given" + (f" (indication: {ind})" if ind else "") + "."))
+    else:
+        day = _any_day(resp_logs, "surfactant")
+        if day is not None:
+            out.append(_fh_candidate(
+                "rds", None, _day_to_date(day1_date, day),
+                f"Surfactant given on NICU day {day} (Resp/CV/Neuro day log)."))
+
+    # VAP: Form H infection episodes / VAP count, else Helper 4
+    vap_eps = [e for e in episodes if _yes(e.get("vap"))]
+    for i, e in enumerate(vap_eps, start=1):
+        num = e.get("vap_episode_number") or e.get("sepsis_episode_number") or i
+        out.append(_fh_candidate("vap", None, _episode_start(e, day1_date),
+                                 f"Form H infection episode #{num} records VAP. The scale starts at Grade 3."))
+    if not vap_eps:
+        n = _int_or_none(getattr(nm, "vap_episodes", None)) if nm is not None else None
+        if n:
+            out.append(_fh_candidate("vap", None, None,
+                                     f"Form H records {n} VAP episode(s). The scale starts at Grade 3."))
+        elif nm is None or n is None:
+            day = _any_day(inf_logs, "vap")
+            if day is not None:
+                out.append(_fh_candidate(
+                    "vap", None, _day_to_date(day1_date, day),
+                    f"VAP recorded on NICU day {day} (Infect/GI/Hema day log); Form H not filled. "
+                    "The scale starts at Grade 3."))
+
+    # UTI and bone-joint infection: focus (or urine culture) on a Form H infection episode
+    for i, e in enumerate(episodes, start=1):
+        num = e.get("sepsis_episode_number") or i
+        start = _episode_start(e, day1_date)
+        if e.get("focus_uti") or e.get("culture_urine"):
+            why = "UTI focus" if e.get("focus_uti") else "urine culture positive"
+            out.append(_fh_candidate("uti", None, start,
+                                     f"Form H infection episode #{num}: {why}. The scale starts at Grade 2."))
+        if e.get("focus_bone_joint"):
+            out.append(_fh_candidate("bone_joint_infection", None, start,
+                                     f"Form H infection episode #{num}: bone/joint focus. "
+                                     "The scale starts at Grade 3."))
+
+    # Osteopenia: Form H, else Helper 5 "osteopenia suspected"
+    c = _fh_or_daylog_presence("osteopenia", nm, "osteopenia", metab_logs, "osteopenia_suspected",
+                               day1_date, "Metab/Renal/Vasc/Eye")
+    if c:
+        labs = [f"{lbl} {v:g}" for lbl, v in (("peak ALP", getattr(nm, "alp_peak", None)),
+                                              ("lowest phosphorus", getattr(nm, "lowest_phosphorus", None)))
+                if isinstance(v, (int, float))] if nm is not None else []
+        if labs:
+            c["evidence"] += f" Form H: {', '.join(labs)}."
+        out.append(c)
 
     return out
