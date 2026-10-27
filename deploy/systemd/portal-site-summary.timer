@@ -1,0 +1,9 @@
+[Unit]
+Description=Send the PORTAL site summary on Monday and Thursday at 08:00 IST
+
+[Timer]
+OnCalendar=Mon,Thu *-*-* 08:00:00 Asia/Kolkata
+Persistent=true
+
+[Install]
+WantedBy=timers.target

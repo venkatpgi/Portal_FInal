@@ -12,6 +12,7 @@ import {
   History,
   ListChecks,
   FileSpreadsheet,
+  HeartPulse,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -145,6 +146,15 @@ export default function DashboardSidebar({
             className={workspaceNavClass}
           >
             <FileSpreadsheet size={14} aria-hidden="true" /> Reports
+          </NavLink>
+        )}
+        {canUseReports(user) && (
+          <NavLink
+            to="/site-summary"
+            onClick={onClose}
+            className={workspaceNavClass}
+          >
+            <HeartPulse size={14} aria-hidden="true" /> Site summary
           </NavLink>
         )}
         {canViewAudit(user) && (

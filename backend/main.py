@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks, Query
+﻿from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter
@@ -54,6 +54,9 @@ from cr_duplicates import normalize_cr, find_duplicate
 from identifier_duplicates import refuse_duplicate_identifiers
 from identity_rules import require_valid_identity, stored_values
 import form_completion as fc
+from ae_terms import duplicate_of
+import audit_trail
+audit_trail.install()   # every form table audited when AUDIT_ALL_FORMS=1 (PI 2026-10-26)
 import composite_suggestion as cs
 from brain_injury_suggestion import suggest_brain_injury, grade_rank as bi_grade_rank, record as bi_record
 from nec_suggestion import suggest_nec, stage_rank as nec_stage_rank, finding as nec_finding, highest_stage as nec_highest_stage
@@ -85,6 +88,7 @@ from routers import audit as audit_router
 from routers import data_queries as data_queries_router
 from routers import dashboard as dashboard_router
 from routers import reports as reports_router
+from routers import site_summary as site_summary_router
 from routers import auth as auth_router
 from baby_uid_duplicate import (
     find_baby_uid_conflict,
@@ -177,6 +181,7 @@ app.include_router(audit_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(data_queries_router.router)
 app.include_router(reports_router.router)
+app.include_router(site_summary_router.router)
 
 
 @app.on_event("startup")
@@ -3840,117 +3845,8 @@ def get_bilirubin_prefill(
     }
 
 
-def _consecutive_day_runs(days):
-    """Collapses a sorted, deduplicated list of NICU day numbers into
-    maximal consecutive runs, e.g. [4,5,6,9,10] -> [(4,6), (9,10)]."""
-    if not days:
-        return []
-    runs = []
-    start = prev = days[0]
-    for d in days[1:]:
-        if d == prev + 1:
-            prev = d
-            continue
-        runs.append((start, prev))
-        start = prev = d
-    runs.append((start, prev))
-    return runs
-
-
-def _compute_infection_windows(logs, nicu):
-    """Shared trigger-window builder used by both get_infection_detect
-    (Form H's advisory H11 banner) and get_post_resus_prefill (Form I's
-    I.2 EOS/LOS/culture derivation) — kept as one function so the trigger
-    rule only needs to be right in one place. See get_infection_detect's
-    own docstring for the full trigger rule and the reasoning behind it
-    (culture > screen > antibiotic-duration priority, no cross-type
-    merging, etc.) — that reasoning is unchanged, this is a pure
-    extraction, not a behavior change.
-    """
-
-    def date_for(day):
-        if not nicu or not nicu.day1_date:
-            return None
-        return (nicu.day1_date + timedelta(days=day - 1)).isoformat()
-
-    def make_window(signature, reason, suggested_type, start, end, **extra):
-        return {
-            "signature": signature,
-            "reason": reason,
-            "suggested_type": suggested_type,
-            "nicu_day_start": start,
-            "nicu_day_end": end,
-            "date_start": date_for(start),
-            "date_end": date_for(end),
-            **extra,
-        }
-
-    windows = []
-
-    culture_days = sorted({l.nicu_day for l in logs if l.blood_culture_positive is True})
-    for start, end in _consecutive_day_runs(culture_days):
-        windows.append(make_window(
-            f"culture:{start}-{end}", "Blood culture positive", "culture", start, end,
-        ))
-
-    # Helper Form 3 stores "Awaited" as sent=True with positive still None.
-    # Do not fold these into culture_days / covered_days — a pending result
-    # must not suppress a >5-day antibiotics clinical-sepsis suggestion.
-    culture_awaited_days = sorted({
-        l.nicu_day for l in logs
-        if l.blood_culture_sent is True and l.blood_culture_positive is None
-    })
-    for start, end in _consecutive_day_runs(culture_awaited_days):
-        windows.append(make_window(
-            f"culture_awaited:{start}-{end}", "Blood culture sent, result awaited",
-            "culture_awaited", start, end,
-        ))
-
-    screen_positive_days = set()
-    for l in logs:
-        try:
-            screens = json.loads(l.sepsis_screens_json) if l.sepsis_screens_json else []
-        except (ValueError, TypeError):
-            screens = []
-        if any((s or {}).get("result") == "Positive" for s in screens):
-            screen_positive_days.add(l.nicu_day)
-    screen_only_days = sorted(screen_positive_days - set(culture_days))
-    for start, end in _consecutive_day_runs(screen_only_days):
-        windows.append(make_window(
-            f"screen:{start}-{end}", "Sepsis screen positive", "screen", start, end,
-        ))
-
-    covered_days = set(culture_days) | screen_positive_days
-    antibiotic_days = sorted({l.nicu_day for l in logs if l.antibiotics is True})
-    for start, end in _consecutive_day_runs(antibiotic_days):
-        if (end - start + 1) > 5 and not (set(range(start, end + 1)) & covered_days):
-            windows.append(make_window(
-                f"antibiotics:{start}-{end}", "Antibiotics >5 continuous days", "clinical", start, end,
-            ))
-
-    meningitis_days = sorted({
-        l.nicu_day for l in logs
-        if l.meningitis is True or (l.meningitis_type or "").strip()
-    })
-    for start, end in _consecutive_day_runs(meningitis_days):
-        windows.append(make_window(
-            f"meningitis:{start}-{end}", "Meningitis", None, start, end, meningitis=True,
-        ))
-
-    clabsi_days = sorted({l.nicu_day for l in logs if l.clabsi is True})
-    for start, end in _consecutive_day_runs(clabsi_days):
-        windows.append(make_window(
-            f"clabsi:{start}-{end}", "CLABSI", None, start, end, clabsi=True,
-        ))
-
-    vap_days = sorted({l.nicu_day for l in logs if l.vap is True})
-    for start, end in _consecutive_day_runs(vap_days):
-        windows.append(make_window(
-            f"vap:{start}-{end}", "VAP", None, start, end, vap=True,
-        ))
-
-    windows.sort(key=lambda w: w["nicu_day_start"])
-    return windows
+from infection_windows import _compute_infection_windows, _consecutive_day_runs  # noqa: E402
+from ae_candidates import collect_ae_candidates  # noqa: E402
 
 
 @app.get("/neonatal-morbidities/infection-detect/{enrollment_id}")
@@ -5737,6 +5633,18 @@ def create_metab_renal_vasc_eye_log(
 # SERIOUS ADVERSE EVENT ENDPOINTS
 # ============================================================================
 
+def _refuse_empty_sae_report(data: SAEReportCreate) -> None:
+    """A Form Y report must say what the SAE is (PI 2026-10-26): an empty
+    report (01-B-001, 21 Oct) looked like a reported SAE and sent the SAE
+    alert email. report_date is not enough, the new form fills it in."""
+    if not fc.answered(data.diagnosis):
+        raise HTTPException(
+            status_code=422,
+            detail="Enter the diagnosis (what the SAE is) before saving the SAE report. "
+                   "Pick the event from the AE form to fill it in.",
+        )
+
+
 def _sae_payload(data: SAEReportCreate) -> dict:
     """Full dump filtered to model columns; normalize list/bool defaults."""
     allowed = set(SAEReport.__table__.columns.keys()) - {
@@ -5751,9 +5659,10 @@ def _sae_payload(data: SAEReportCreate) -> dict:
 
 
 def _sae_notification_recipients(db: Session, site: str) -> list[str]:
-    """Site scientist emails on file plus the configured PI email."""
+    """Site scientist emails on file, the configured site PI email, and (PI
+    2026-10-25) the Global PI and Overall Project Scientist for every site."""
     import sae_config
-    from deps import ROLE_SITE_SCIENTIST
+    from deps import ROLE_GLOBAL_SCIENTIST, ROLE_PROJECT_SCIENTIST, ROLE_SITE_SCIENTIST, ROLE_SUPERADMIN
 
     recipients = []
     scientists = (
@@ -5778,12 +5687,23 @@ def _sae_notification_recipients(db: Session, site: str) -> list[str]:
     else:
         logger.warning("SAE notify: no pi_email configured for site=%r", site)
 
+    central = (
+        db.query(User)
+        .filter(
+            User.role.in_([ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_GLOBAL_SCIENTIST]),
+            User.is_active.is_(True),
+        )
+        .all()
+    )
+    recipients.extend(u.email for u in central if u.email)
+
     seen = set()
     unique = []
     for addr in recipients:
-        if addr not in seen:
-            seen.add(addr)
-            unique.append(addr)
+        key = addr.strip().lower()   # the PGIMER PI is also the Global PI
+        if key not in seen:
+            seen.add(key)
+            unique.append(addr.strip())
     return unique
 
 
@@ -5796,6 +5716,7 @@ def create_sae_report(
 ):
     """Create a new SAE report (multiple reports allowed per enrollment)."""
     require_enrollment_access(data.enrollment_id, db, current_user)
+    _refuse_empty_sae_report(data)
     payload = _sae_payload(data)
     record = SAEReport(**payload)
     db.add(record)
@@ -5849,6 +5770,7 @@ def update_sae_report(
     require_enrollment_access(record.enrollment_id, db, current_user)
     if data.enrollment_id and data.enrollment_id != record.enrollment_id:
         require_enrollment_access(data.enrollment_id, db, current_user)
+    _refuse_empty_sae_report(data)
 
     payload = _sae_payload(data)
     for key, value in payload.items():
@@ -6046,6 +5968,29 @@ def download_sae_report_document(
     )
 
 
+def _clean_ae_events(events) -> list:
+    """AE form rows (PI 2026-10-26): drop rows with nothing in them and refuse
+    a row that has a grade, date or SAE answer but no event ("NA" alone is not
+    an event). 01-B-001 had 11 graded rows with no term."""
+    keep, unnamed = [], []
+    for i, e in enumerate(events or [], start=1):
+        if not isinstance(e, dict):
+            continue
+        named = fc.answered(e.get("description")) or (
+            fc.answered(e.get("definition_no")) and str(e.get("definition_no")).strip().upper() != "NA")
+        if named:
+            keep.append(e)
+        elif any(fc.answered(v) for v in e.values()):
+            unnamed.append(i)
+    if unnamed:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Adverse event row{'s' if len(unnamed) > 1 else ''} {', '.join(map(str, unnamed))}: "
+                   "enter the event (term) or delete the row.",
+        )
+    return keep
+
+
 @app.post("/adverse-events/", response_model=AdverseEventsOut)
 def create_adverse_events(
     data: AdverseEventsCreate,
@@ -6059,8 +6004,7 @@ def create_adverse_events(
         "id", "created_at", "updated_at",
     }
     raw = {k: v for k, v in data.model_dump().items() if k in allowed or k in AE_PII_FIELDS}
-    if raw.get("events") is None:
-        raw["events"] = []
+    raw["events"] = _clean_ae_events(raw.get("events"))
 
     payload = split_and_store_pii(
         db,
@@ -6130,8 +6074,7 @@ def update_adverse_events(
         "id", "created_at", "updated_at", "enrollment_id",
     }
     raw = {k: v for k, v in data.model_dump().items() if k in allowed or k in AE_PII_FIELDS}
-    if raw.get("events") is None:
-        raw["events"] = []
+    raw["events"] = _clean_ae_events(raw.get("events"))
     raw["enrollment_id"] = enrollment_id
 
     payload = split_and_store_pii(
@@ -6229,60 +6172,26 @@ def get_adverse_event_candidates(
     change Domain 2's Form-H-only policy, it just prompts the clinician to
     go complete/update Form H."""
     require_enrollment_access(enrollment_id, db, current_user)
+    return collect_ae_candidates(db, enrollment_id)
 
-    logs = (
-        db.query(MetabRenalVascEyeDayLog)
-        .filter(MetabRenalVascEyeDayLog.enrollment_id == enrollment_id)
-        .all()
-    )
-    nm = (
-        db.query(NeonatalMorbidities)
-        .filter(NeonatalMorbidities.enrollment_id == enrollment_id)
-        .first()
-    )
-    inf_logs = (
-        db.query(InfectGIHemaDayLog)
-        .filter(InfectGIHemaDayLog.enrollment_id == enrollment_id)
-        .order_by(InfectGIHemaDayLog.nicu_day)
-        .all()
-    )
-    resp_logs = (
-        db.query(RespCVNeuroDayLog)
-        .filter(RespCVNeuroDayLog.enrollment_id == enrollment_id)
-        .order_by(RespCVNeuroDayLog.nicu_day)
-        .all()
-    )
-    cranial_usg_record = (
-        db.query(CranialUSGRecord)
-        .filter(CranialUSGRecord.enrollment_id == enrollment_id)
-        .first()
-    )
-    if not logs and nm is None and not inf_logs and not resp_logs and not cranial_usg_record:
-        return {"has_data": False, "candidates": [], "pending_cranial_usg_findings": []}
 
-    nicu = (
-        db.query(NICUAdmission)
-        .filter(NICUAdmission.enrollment_id == enrollment_id)
-        .first()
-    )
-    day1_date = nicu.day1_date if nicu else None
-
-    candidates = []
-    if logs:
-        candidates += detect_metab_renal_vasc_eye_candidates(logs, day1_date=day1_date)
-    candidates += detect_form_h_morbidity_candidates(nm, day1_date=day1_date)
-    infection_windows = _compute_infection_windows(inf_logs, nicu) if inf_logs else []
-    candidates += detect_infection_candidates(nm, infection_windows, day1_date=day1_date)
-    candidates += detect_form_h_heme_candidates(nm, inf_logs, day1_date=day1_date)
-    candidates += detect_form_h_neuro_seizure_candidates(nm, day1_date=day1_date)
-    candidates += detect_form_h_cv_shock_candidates(nm, resp_logs, day1_date=day1_date)
-    candidates += detect_resp_misc_candidates(nm, resp_logs, inf_logs, logs, day1_date=day1_date)
-    pending_cranial_usg_findings = detect_pending_cranial_usg_findings(cranial_usg_record, nm)
-    return {
-        "has_data": True,
-        "candidates": candidates,
-        "pending_cranial_usg_findings": pending_cranial_usg_findings,
-    }
+@app.post("/adverse-events/candidates/{enrollment_id}")
+def match_adverse_event_candidates(
+    enrollment_id: str,
+    body: dict = Body(default_factory=dict),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The GET above, with each candidate marked `duplicate_of` = the
+    1-based row of `body["events"]` (the AE form as it is on screen, saved
+    or not) that already records it, else null (PI 2026-10-26: the scan
+    re-added hand-typed AEs). Matching: ae_terms.duplicate_of. Read-only."""
+    require_enrollment_access(enrollment_id, db, current_user)
+    out = collect_ae_candidates(db, enrollment_id)
+    rows = body.get("events") if isinstance(body.get("events"), list) else []
+    for c in out.get("candidates") or []:
+        c["duplicate_of"] = duplicate_of(c, rows)
+    return out
 
 
 @app.post("/sae-list/", response_model=SAEListOut)
