@@ -1687,8 +1687,9 @@ export default function FormI() {
           <h3><Wind size={17} className="sec-icon" /> <span className="sec-num">I.1</span> Resuscitation Outcomes</h3>
           {resusPrefill && (
             <div className="field-hint field-hint-auto" style={{ margin: "0 0 10px" }}>
-              Form B (Birth Resuscitation) data available. Empty fields below
-              were filled from it automatically — verify before saving.
+              Form B (Birth Resuscitation) data available. Rows 1, 3, 4 and 5
+              were filled from it when empty — verify before saving. Rows 2 and
+              6 (HIE) are not in Form B: enter them yourself.
               {" "}
               <button type="button" className="link-button" onClick={() => fetchBirthResuscitationPrefill()}>
                 Refill empty fields from Form B
@@ -1725,7 +1726,7 @@ export default function FormI() {
             <CrfRow num={5} outcome="Time to spontaneous respiratory efforts"
               definition="Time when baby had spontaneous respiratory efforts and PPV was discontinued"
               result={<RNum name="time_to_spontaneous_breathing" unit="sec" />} />
-            <CrfRow num={6} outcome="HIE (Levene's)" definition="Mild/Moderate/Severe HIE"
+            <CrfRow num={6} outcome="HIE (Levene's)" definition="Mild/Moderate/Severe HIE, from the clinical assessment (not from Form B)"
               result={<RSelect name="hie_grade" options={["None", "Mild", "Mod", "Severe"]} />} />
           </CrfTable>
         </div>
