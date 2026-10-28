@@ -201,9 +201,9 @@ scripts are "system". Identity is never stored: encrypted columns, names,
 UIDs, contacts, address, annual number and signature images are written as
 "[redacted]"; `participant_pii` keeps only its keys. Bulk `query().update()`
 / `delete()` bypass it (only the legacy `/respiratory-log-bulk`). On only
-where `AUDIT_ALL_FORMS=1` is in the backend env file (training first, then
-trial). Before 2026-10-26 only Form A, day-log override unlocks, data
-queries and emails were audited.
+where `AUDIT_ALL_FORMS=1` is in the backend env file: training from
+2026-10-26, trial from 2026-10-28. Before then only Form A, day-log override
+unlocks, data queries and emails were audited.
 
 ## Glossary
 
