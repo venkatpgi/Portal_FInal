@@ -21,7 +21,7 @@ Not covered: tables already audited elsewhere or written by the system
 (SKIP_TABLES), and bulk query().update() / delete(), which bypass the ORM
 (only the legacy /respiratory-log-bulk uses one).
 
-Switched on by AUDIT_ALL_FORMS=1 in the backend env file (training first).
+Switched on by AUDIT_ALL_FORMS=1 in the backend env file (training 2026-10-26, trial 2026-10-28).
 """
 from __future__ import annotations
 

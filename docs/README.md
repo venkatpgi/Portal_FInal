@@ -20,7 +20,7 @@ the same commit.
 | [04_forms_F_to_L.md](04_forms_F_to_L.md) | Cranial USG, ROP, Form H (morbidities) and its 10 auto-fill domains, Form I checkpoints, Forms J/K/L |
 | [05_outcome_suggestions.md](05_outcome_suggestions.md) | BPD, ROP, NEC, brain injury and composite-outcome suggestions; death rules |
 | [06_ticks_and_unlocking.md](06_ticks_and_unlocking.md) | Sidebar green ticks, form unlocking, "x / 19 forms" |
-| [07_ae_sae.md](07_ae_sae.md) | AE detection (32 terms), grading, SAE reports, IEC/CDSCO documents |
+| [07_ae_sae.md](07_ae_sae.md) | AE detection (41 terms), grading, SAE reports, IEC/CDSCO documents |
 | [08_screening_logs_and_consort.md](08_screening_logs_and_consort.md) | Gestation (Inclusion Criteria) Screening Log, Log of All Births, matching, CR-number rules, CONSORT boxes |
 | [09_data_integrity_playbook.md](09_data_integrity_playbook.md) | Known failure modes, checks to run, how to investigate and repair |
 
@@ -201,9 +201,9 @@ scripts are "system". Identity is never stored: encrypted columns, names,
 UIDs, contacts, address, annual number and signature images are written as
 "[redacted]"; `participant_pii` keeps only its keys. Bulk `query().update()`
 / `delete()` bypass it (only the legacy `/respiratory-log-bulk`). On only
-where `AUDIT_ALL_FORMS=1` is in the backend env file (training first, then
-trial). Before 2026-10-26 only Form A, day-log override unlocks, data
-queries and emails were audited.
+where `AUDIT_ALL_FORMS=1` is in the backend env file: training from
+2026-10-26, trial from 2026-10-28. Before then only Form A, day-log override
+unlocks, data queries and emails were audited.
 
 ## Glossary
 

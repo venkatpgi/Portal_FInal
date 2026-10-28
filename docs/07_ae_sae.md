@@ -3,7 +3,7 @@
 Severity scale: **INC Neonatal Adverse Event Severity Scale (NAESS) v1.0**
 as reorganised by the PI (`AdvEvents_26.08.26_VSedits_26aug2026.docx`).
 Definitions and grade text: `backend/ae_reference.py` `AE_DEFINITIONS`
-(32 terms, stable lowercase keys).
+(41 terms, stable lowercase keys).
 
 ## 1. AE candidate detection (`GET /adverse-events/candidates/{id}`)
 
@@ -29,6 +29,19 @@ defined grade below it (`_resolve_grade`).
 | 5 | `detect_form_h_neuro_seizure_candidates` | clinical / EEG seizure | Form H | detect-only |
 | 6 | `detect_form_h_cv_shock_candidates` | shock, coagulopathy (weak signal: FFP/cryo) | Form H, else Helper 2 | detect-only |
 | 7 | `detect_resp_misc_candidates` | pneumothorax, pulmonary haemorrhage, PPHN, apnoea, feeding intolerance, cholestasis, ventriculomegaly/hydrocephalus, extravasation | Form H per term (an explicit Form H "No" suppresses the day-log fallback), else day logs | detect-only |
+| 8 | `detect_domain8_candidates` (PI 2026-10-27) | HIE; hypotension; thromboembolism; administration-site complication; RDS; VAP; UTI; bone-joint infection; osteopenia | HIE: Form I `hie_grade`. Hypotension, line thrombosis / phlebitis: Form H. RDS: surfactant given (Form D, else first Helper 2 day). VAP: Form H infection episode "VAP" or VAP count, else Helper 4. UTI: Form H episode UTI focus or urine culture. Bone-joint: Form H episode focus. Osteopenia: Form H, else Helper 5 "suspected" | HIE Mild/Moderate/Severe→G1/2/3; the rest detect-only |
+
+**Not detected (enter by hand on the AE form; PI 2026-10-27):** porencephalic
+cyst (Form F free text only) and the document terms no form captures:
+irritability, sedation, brain abscess, stroke, systemic hypertension, sinus
+tachy/bradycardia, tachy/bradyarrhythmia, oedema, myocarditis, respiratory
+insufficiency, air leak / PIE, lung collapse, subglottic stenosis, pleural
+effusion, aspiration, diarrhoea, vomiting, GI bleeding, spontaneous intestinal
+perforation, constipation, gastroenteritis, peritonitis, hepatic failure,
+liver abscess, rash, fever, neutropenia, polycythaemia, hearing loss, nasal
+trauma, nephrocalcinosis, gangrene, accidental injury, inguinal hernia,
+pressure sore, and "any other AE". DIC is only suggested through the
+coagulopathy check (FFP / cryo given).
 
 Advisory (never a candidate): `detect_pending_cranial_usg_findings` — a severe
 Form F finding (IVH III/IV or cPVL ≥ II) not yet reflected in Form H.
