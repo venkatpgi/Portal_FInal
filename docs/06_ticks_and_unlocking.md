@@ -41,7 +41,7 @@ two files in step.
 | L | initial / exit / max-first-hour FiO₂, both composites, MRI abnormality; signed off |
 | AE | "Adverse event reported?" answered; if Yes, every event has description, start date, grade, converted-to-SAE; signed off |
 | SAE list | every non-empty row has SAE term, start date, 24-h notification date; signed off (an empty signed-off list is complete) |
-| Form Y (SAE report) | any saved SAE report (page rule today; not a clinical-completeness rule) |
+| Form Y (SAE report) | any saved SAE report (page rule today; not a clinical-completeness rule; a report cannot be saved without a diagnosis since 2026-10-26) |
 | Helpers 2, 4, 5 | **every NICU day from Day 1 to yesterday at 100%** (Day 1 required even on Day 1), stopping at the Form H discharge day |
 | Helper 3 FiO₂ AUC | for days 1 … min(7, yesterday): every day Helper 2 marks Supplemental O₂ = Yes (or that has FiO₂ values) has **both 12-h windows filled with real FiO₂ values**; room-air days not required; a day with no Helper 2 answer and no FiO₂ data = unknown → not complete. No discharge cut-off. |
 | DMS | **never ticked** — shows "Today (date): logged / not yet logged" instead |

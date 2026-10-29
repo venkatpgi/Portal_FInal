@@ -10,9 +10,9 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  Users, UserCheck, AlertTriangle, Zap, Shield, ClipboardList,
+  Users, UserCheck, AlertTriangle, Shield, ClipboardList,
   FileText, Activity, TrendingUp, MapPin, BarChart3, Sparkles, Send,
-  Inbox,
+  Inbox, XCircle, Ban, Clock, Hourglass, Baby, Shuffle, CheckCircle2,
 } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
@@ -34,7 +34,14 @@ import {
   formatSiteName,
   formatSiteShort,
 } from "./components/dashboard/siteLabels";
+import { SCREENING_TILES, RANDOMISATION_TILES } from "./utils/participantCounts";
 import "./Dashboard.css";
+
+const TILE_ICON = {
+  screened: Users, eligible: UserCheck, not_eligible: XCircle, screen_failures: Ban,
+  pending: Clock, consented: FileText, awaiting_delivery: Hourglass, delivered: Baby,
+  needed_ppv: Activity, randomised: Shuffle, not_randomised: AlertTriangle, no_ppv: CheckCircle2,
+};
 
 const C = {
   teal: "#0E7C7B", tL: "#14A8A7", navy: "#0B1F3A",
@@ -190,13 +197,10 @@ export default function Dashboard() {
 
   const kpis = ops?.kpis || {};
   const target = ops?.target || DEFAULT_TARGET;
-  const total = kpis.screened ?? 0;
   const enrolled = kpis.enrolled ?? 0;
-  const failures = kpis.screen_failures ?? 0;
   const openSaes = kpis.open_saes ?? 0;
   const pendingForms = kpis.pending_forms ?? 0;
   const logGaps = kpis.log_gaps ?? 0;
-  const eligible = kpis.eligible ?? 0;
   const pct = target ? Math.round((enrolled / target) * 100) : 0;
   const siteRows = (ops?.by_site || []).map(s => ({
     site: s.site,
@@ -363,15 +367,27 @@ export default function Dashboard() {
           )}
           <TrialContextBanner enrolled={enrolled} target={target} pct={pct} />
 
-          <section className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-            <DashboardKpiCard label="Screened" value={total} icon={Users} tone="primary" />
-            <DashboardKpiCard label="Enrolled" value={enrolled} icon={UserCheck} tone="success" />
-            <DashboardKpiCard label="Screen Failures" value={failures} icon={AlertTriangle} tone="danger" />
-            <DashboardKpiCard label="Eligible" value={eligible} icon={Zap} tone="teal" />
-            <DashboardKpiCard label="Open SAEs" value={openSaes} icon={Shield} tone="danger" warn={openSaes > 0} />
-            <DashboardKpiCard label="Pending Forms" value={pendingForms} icon={ClipboardList} tone="warning" />
-            <DashboardKpiCard label="Log Gaps" value={logGaps} icon={FileText} tone="muted" />
-            <DashboardKpiCard label="Consented" value={kpis.consented ?? 0} icon={Activity} tone="teal" />
+          {/* Same tiles and counts as View Entries (backend participant_counts.py) */}
+          {[
+            ["Screening (Form A)", SCREENING_TILES],
+            ["Delivery & randomisation (Form B)", RANDOMISATION_TILES],
+          ].map(([title, tiles]) => (
+            <section key={title} aria-label={title} className="space-y-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-portal-outline">{title}</h2>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                {tiles.map(t => (
+                  <DashboardKpiCard key={t.key} label={t.label} value={kpis[t.key] ?? 0} icon={TILE_ICON[t.key]} tone={t.tone} />
+                ))}
+              </div>
+            </section>
+          ))}
+          <section aria-label="Safety & data" className="space-y-2">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-portal-outline">Safety & data</h2>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <DashboardKpiCard label="Open SAEs" value={openSaes} icon={Shield} tone="danger" warn={openSaes > 0} />
+              <DashboardKpiCard label="Pending Forms" value={pendingForms} icon={ClipboardList} tone="warning" />
+              <DashboardKpiCard label="Log Gaps" value={logGaps} icon={FileText} tone="muted" />
+            </div>
           </section>
 
           <div className="grid gap-6 lg:grid-cols-12">

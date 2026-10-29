@@ -131,6 +131,7 @@ def get_current_user(
 
     refuse_role_restricted_request(request, user)
     refuse_non_live_site_write(request, user)
+    db.info["audit_user"] = (user.id, user.username)   # audit_trail.py: who made this request's changes
     return user
 
 
@@ -144,7 +145,7 @@ def get_current_user(
 # logout, change password) are never blocked. Add a site on its go-live day.
 # ============================================================================
 WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
-WRITE_EXEMPT_PATH_PREFIXES = ("/auth/",)
+WRITE_EXEMPT_PATH_PREFIXES = ("/auth/", "/reports/")  # running a report is a read
 TRAINING_SITE_URL = "https://training.portaltrial.in"
 
 
@@ -180,14 +181,14 @@ def refuse_non_live_site_write(request: Request, user: User) -> None:
 # ============================================================================
 # POSTs allowed for read-only roles: reads, and acting on data queries
 # (oversight, not data entry).
-READ_ONLY_ALLOWED_WRITE_PREFIXES = ("/auth/", "/pii/batch", "/data-queries/")
+READ_ONLY_ALLOWED_WRITE_PREFIXES = ("/auth/", "/pii/batch", "/data-queries/", "/reports/")
 # PTS-3 manages login accounts (Manage Staff) without gaining clinical writes.
 USER_ADMIN_WRITE_PREFIXES = ("/users", "/sae-config/pi-contacts")
 # Central analytics roles may also use the AI Insights chat (a POST).
 ANALYTICS_ALLOWED_WRITE_PREFIXES = ("/dashboard/ai-insights",)
 # PTS3 (tech_support) reads records to reproduce bugs, but never sees
 # participant identity, quality / analytics dashboards or generated reports.
-TECH_SUPPORT_DENIED_PREFIXES = ("/dashboard/", "/pii/", "/data-queries")
+TECH_SUPPORT_DENIED_PREFIXES = ("/dashboard/", "/pii/", "/data-queries", "/reports")
 TECH_SUPPORT_DENIED_SUFFIXES = ("/document",)
 
 

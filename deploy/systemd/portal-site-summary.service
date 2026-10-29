@@ -1,0 +1,10 @@
+[Unit]
+Description=PORTAL site summary email, Monday and Thursday (trial database)
+After=network.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/portal/backend
+EnvironmentFile=/home/ubuntu/portal/backend/.env
+ExecStart=/home/ubuntu/portal/backend/venv/bin/python -W ignore site_summary.py

@@ -20,7 +20,7 @@ the same commit.
 | [04_forms_F_to_L.md](04_forms_F_to_L.md) | Cranial USG, ROP, Form H (morbidities) and its 10 auto-fill domains, Form I checkpoints, Forms J/K/L |
 | [05_outcome_suggestions.md](05_outcome_suggestions.md) | BPD, ROP, NEC, brain injury and composite-outcome suggestions; death rules |
 | [06_ticks_and_unlocking.md](06_ticks_and_unlocking.md) | Sidebar green ticks, form unlocking, "x / 19 forms" |
-| [07_ae_sae.md](07_ae_sae.md) | AE detection (32 terms), grading, SAE reports, IEC/CDSCO documents |
+| [07_ae_sae.md](07_ae_sae.md) | AE detection (41 terms), grading, SAE reports, IEC/CDSCO documents |
 | [08_screening_logs_and_consort.md](08_screening_logs_and_consort.md) | Gestation (Inclusion Criteria) Screening Log, Log of All Births, matching, CR-number rules, CONSORT boxes |
 | [09_data_integrity_playbook.md](09_data_integrity_playbook.md) | Known failure modes, checks to run, how to investigate and repair |
 
@@ -51,7 +51,7 @@ Enforced on the server (`deps.py`, `pii_service.py`); the UI only mirrors it (`u
 | Site Scientist (PRS3-NM, PRS2-M) | `site_scientist` | Own site | Yes, incl. delete | Own site | Data quality / site views | No |
 | Project Nurse (PN3) | `nurse` | Own site | Yes, **no delete**, no CONSORT | Own site | Data quality only | No |
 
-- Read-only roles (`project_scientist`, `global_scientist`, `tech_support`): every POST/PUT/PATCH/DELETE is refused (403) except `/auth/*`, `/pii/batch` (a read) and, for analytics roles, `/dashboard/ai-insights` (`deps.refuse_role_restricted_request`, run inside `get_current_user`).
+- Read-only roles (`project_scientist`, `global_scientist`, `tech_support`): every POST/PUT/PATCH/DELETE is refused (403) except `/auth/*`, `/pii/batch` (a read), `/data-queries/`, `/reports/` (running a report is a read; tech support is refused `/reports` outright) and, for analytics roles, `/dashboard/ai-insights` (`deps.refuse_role_restricted_request`, run inside `get_current_user`).
 - Trial-wide analytics (CONSORT CSV, safety, baseline, clinical quality, enrolment trend, ops summary, AI Insights) = `CENTRAL_ANALYTICS_ROLES` (Global PI, Overall Project Scientist). Opening the site-scoped views to Site PI / Site Scientist (SOP change 3) is still to do.
 - Placeholder roles (`pi`, `scientist`, `deo`, `monitor`) no longer see identity data and are being retired.
 
@@ -70,6 +70,30 @@ way (`utils/maternalUid.js`, `utils/personName.js`, Form A `idFieldRule`).
   save (`main.refuse_trial_run_consent`, 422) and no longer counts as consent
   in `compute_screening_status` (such a record becomes Pending, so Form B is
   refused). A record saved with it opens with consent blank and a notice.
+
+## Report builder (PI 2026-10-24)
+`/reports` page, `backend/routers/reports.py`. Pick columns from Forms A–J,
+filter (site, tile group such as Randomised, screening dates, trial period
+from `TRIAL_START_DATE`), preview 50 rows, download CSV (UTF-8 with BOM, opens
+in Excel). One row per Form A; every row starts with site, screening ID,
+enrollment number (+ optional Stage). Forms A/B join on `screening_id`, C–J on
+`enrollment_id`; if a table has two rows for one baby the latest (highest id)
+is used. Day-by-day logs are not offered.
+- **Column names** (PI 2026-10-25): the picker shows a plain-English name with
+  the variable name in brackets (`backend/report_labels.py`: hand-written
+  OVERRIDES, else the variable name with abbreviations expanded). Columns are
+  click-to-toggle tiles (no Ctrl). CSV headings: "English (variable)" (default),
+  English only, or variable names only (for Stata / R / SPSS).
+- **Who**: Global PI and Overall Project Scientist all sites; Site PI and Site
+  Scientist own site; nurses and tech support refused.
+- **Never offered** (PI: IDs only): any column whose name has the word name /
+  contact / phone / mobile / address / email / uid / aadhaar / signature /
+  image / photo / pincode / landmark / cr, admission numbers, the
+  `pii_service` field lists; and, for blinding, Form I `fio2_0..fio2_10`,
+  Form K and Form L. Columns come only from this fixed list (no SQL from the
+  browser); an unknown column is a 422.
+- Each download is an audit row: action `EXPORT`, table `report`, with the
+  columns, filters and row count. Saved reports are kept in the browser only.
 
 ## Data queries (Phase 1, PI 2026-10-15)
 Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems
@@ -112,6 +136,74 @@ and details hold ids, numbers and dates only.
   debounced to one run a minute per worker. `run_checks` takes a Postgres
   advisory lock (`RUN_LOCK_KEY`), so overlapping runs skip. A full run takes
   about 2 s.
+- **Daily email** (PI 2026-10-25, `backend/daily_query_email.py`): every day
+  at 08:00 IST (`deploy/systemd/portal-daily-query-email.timer`). Site PI and
+  Site Scientist get their own site; Project Scientist / Global Scientist and
+  the Global PI one all-sites email with a by-site table. Each lists open /
+  new (24 h) / red / amber / awaiting sign-off / closed (24 h) counts and the
+  new, red and closed queries. **Sent on quiet days too** ("nil to report",
+  PI). Runs the checks first. One send per IST day (audit `EMAIL`, table
+  `daily_query_email`); `--dry-run` builds without sending, `--only EMAIL`
+  sends one test copy (audit `EMAIL_TEST`, does not count). Query text holds
+  IDs only, so the email carries no names, CR or phone numbers. Needs
+  `SES_SENDER_EMAIL` (trial `.env` only; training never sends). It also
+  lists the site summary's **urgent safety items** (W1, W3, W9, W10, below; IDs only).
+
+## Site summary (PI 2026-10-26)
+
+`backend/site_summary.py`, page `/site-summary` (`GET /site-summary`), email
+**Monday and Thursday 08:00 IST** (`deploy/systemd/portal-site-summary.timer`),
+same recipients as the daily email; nil summaries are sent. Covers
+**randomised** babies born since the trial start (Form B `randomised`; PPV
+babies who were not randomised are left out), never by arm. The email shows
+enrolment IDs only; the page also shows "Baby of <mother>" (or the Form E
+baby name) to viewers who may see that site's PII (`can_view_pii_for_site`),
+and the mother's name on Form B-missing rows. The W / M codes below are
+internal: page and email show only the rule name (PI 2026-10-26).
+**Rule-based only, no AI.** Rules approved by the PI (rule sheet
+https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
+
+| Rule | Fires when |
+|---|---|
+| W1 Serious AE not reviewed for SAE | AE grade ≥ 3 on the AE form with "Converted to SAE" blank, or auto-detected grade ≥ 3 whose term is not on the AE form |
+| W2 Grade going up | a term's grade is higher than at the last live send (grades kept in the audit row, table `site_summary`) |
+| W3 Severe brain scan not in Form H | `detect_pending_cranial_usg_findings` (IVH III/IV, cPVL ≥ II) |
+| W4 Proven infection | culture-positive sepsis or meningitis starting in the last 7 days |
+| W5 Suspected NEC | Helper 4 NEC suspected / stage I in the last 7 days and no stage IIA+ anywhere |
+| W6 Grade 2 band | last 3 days: Na 120–129 or 151–160, K 6.5–8.0, AKI stage ≥ 2; last 7 days: glucose 20–40 on ≥ 2 days or any < 20 |
+| W7 Escalating support | invasive ventilation (intubated or SIMV/AC/PSV/HFOV) or inotropes started in the last 3 days (previous day logged without it) |
+| W8 Acute event | Helper 2 pneumothorax, pulmonary haemorrhage, shock, clinical / EEG seizure in the last 7 days |
+| W9 Death without SAE report | died (Form H outcome or Helper 5) and no Form Y report with a diagnosis |
+| W10 SAE deadline | SAE list row: 24-h notification blank after the start day; detailed (initial) report blank within 3 days of, or past, start + 14 days |
+| M1 / M7 / M8 | existing Dashboard tasks: daily logs ≥ 2 days missing, Form C missing, delivered without Form B |
+| M2 Cranial USG | a Form F schedule window (< 28 wk or < 1000 g: Day 1–3, 4–7, 10–14, 28, 36 and 40 wk PMA; else Day 4–7, 10–14, 28, 40 wk PMA) ended 2 days ago with no scan in it (± tolerance), skipping windows after the stay ended |
+| M3 | Helper 2 IVH / cPVL flag and no Form F scan |
+| M4 ROP | no real Form G visit by DOL 30 (national ROP operational guidelines, RBSK / NPCB), or discharged before one; auto-suggested visit unfilled |
+| M5 | Form I 36 / 40 / 44 wk checkpoint date passed with no encounter method or death recorded |
+| M6 | Form H or Form I incomplete 48 h after discharge / death (**not Form L**: it is filled after unblinding) |
+| M9 | an auto-detected AE whose term is not on the AE form |
+| M10 | red data queries (count per site) |
+
+AE-form rows are matched to terms by key, CDISC / MedDRA code ("C154928 |
+10082059") or term name (`term_of`), because the AE form's "No." is free
+text. Gestation is Form B's (no NBS override). `--dry-run` / `--only` /
+`--force` as for the daily email (audit `EMAIL` / `EMAIL_TEST`; a test does
+not move the W2 baseline).
+
+## Audit trail for every form (PI 2026-10-26)
+
+`backend/audit_trail.py`: an after_flush listener writes one `audit_log` row
+per insert / update / delete on every table except `audit_log`, `screenings`
+(Form A is audited by hand in main.py), `data_queries` (system-generated)
+and `users`. UPDATE stores only the changed columns, old and new. The user
+is the request's login (`deps.get_current_user` sets `db.info["audit_user"]`);
+scripts are "system". Identity is never stored: encrypted columns, names,
+UIDs, contacts, address, annual number and signature images are written as
+"[redacted]"; `participant_pii` keeps only its keys. Bulk `query().update()`
+/ `delete()` bypass it (only the legacy `/respiratory-log-bulk`). On only
+where `AUDIT_ALL_FORMS=1` is in the backend env file: training from
+2026-10-26, trial from 2026-10-28. Before then only Form A, day-log override
+unlocks, data queries and emails were audited.
 
 ## Glossary
 

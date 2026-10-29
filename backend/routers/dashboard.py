@@ -2088,33 +2088,6 @@ def get_ops_summary(
     site_set = set(s for s in sites if s)
     global_view = is_global(current_user)
 
-    KPI_Q = text("""
-        SELECT
-            COALESCE(s.site_name, '__unknown__') AS site_name,
-            COUNT(*) AS screened,
-            SUM(CASE WHEN s.screening_status = 'Eligible' THEN 1 ELSE 0 END) AS eligible,
-            SUM(CASE WHEN s.screening_status = 'Screen Failure' THEN 1 ELSE 0 END) AS screen_failures,
-            SUM(CASE WHEN s.screening_status = 'Not Eligible' THEN 1 ELSE 0 END) AS not_eligible,
-            SUM(CASE WHEN s.enrollment_id IS NOT NULL AND s.enrollment_id <> '' THEN 1 ELSE 0 END) AS with_enrollment_id,
-            SUM(CASE WHEN s.consent_given = 'Yes' THEN 1 ELSE 0 END) AS consented
-        FROM screenings s
-        WHERE COALESCE(s.is_deleted, FALSE) = FALSE
-          AND s.site_name IS NOT NULL AND s.site_name NOT IN ('', 'DRAFT')
-        GROUP BY COALESCE(s.site_name, '__unknown__')
-    """)
-
-    RAND_Q = text("""
-        SELECT
-            COALESCE(s.site_name, '__unknown__') AS site_name,
-            COUNT(*) AS randomised
-        FROM birth_resuscitation br
-        JOIN screenings s ON s.screening_id = br.screening_id
-        WHERE br.randomised = TRUE
-          AND COALESCE(s.is_deleted, FALSE) = FALSE
-          AND s.site_name IS NOT NULL AND s.site_name NOT IN ('', 'DRAFT')
-        GROUP BY COALESCE(s.site_name, '__unknown__')
-    """)
-
     MONTHLY_Q = text("""
         SELECT
             TO_CHAR(DATE_TRUNC('month', COALESCE(br.created_at, NOW())), 'Mon') AS m,
@@ -2174,46 +2147,21 @@ def get_ops_summary(
         LIMIT 50
     """)
 
-    kpi_rows = db.execute(KPI_Q).mappings().all()
-    rand_rows = {r["site_name"]: int(r["randomised"] or 0) for r in db.execute(RAND_Q).mappings().all()}
-
-    by_site = []
-    totals = {
-        "screened": 0,
-        "eligible": 0,
-        "screen_failures": 0,
-        "not_eligible": 0,
-        "with_enrollment_id": 0,
-        "consented": 0,
-        "randomised": 0,
-    }
-    for r in kpi_rows:
-        site = r["site_name"]
-        if site_set and site not in site_set:
-            continue
-        sc = int(r["screened"] or 0)
-        el = int(r["eligible"] or 0)
-        sf = int(r["screen_failures"] or 0)
-        ne = int(r["not_eligible"] or 0)
-        we = int(r["with_enrollment_id"] or 0)
-        co = int(r["consented"] or 0)
-        rn = rand_rows.get(site, 0)
-        by_site.append({
+    # Same counts as View Entries (/screenings/summary): participant_counts.py
+    from participant_counts import counts, counts_by_site, scoped_screenings, stage_items
+    items = stage_items(db, scoped_screenings(db, sites))
+    totals = counts(items)
+    by_site = [
+        {
             "site": site,
-            "screened": sc,
-            "eligible": el,
-            "screen_failures": sf,
-            "enrolled": rn,
-            "consented": co,
-        })
-        totals["screened"] += sc
-        totals["eligible"] += el
-        totals["screen_failures"] += sf
-        totals["not_eligible"] += ne
-        totals["with_enrollment_id"] += we
-        totals["consented"] += co
-        totals["randomised"] += rn
-
+            "screened": c["screened"],
+            "eligible": c["eligible"],
+            "screen_failures": c["screen_failures"],
+            "enrolled": c["randomised"],
+            "consented": c["consented"],
+        }
+        for site, c in counts_by_site(items).items()
+    ]
     by_site.sort(key=lambda x: x["enrolled"], reverse=True)
 
     if not global_view and site_set:
@@ -2444,15 +2392,11 @@ def get_ops_summary(
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "target": 700,
         "kpis": {
-            "screened": totals["screened"],
-            "eligible": totals["eligible"],
-            "screen_failures": totals["screen_failures"],
+            **totals,
             "enrolled": totals["randomised"],
-            "consented": totals["consented"],
             "open_saes": open_saes,
             "pending_forms": pending_forms,
             "log_gaps": log_gaps,
-            "eligible": totals["eligible"],
         },
         "by_site": by_site,
         "monthly": monthly,

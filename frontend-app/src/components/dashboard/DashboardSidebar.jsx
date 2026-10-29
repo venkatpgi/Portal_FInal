@@ -11,10 +11,12 @@ import {
   Activity,
   History,
   ListChecks,
+  FileSpreadsheet,
+  HeartPulse,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { canViewAudit, canSeeAnalytics, canSeeDataQueries } from "../../utils/roles";
+import { canViewAudit, canSeeAnalytics, canSeeDataQueries, canUseReports } from "../../utils/roles";
 import { formatSiteName } from "./siteLabels";
 
 const ITEMS = [
@@ -136,6 +138,24 @@ export default function DashboardSidebar({
             className={workspaceNavClass}
           >
             <ListChecks size={14} aria-hidden="true" /> Data Queries
+          </NavLink>
+        )}
+        {canUseReports(user) && (
+          <NavLink
+            to="/reports"
+            onClick={onClose}
+            className={workspaceNavClass}
+          >
+            <FileSpreadsheet size={14} aria-hidden="true" /> Reports
+          </NavLink>
+        )}
+        {canUseReports(user) && (
+          <NavLink
+            to="/site-summary"
+            onClick={onClose}
+            className={workspaceNavClass}
+          >
+            <HeartPulse size={14} aria-hidden="true" /> Site summary
           </NavLink>
         )}
         {canViewAudit(user) && (

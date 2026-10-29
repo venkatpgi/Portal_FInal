@@ -13,6 +13,11 @@ export function canSeeDataQueries(user) {
   return CENTRAL_REVIEWER_ROLES.has(r) || SITE_QUERY_ROLES.has(r);
 }
 
+/** Report builder (PI 2026-10-24): same people as data queries; site roles get own site. */
+export function canUseReports(user) {
+  return canSeeDataQueries(user);
+}
+
 /** All-site query reviewer who gives the second sign-off. */
 export function isCentralReviewer(user) {
   return CENTRAL_REVIEWER_ROLES.has((user?.role || "").toLowerCase());

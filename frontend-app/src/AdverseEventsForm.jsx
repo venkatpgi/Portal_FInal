@@ -345,10 +345,19 @@ export default function AdverseEventsForm() {
     setScanning(true);
     setScanMessage("");
     try {
-      const res = await api.get(
+      // POST with the rows on screen: the server marks a candidate the form
+      // already records (same term by key / code / name, start within 3 days)
+      // as duplicate_of = that row's number (PI 2026-10-26).
+      const res = await api.post(
         `/adverse-events/candidates/${encodeURIComponent(formData.enrollment_id)}`,
+        { events: formData.has_adverse_event === "Yes" ? (formData.events || []) : [] },
       );
-      const candidates = Array.isArray(res.data?.candidates) ? res.data.candidates : [];
+      const all = Array.isArray(res.data?.candidates) ? res.data.candidates : [];
+      const dupes = all.filter((c) => c.duplicate_of);
+      const candidates = all.filter((c) => !c.duplicate_of);
+      const dupeNote = dupes.length
+        ? ` ${dupes.length} already on the list: ${dupes.map((c) => `${c.description} (row ${c.duplicate_of})`).join(", ")}.`
+        : "";
       setPendingCranialUsgFindings(
         Array.isArray(res.data?.pending_cranial_usg_findings)
           ? res.data.pending_cranial_usg_findings
@@ -356,9 +365,11 @@ export default function AdverseEventsForm() {
       );
       if (!candidates.length) {
         setScanMessage(
-          res.data?.has_data === false
-            ? "No daily logs or Form H data found for this baby yet."
-            : "No adverse-event candidates found in this baby's daily logs or Form H.",
+          dupes.length
+            ? `Nothing new: every detected event is already on the list.${dupeNote}`
+            : res.data?.has_data === false
+              ? "No daily logs or Form H data found for this baby yet."
+              : "No adverse-event candidates found in this baby's daily logs or Form H.",
         );
         setScanning(false);
         return;
@@ -382,7 +393,7 @@ export default function AdverseEventsForm() {
             converted_to_sae: "",
           }));
         if (!toAdd.length) {
-          setScanMessage("All detected candidates are already in the list below.");
+          setScanMessage(`All detected candidates are already in the list below.${dupeNote}`);
           return p;
         }
         const startIdx = existing.length;
@@ -392,7 +403,7 @@ export default function AdverseEventsForm() {
           return next;
         });
         setScanMessage(
-          `Added ${toAdd.length} candidate event${toAdd.length > 1 ? "s" : ""} — review and edit before saving.`,
+          `Added ${toAdd.length} candidate event${toAdd.length > 1 ? "s" : ""} — review and edit before saving.${dupeNote}`,
         );
         return { ...p, has_adverse_event: "Yes", events: [...existing, ...toAdd] };
       });

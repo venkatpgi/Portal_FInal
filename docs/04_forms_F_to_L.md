@@ -89,7 +89,7 @@ Plus:
 
 | Section | Source | Rule |
 |---|---|---|
-| I.1 Resuscitation | Form B | PPV → ventilation required; chest compressions; intubation; time to spontaneous breathing (seconds). "Switched to 100% O₂" and HIE manual. |
+| I.1 Resuscitation | Form B | PPV → ventilation required; chest compressions; intubation; time to spontaneous breathing (seconds). "Switched to 100% O₂" and HIE manual (the page says so; HIE feeds the AE scan, docs/07). |
 | I.2 Post-resuscitation (`get_post_resus_prefill`) | Helpers 2/4/5, Form H | #7 resp support 0.5–72 h: "No" only when days 1–3 all have a Helper 2 log with the item answered; #8 EOS / #9 LOS from infection windows (onset ≤ day 3 / after); **"No" only once the period is observed** (EOS: days 1–3 logged; LOS/culture: stay ended); mortality ≤ 7 / ≤ 28 d "No" only if known alive past that age |
 | I.3–I.5 at 36 / 40 / 44 wk PMA (`get_pma_assessment_prefill`) | Form H, Form F, Form G, Form J, Helpers | death (incremental windows), BPD (36 wk), NEC ≥ IIA, brain injury, ROP — **chapter 05**. Needs Form E Day 1 Date and gestation. |
 | I.6 Overall | Form H prefills | MV/CPAP/HFNC/NIPPV days, sepsis overall (any infection window), in-hospital death + date |
