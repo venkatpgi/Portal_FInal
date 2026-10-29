@@ -2363,6 +2363,7 @@ class AdverseEventRow(BaseModel):
     severity_desc: Optional[str] = None
     grade: Optional[str] = None
     converted_to_sae: Optional[str] = None
+    row_id: Optional[str] = None   # stable row id for merging saves (list_merge.py)
 
     class Config:
         extra = "ignore"
@@ -2384,6 +2385,8 @@ class AdverseEventsCreate(BaseModel):
     has_adverse_event: Optional[bool] = None
 
     events: Optional[List[AdverseEventRow]] = None
+    # the rows as this page loaded them; None = replace the list (mobile app)
+    base_events: Optional[List[AdverseEventRow]] = None
 
     completed_by: Optional[str] = None
     designation: Optional[str] = None
@@ -2415,6 +2418,7 @@ class SAEListRow(BaseModel):
     notify_initial: Optional[str] = None
     notify_10d: Optional[str] = None
     notify_resolution: Optional[str] = None
+    row_id: Optional[str] = None   # stable row id for merging saves (list_merge.py)
 
     class Config:
         extra = "ignore"
@@ -2430,6 +2434,8 @@ class SAEListCreate(BaseModel):
 
     enrollment_id: str
     rows: Optional[List[SAEListRow]] = None
+    # the rows as this page loaded them; None = replace the list (mobile app)
+    base_rows: Optional[List[SAEListRow]] = None
     completed_by: Optional[str] = None
     designation: Optional[str] = None
     completion_date: Optional[str] = None

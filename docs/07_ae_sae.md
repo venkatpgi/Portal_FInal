@@ -59,6 +59,18 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
   answer but no event (description, or a definition other than "NA") is
   refused with its row number ("enter the event (term) or delete the row").
 
+- **Two people saving the same AE form (PI 2026-10-29, `list_merge.py`):**
+  every row has a hidden `row_id`; the page sends the rows as it loaded them
+  (`base_events`) and the server merges row by row with what is stored now.
+  A row only one side changed keeps that change; rows added or deleted by
+  the other person are kept / stay deleted; a row **both** changed differently
+  → 409 "Someone else saved this AE form while you had it open (who, when)
+  and changed the same row: X. Nothing was saved. Reload …". Found on
+  01-B-001: the PI's Hyperthermia grade 3 → 2 was undone 34 min later by a
+  nurse's save of her stale copy. A save without `base_events` (mobile app)
+  replaces the list as before. Row ids are given to existing rows once at
+  startup (`main._backfill_row_ids`). Same for the SAE list (`base_rows`).
+
 ## 3. SAE list (`sae_list`) and SAE report — Form Y (`sae_reports`)
 - SAE list: one row per SAE with 24-h / 14-day notification dates (India NDCT
   Rules 2019 timeline).

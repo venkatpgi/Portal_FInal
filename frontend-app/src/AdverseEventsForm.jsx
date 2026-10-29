@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "./api/axios";
 import { isAdverseEventsComplete } from "./utils/formCompletion";
@@ -85,6 +85,7 @@ function mapApiToForm(row) {
         severity_desc: e?.severity_desc || "",
         grade: e?.grade != null && e?.grade !== "" ? String(e.grade) : "",
         converted_to_sae: e?.converted_to_sae || "",
+        row_id: e?.row_id || "",
       }))
     : [];
   return {
@@ -101,7 +102,9 @@ function mapApiToForm(row) {
   };
 }
 
-function buildPayload(data) {
+// base = the rows as this page last loaded / saved them: the server merges
+// row by row, so a co-worker's save in between is kept (list_merge.py).
+function buildPayload(data, base = null) {
   const hasYes = data.has_adverse_event === "Yes";
   const events = hasYes
     ? (data.events || []).map((e) => ({
@@ -112,6 +115,7 @@ function buildPayload(data) {
         severity_desc: emptyToNull(e.severity_desc),
         grade: emptyToNull(e.grade),
         converted_to_sae: emptyToNull(e.converted_to_sae),
+        row_id: emptyToNull(e.row_id),
       }))
     : [];
   return {
@@ -126,6 +130,7 @@ function buildPayload(data) {
           ? false
           : null,
     events,
+    base_events: base,
     completed_by: emptyToNull(data.completed_by),
     designation: emptyToNull(data.designation),
     completion_date: emptyToNull(data.completion_date),
@@ -259,6 +264,7 @@ export default function AdverseEventsForm() {
   };
 
   const [formData, setFormData] = useState(() => BLANK());
+  const baseEventsRef = useRef(null);   // rows as last loaded / saved (null = not loaded yet)
   // SAE reports that are linked to one of these AEs (v1.1, PI 2026-09-30):
   // shown next to the event with an Apply for "Converted to SAE" = Yes.
   const [linkedSaes, setLinkedSaes] = useState([]);
@@ -483,7 +489,8 @@ export default function AdverseEventsForm() {
       .get(`/adverse-events/${encodeURIComponent(id)}`)
       .then((res) => {
         // Backend returns null when no AE form has been saved yet
-        if (!res.data || !res.data.enrollment_id) return;
+        if (!res.data || !res.data.enrollment_id) { baseEventsRef.current = []; return; }
+        baseEventsRef.current = res.data.events || [];
         const mapped = mapApiToForm(res.data);
         syncTick(mapped);
         setFormData((p) => ({
@@ -520,7 +527,8 @@ export default function AdverseEventsForm() {
       return false;
     }
     try {
-      const res = await api.post("/adverse-events/", buildPayload(formData));
+      const res = await api.post("/adverse-events/", buildPayload(formData, baseEventsRef.current));
+      baseEventsRef.current = res.data?.events || [];
       const mapped = mapApiToForm(res.data);
       setFormData((p) => ({
         ...mapped,
