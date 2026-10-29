@@ -1,0 +1,9 @@
+[Unit]
+Description=Copy trial logins to the training site every 10 minutes
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=true
+
+[Install]
+WantedBy=timers.target

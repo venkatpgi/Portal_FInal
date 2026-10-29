@@ -121,6 +121,7 @@ def get_current_user(
 
     refuse_role_restricted_request(request, user)
     refuse_non_live_site_write(request, user)
+    refuse_login_change_on_training(request)
     db.info["audit_user"] = (user.id, user.username)   # audit_trail.py: who made this request's changes
     return user
 
@@ -164,6 +165,27 @@ def refuse_non_live_site_write(request: Request, user: User) -> None:
             f"saved here. Please use the training site: {TRAINING_SITE_URL}"
         ),
     )
+
+
+def logins_from_trial() -> bool:
+    """Training site: logins are copied from the trial site every 10 minutes
+    (training_user_sync.py, PI 2026-10-29), so they are not changed here."""
+    return os.getenv("LOGINS_FROM_TRIAL", "").strip().lower() in ("1", "true", "yes")
+
+
+LOGIN_CHANGE_PATHS = ("/auth/change-password", "/users")
+
+
+def refuse_login_change_on_training(request: Request) -> None:
+    if not logins_from_trial() or request.method.upper() not in WRITE_METHODS:
+        return
+    if request.url.path.startswith(LOGIN_CHANGE_PATHS):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=("Logins on the training site are copied from https://portaltrial.in every 10 minutes. "
+                    "Change passwords and staff accounts on https://portaltrial.in; the change reaches "
+                    "the training site within 10 minutes."),
+        )
 
 
 # ============================================================================

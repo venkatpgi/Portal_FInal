@@ -18,7 +18,7 @@ from auth import hash_password, verify_password
 from core.security import create_access_token, create_refresh_token, verify_refresh_token
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from db import get_db
-from deps import get_current_user, MOBILE_ROLE_MAP
+from deps import get_current_user, logins_from_trial, MOBILE_ROLE_MAP
 from models import User
 from schemas import (
     LoginRequest,
@@ -44,7 +44,8 @@ def _to_profile(user: User) -> UserProfileOut:
         role=MOBILE_ROLE_MAP.get((user.role or "").lower(), "NURSE"),
         site_id=user.site_name,
         site_name=user.site_name,
-        must_change_password=bool(user.must_change_password),
+        # training: password changes happen on the trial site only (deps.logins_from_trial)
+        must_change_password=bool(user.must_change_password) and not logins_from_trial(),
         last_login_at=user.last_login_at.isoformat() if user.last_login_at else None,
     )
 
