@@ -9307,6 +9307,13 @@ def update_ga_check_entry(
 def _attach_ga_live_status(db, records):
     """See ga_log_status.attach_live_status (must run before PII masking)."""
     ga_attach_live_status(db, records, clinical_today())
+    # Pregnancy as now on the linked Form A (display only, PI 2026-10-29): twins
+    # found after the triage check are corrected on Form A, never in the log.
+    sids = {r.screening_id for r in records if r.screening_id}
+    babies = dict(db.query(Screening.screening_id, Screening.number_of_fetuses)
+                  .filter(Screening.screening_id.in_(sids)).all()) if sids else {}
+    for r in records:
+        r.form_a_babies = babies.get(r.screening_id)
 
 
 @app.get("/ga-check/", response_model=List[GACheckEntryOut])

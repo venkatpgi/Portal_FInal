@@ -90,7 +90,9 @@ editable there) and starts Form B's "Number of babies" when no baby of that
 mother has a Form B yet. The Log of All Births birth type wins over it
 (`GET /screenings/{id}/babies` returns `log_of_births_babies` and
 `pregnancy_babies`); Form B warns when its number differs from the Log of
-All Births.
+All Births. The Gestation Log entry itself is never changed afterwards (it
+records what was known at the triage check): when Form A is corrected later,
+the log list shows a note "Twins (from Form A)" (`form_a_babies`, display only).
 
 **Twins / triplets (PI 2026-10-29)** — B1 "Number of babies born to this
 mother" and, for 2 or more, a switcher "Baby 1 / Baby 2 …" (dashed = Form B
