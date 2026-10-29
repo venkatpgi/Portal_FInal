@@ -1330,6 +1330,8 @@ BIRTH_LOG_MULTIPLE_BIRTH_PATCHES = [
 BIRTH_RESUSCITATION_MULTIPLE_PATCHES = [
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS baby_number INTEGER",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS number_of_babies INTEGER",
+    "ALTER TABLE screenings ADD COLUMN IF NOT EXISTS number_of_fetuses INTEGER",
+    "ALTER TABLE ga_check_log ADD COLUMN IF NOT EXISTS number_of_fetuses INTEGER",
 ]
 
 # Form A pregnancy follow-up + consent withdrawn (2026-10-20).

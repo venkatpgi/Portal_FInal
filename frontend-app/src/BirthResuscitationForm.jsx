@@ -321,6 +321,8 @@ export default function BirthResuscitationForm() {
   babyNumberRef.current = babyNumber;
   const nrId = (sid) => nrEnrollmentId(sid, babyNumberRef.current);
   const [babies, setBabies] = useState([]);   // every Form B of this mother
+  // what the Log of All Births / the pregnancy (Gestation Log -> Form A) say
+  const [babyCounts, setBabyCounts] = useState({ log: null, pregnancy: null });
   const [confirmedEnrollmentId, setConfirmedEnrollmentId] = useState(null);
   const { updatePatientData } = usePatient();
   const { user } = useAuth();
@@ -1601,6 +1603,10 @@ export default function BirthResuscitationForm() {
           const bl = await api.get(`/screenings/${screeningId}/babies`);
           siblings = bl.data?.babies || [];
           total = bl.data?.number_of_babies || 1;
+          const counts = { log: bl.data?.log_of_births_babies || null, pregnancy: bl.data?.pregnancy_babies || null };
+          setBabyCounts(counts);
+          // no Form B saved yet: start from the Log of All Births, else the pregnancy
+          if (!siblings.length) total = counts.log || counts.pregnancy || 1;
         } catch (_) { /* older server / no access: singleton behaviour */ }
         if (cancelled) return;
         setBabies(siblings);
@@ -1865,6 +1871,17 @@ export default function BirthResuscitationForm() {
                     </div>
                   )}
                 </div>
+                {!babies.length && Number(formData.number_of_babies) > 1 && (babyCounts.log || babyCounts.pregnancy) && (
+                  <div className="field-hint field-hint-auto">
+                    Number of babies taken from the {babyCounts.log ? "Log of All Births" : "Gestation Log / Form A"} — check before saving.
+                  </div>
+                )}
+                {babyCounts.log && babyCounts.log !== Number(formData.number_of_babies || 1) && (
+                  <div className="field-hint field-hint-warning">
+                    ⚠ The Log of All Births records {babyCounts.log} {babyCounts.log === 1 ? "baby" : "babies"} for this mother;
+                    this form says {formData.number_of_babies || 1}. Correct whichever is wrong.
+                  </div>
+                )}
                 <div className="form-grid-3">
                   <div className="form-group">
                     <label>4. Baby UID</label>

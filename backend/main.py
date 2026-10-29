@@ -1233,6 +1233,7 @@ def create_screening(
                 site_id=screening.site_id,
                 screened_by=screening.screened_by,
                 gestation_known=screening.gestation_known,
+                number_of_fetuses=screening.number_of_fetuses,
                 gestation_weeks=screening.gestation_weeks,
                 gestation_days=screening.gestation_days,
                 gestation_method=screening.gestation_method,
@@ -1619,9 +1620,14 @@ def list_babies_of_screening(
         raise HTTPException(status_code=404, detail="Screening not found")
     rows = babies_of(db, screening_id)
     total = max([b.number_of_babies or 1 for b in rows] + [1])
+    # What the logs say (Form B prefills from them; Log of All Births first)
+    logged = [n for (n,) in db.query(BirthLogEntry.multiple_birth_count)
+              .filter(BirthLogEntry.matched_screening_id == screening_id).all() if n]
     return {
         "screening_id": screening_id,
         "number_of_babies": total,
+        "log_of_births_babies": max(logged) if logged else None,
+        "pregnancy_babies": entry.number_of_fetuses,   # Gestation Log -> Form A
         "babies": [{
             "enrollment_id": b.enrollment_id,
             "baby_number": baby_no(b),

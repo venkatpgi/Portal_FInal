@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, field_validator, field_serializer, model_validator
+﻿from pydantic import BaseModel, Field, field_validator, field_serializer, model_validator
 
 from mobile_numbers import mobile_pair_errors
 from typing import Optional, List, Dict
@@ -364,6 +364,7 @@ class ScreeningCreate(BaseModel):
     hospital_admission_number: Optional[str] = None
     
     gestation_known: Optional[str] = None
+    number_of_fetuses: Optional[int] = Field(None, ge=1, le=4)   # twins / triplets (babies.py)
     gestation_weeks: int
     gestation_days: int
     gestation_method: Optional[str] = None
@@ -437,6 +438,7 @@ class ScreeningClinicalOut(BaseModel):
     screening_status: Optional[str] = None
 
     gestation_known: Optional[str] = None
+    number_of_fetuses: Optional[int] = None
     gestation_weeks: Optional[int] = None
     gestation_days: Optional[int] = None
     gestation_method: Optional[str] = None
@@ -3104,6 +3106,7 @@ class GACheckEntryCreate(BaseModel):
     gestation_method: Optional[str] = None
     gestation_weeks: Optional[int] = None
     gestation_days: Optional[int] = None
+    number_of_fetuses: Optional[int] = Field(None, ge=1, le=4)   # 1 single ... 4 quadruplets
 
     # Request-only (not a column): the user confirmed this is a new contact
     # of a woman whose CR number is already logged.

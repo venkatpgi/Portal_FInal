@@ -124,6 +124,8 @@ class Screening(Base):
     husband_contact = Column(String(10), nullable=True)
 
     gestation_known = Column(String, nullable=True)  # "Yes"/"No" — whether gestation in weeks was clearly known at screening
+    # Single / twins / triplets: 1-4, from the Gestation Log entry (2026-10-29)
+    number_of_fetuses = Column(Integer, nullable=True)
     gestation_weeks = Column(Integer)
     gestation_days = Column(Integer)
     gestation_method = Column(String)
@@ -2490,6 +2492,9 @@ class GACheckEntry(Base):
     gestation_method = Column(String, nullable=True)
     gestation_weeks = Column(Integer, nullable=True)
     gestation_days  = Column(Integer, nullable=True)
+    # Pregnancy: 1 single, 2 twins, 3 triplets, 4 quadruplets (2026-10-29);
+    # carried to Form A and prefills Form B's number of babies (babies.py)
+    number_of_fetuses = Column(Integer, nullable=True)
 
     # Computed on save (ga_check.py::classify_eligibility) from
     # gestation_weeks alone -- same <32-completed-weeks threshold the
