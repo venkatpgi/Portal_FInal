@@ -18,7 +18,7 @@ export default function DashboardShell({
   sidebarOpen,
   onSidebarOpen,
   onSidebarClose,
-  isSuperadmin,
+  canManageStaff,
   headerProps,
   children,
 }) {
@@ -36,7 +36,7 @@ export default function DashboardShell({
           onTabChange={onTabChange}
           open={sidebarOpen}
           onClose={onSidebarClose}
-          isSuperadmin={isSuperadmin}
+          canManageStaff={canManageStaff}
         />
         <main className="min-h-0 min-w-0 flex-1 overflow-auto px-4 py-5 sm:px-6 lg:px-6">
           {children}

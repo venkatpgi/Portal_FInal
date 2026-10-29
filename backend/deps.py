@@ -87,6 +87,16 @@ def require_superadmin(user: User):
         raise HTTPException(status_code=403, detail="Superadmin access required")
 
 
+def can_manage_users(user: User) -> bool:
+    """Global PI and PTS-3 (tech_support) may open Manage Staff."""
+    return _role(user) in (ROLE_SUPERADMIN, ROLE_TECH_SUPPORT)
+
+
+def require_user_manager(user: User):
+    if not can_manage_users(user):
+        raise HTTPException(status_code=403, detail="User management access required")
+
+
 def ensure_same_site(site_name: str | None, user: User):
     if is_global(user):
         return
@@ -171,6 +181,8 @@ def refuse_non_live_site_write(request: Request, user: User) -> None:
 # POSTs allowed for read-only roles: reads, and acting on data queries
 # (oversight, not data entry).
 READ_ONLY_ALLOWED_WRITE_PREFIXES = ("/auth/", "/pii/batch", "/data-queries/")
+# PTS-3 manages login accounts (Manage Staff) without gaining clinical writes.
+USER_ADMIN_WRITE_PREFIXES = ("/users", "/sae-config/pi-contacts")
 # Central analytics roles may also use the AI Insights chat (a POST).
 ANALYTICS_ALLOWED_WRITE_PREFIXES = ("/dashboard/ai-insights",)
 # PTS3 (tech_support) reads records to reproduce bugs, but never sees
@@ -190,6 +202,8 @@ def refuse_role_restricted_request(request: Request, user: User) -> None:
     if request.method.upper() not in WRITE_METHODS or role not in READ_ONLY_ROLES:
         return
     if path.startswith(READ_ONLY_ALLOWED_WRITE_PREFIXES):
+        return
+    if role == ROLE_TECH_SUPPORT and path.startswith(USER_ADMIN_WRITE_PREFIXES):
         return
     if role in CENTRAL_ANALYTICS_ROLES and path.startswith(ANALYTICS_ALLOWED_WRITE_PREFIXES):
         return

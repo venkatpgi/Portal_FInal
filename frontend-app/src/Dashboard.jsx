@@ -17,7 +17,7 @@ import {
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import GlobalSiteFilter, { siteQueryParams } from "./components/dashboard/GlobalSiteFilter";
-import { isGlobalUser } from "./utils/roles";
+import { canManageUsers, isGlobalUser } from "./utils/roles";
 import { formatBabyOfLabel } from "./utils/babyName";
 import { COMPLETE_ENROLLMENT_RE } from "./utils/enrollmentId";
 import DashboardShell from "./components/dashboard/DashboardShell";
@@ -308,7 +308,7 @@ export default function Dashboard() {
       sidebarOpen={sidebarOpen}
       onSidebarOpen={() => setSidebarOpen(true)}
       onSidebarClose={() => setSidebarOpen(false)}
-      isSuperadmin={user?.role === "superadmin"}
+      canManageStaff={canManageUsers(user)}
       headerProps={{
         search,
         onSearchChange: setSearch,

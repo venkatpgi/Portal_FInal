@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { canManageUsers } from "../../utils/roles";
 import DashboardShell from "./DashboardShell";
 
 const RL_MAP = {
   superadmin: "Super Admin",
+  tech_support: "Technical Support (PTS-3)",
   admin: "Administrator",
   pi: "Principal Investigator",
   scientist: "Scientist",
@@ -55,7 +57,7 @@ export default function DashboardWorkspaceLayout({
       sidebarOpen={sidebarOpen}
       onSidebarOpen={() => setSidebarOpen(true)}
       onSidebarClose={() => setSidebarOpen(false)}
-      isSuperadmin={user?.role === "superadmin"}
+      canManageStaff={canManageUsers(user)}
       headerProps={{
         search,
         onSearchChange,

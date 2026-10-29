@@ -47,6 +47,11 @@ def test_tech_support_reads_records_but_no_reports_or_identity():
     assert refused("GET", "/sae-report/01-A-001/3/document", ts)
     assert refused("POST", "/dashboard/ai-insights", ts)
     assert refused("PUT", "/screenings/3", ts)
+    assert not refused("POST", "/users/", ts)
+    assert not refused("PUT", "/users/4", ts)
+    assert not refused("DELETE", "/users/4", ts)
+    assert deps.can_manage_users(ts)
+    assert not deps.can_manage_users(user("nurse", "PGIMER"))
 
 
 def test_editing_roles_unaffected():

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
+import { canManageUsers } from "./utils/roles";
 import "./ManageStaff.css";
 
 const ROLES = [
@@ -76,7 +77,7 @@ export default function ManageStaff() {
       .catch((err) => {
         setLoadError(
           err.response?.status === 403
-            ? "Superadmin access required to view this page."
+            ? "User management access required to view this page."
             : "Could not load users."
         );
       })
@@ -132,7 +133,7 @@ export default function ManageStaff() {
     return ordered;
   }, [filtered]);
 
-  if (user && user.role !== "superadmin") {
+  if (user && !canManageUsers(user)) {
     return <Navigate to="/dashboard" replace />;
   }
 

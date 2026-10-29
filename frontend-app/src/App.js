@@ -9,7 +9,7 @@ import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PatientProvider } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
-import { canSeeAnalytics, canSeeDataQueries, isReadOnlyUser } from "./utils/roles";
+import { canManageUsers, canSeeAnalytics, canSeeDataQueries, isReadOnlyUser } from "./utils/roles";
 
 import ScreeningForm from "./ScreeningForm";
 import BirthResuscitation from "./BirthResuscitationForm";
@@ -199,7 +199,7 @@ function AppContent() {
                 <ClipboardList size={16} /> <span>View Entries</span>
               </NavLink>
 
-              {user?.role === "superadmin" && (
+              {canManageUsers(user) && (
                 <NavLink
                   to="/manage-staff"
                   className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}

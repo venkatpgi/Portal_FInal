@@ -23,6 +23,12 @@ export function isReadOnlyUser(user) {
   return READ_ONLY_ROLES.has((user?.role || "").toLowerCase());
 }
 
+/** Manage Staff: Global PI and PTS-3 (tech_support). */
+export function canManageUsers(user) {
+  const r = (user?.role || "").toLowerCase();
+  return r === "superadmin" || r === "tech_support";
+}
+
 /** Trial Monitoring, AI Insights, CSV export: Global PI + Overall Project Scientist. */
 export function canSeeAnalytics(user) {
   return CENTRAL_ANALYTICS_ROLES.has((user?.role || "").toLowerCase());
