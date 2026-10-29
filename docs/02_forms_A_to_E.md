@@ -83,6 +83,14 @@ and, once saved, links back to the log entry (`PATCH /ga-check/{id}/link`).
   `gestation_source = "Form D NBS"`; frontend `utils/gestation.resolveEffectiveGestation`).
   → A wrong Form D NBS entry shifts **every PMA checkpoint date** downstream.
 
+**Twins / triplets (PI 2026-10-29)** — B1 "Number of babies born to this
+mother" and, for 2 or more, a switcher "Baby 1 / Baby 2 …" (dashed = Form B
+not entered yet; click to add it). One Form B per baby; each baby is
+randomised independently with its own envelope. Chapter 01 "Twins" has the
+ID and save rules. Form C for a second baby offers "Copy its answers to this
+baby" from a co-twin's saved Form C (a new record; check every answer).
+The sidebar shows the same switcher on every form of a twin.
+
 **Enrollment decision**
 - "Does baby require ventilation (PPV)?" = No → **not randomised, locked**
   (`applyInitialStepsNotRequired`, `lockEnrollmentNoPpv`); server assigns

@@ -1704,3 +1704,11 @@
   font-weight: 600;
   color: #334155;
 }
+/* Form B: twins / triplets baby switcher (PI 2026-10-29) */
+.baby-switch { display: flex; flex-wrap: wrap; gap: 6px; }
+.baby-switch-btn {
+  padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--primary, #0284c7); color: var(--primary, #0284c7); background: #fff;
+}
+.baby-switch-btn.is-current { background: var(--primary, #0284c7); color: #fff; cursor: default; }
+.baby-switch-btn.is-missing:not(.is-current) { border-style: dashed; color: #b45309; border-color: #b45309; }

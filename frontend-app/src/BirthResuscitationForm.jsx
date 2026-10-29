@@ -15,7 +15,7 @@ import { printPatientPdf } from "./utils/printPatientPdf";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import { relativeTime, toDateOnlyValue, parseDateOnly, normalizeClockTimeHms } from "./utils/datetime";
-import { isUsableEnrollmentId } from "./utils/enrollmentId";
+import { isUsableEnrollmentId, nrEnrollmentId } from "./utils/enrollmentId";
 import { classifyVeryPretermCentile } from "./data/intergrowthVeryPreterm";
 import {
   ArrowLeft, ArrowRight, Save, Home, User, Baby, Pencil,
@@ -312,7 +312,15 @@ function IntvCell({ value, disabled, onChange }) {
 export default function BirthResuscitationForm() {
   const navigate = useNavigate();
   const { markFormCompleted, unmarkFormCompleted } = useFormProgress();
-  const { screeningId } = useParams();
+  const { screeningId, babyNumber: babyParam } = useParams();
+  /* Twins / triplets (PI 2026-10-29): /form-b/<screening>/<baby n>; the old
+     /form-b/<screening> address is baby 1. App.js remounts this page per
+     baby, so one baby's answers never carry over to the next. */
+  const babyNumber = Math.min(6, Math.max(1, parseInt(babyParam, 10) || 1));
+  const babyNumberRef = useRef(babyNumber);
+  babyNumberRef.current = babyNumber;
+  const nrId = (sid) => nrEnrollmentId(sid, babyNumberRef.current);
+  const [babies, setBabies] = useState([]);   // every Form B of this mother
   const [confirmedEnrollmentId, setConfirmedEnrollmentId] = useState(null);
   const { updatePatientData } = usePatient();
   const { user } = useAuth();
@@ -411,7 +419,7 @@ export default function BirthResuscitationForm() {
 
   const BLANK = {
     /* B1 */
-    screening_id:"", enrollment_id:"", screening_datetime:"",
+    screening_id:"", enrollment_id:"", screening_datetime:"", number_of_babies:"1",
     mother_name_first:"", mother_name_surname:"", maternal_uid:"",
     contact_mother:"", contact_husband:"",
     baby_uid:"", baby_admission_no:"", baby_annual_no:"",
@@ -837,6 +845,8 @@ export default function BirthResuscitationForm() {
     return {
       screening_id:        fd.screening_id || null,
       enrollment_id:       fd.enrollment_id || null,
+      baby_number:         babyNumberRef.current,
+      number_of_babies:    Math.max(babyNumberRef.current, parseInt(fd.number_of_babies, 10) || 1),
       mother_name_first:   fd.mother_name_first || null,
       mother_name_surname: fd.mother_name_surname || null,
       maternal_uid:        fd.maternal_uid || null,
@@ -1125,7 +1135,7 @@ export default function BirthResuscitationForm() {
       if (isUsableEnrollmentId(payloadEid)) existingId = payloadEid;
       else if (isUsableEnrollmentId(storedEid)) existingId = storedEid;
       else if ((payload.randomised === false || payload.required_resuscitation === false) && sid)
-        existingId = `NR-${sid}`;
+        existingId = nrId(sid);
       if (!existingId) {
         setMessage("❌ Enrollment ID is required before saving.");
         return false;
@@ -1172,6 +1182,8 @@ export default function BirthResuscitationForm() {
       setMessage("✅ Form B saved successfully");
       setShowSaveSuccess(true);
       setIsSaved(true); setIsEditing(false);
+      api.get(`/screenings/${payload.screening_id || screeningId}/babies`)
+        .then(r => setBabies(r.data?.babies || [])).catch(() => {});
       setLastSaved(new Date()); setIsDirty(false);
       if (formCompleteRef.current) markFormCompleted("form_b");
       else unmarkFormCompleted("form_b");
@@ -1281,7 +1293,7 @@ export default function BirthResuscitationForm() {
     let eid = (storedId || fd.enrollment_id || "").trim();
     // Not randomised / no PPV still sync via NR-{screening_id}.
     if (!eid && sid && (fd.randomised === "No" || fd.required_resuscitation === "No")) {
-      eid = `NR-${sid}`;
+      eid = nrId(sid);
     }
 
     /* Need a complete enrollment ID (or NR-*) before creating/updating.
@@ -1395,7 +1407,7 @@ export default function BirthResuscitationForm() {
       && fdNext.hr_below_100 === "No";
     if (!isUsableEnrollmentId(eid) && sid
         && (fdNext.required_resuscitation === "No" || allNormalNext)) {
-      eid = `NR-${sid}`;
+      eid = nrId(sid);
       setStoredId("current_enrollment_id", eid);
     }
     if(!isUsableEnrollmentId(eid)) {
@@ -1582,7 +1594,21 @@ export default function BirthResuscitationForm() {
         // it with the wrong mother/husband contact numbers.
         if (cancelled) return;
 
+        // Twins / triplets: this page's baby, by number (babies.py)
+        let siblings = [];
+        let total = 1;
+        try {
+          const bl = await api.get(`/screenings/${screeningId}/babies`);
+          siblings = bl.data?.babies || [];
+          total = bl.data?.number_of_babies || 1;
+        } catch (_) { /* older server / no access: singleton behaviour */ }
+        if (cancelled) return;
+        setBabies(siblings);
+        const mine = siblings.find(b => b.baby_number === babyNumber);
+        const myEid = mine?.enrollment_id || (babyNumber === 1 ? d.enrollment_id : null) || null;
+
         set({
+          number_of_babies:    String(Math.max(total, babyNumber)),
           screening_id:        d.screening_id||"",
           site_name:           d.site_name||"",
           maternal_uid:        pii.maternal_uid||"",
@@ -1593,8 +1619,8 @@ export default function BirthResuscitationForm() {
           screening_datetime: d.screening_datetime||"",
           contact_mother:  pii.mother_contact||pii.contact_mother||"",
           contact_husband: pii.husband_contact||pii.contact_husband||"",
-          ...(d.enrollment_id && !String(d.enrollment_id).startsWith("NR-")
-            ? { enrollment_id: formatEnrollmentId(d.enrollment_id, SITE_ID_MAP[d.site_name] || "00") }
+          ...(myEid && !String(myEid).startsWith("NR-")
+            ? { enrollment_id: formatEnrollmentId(myEid, SITE_ID_MAP[d.site_name] || "00") }
             : {}),
         });
         const sn = (d.site_name || "").trim();
@@ -1607,9 +1633,9 @@ export default function BirthResuscitationForm() {
         // the cache. If it doesn't (a brand-new/unenrolled screening, like
         // one just created on mobile), clear the cache so the "load saved
         // Form B data" effect below can't pick up someone else's record.
-        if (d.enrollment_id) {
-          setStoredId("current_enrollment_id", d.enrollment_id);
-          setConfirmedEnrollmentId(d.enrollment_id);
+        if (myEid) {
+          setStoredId("current_enrollment_id", myEid);
+          setConfirmedEnrollmentId(myEid);
           /* Birth-load effect will set isFormBLoaded when GET finishes */
         } else {
           /* Mobile / no-PPV / not-randomised saves use NR-{screeningId}.
@@ -1617,13 +1643,13 @@ export default function BirthResuscitationForm() {
              placeholder so web Form B shows the synced birth row. */
           let foundNr = false;
           try {
-            const nrId = `NR-${screeningId}`;
-            const br = await api.get(`/birth-resuscitation/${nrId}`);
+            const placeholder = nrId(screeningId);
+            const br = await api.get(`/birth-resuscitation/${placeholder}`);
             if (!cancelled && br?.data) {
               foundNr = true;
-              set({ enrollment_id: nrId });
-              setStoredId("current_enrollment_id", nrId);
-              setConfirmedEnrollmentId(nrId);
+              set({ enrollment_id: placeholder });
+              setStoredId("current_enrollment_id", placeholder);
+              setConfirmedEnrollmentId(placeholder);
             }
           } catch (_) { /* 404 = no NR row yet */ }
           if (!foundNr && !cancelled) {
@@ -1647,7 +1673,7 @@ export default function BirthResuscitationForm() {
     };
     fetch();
     return () => { cancelled = true; };
-  },[screeningId]); // eslint-disable-line
+  },[screeningId, babyNumber]); // eslint-disable-line
 
   /* ── Baby UID duplicate check (same site / screening prefix) ── */
   useEffect(() => {
@@ -1660,7 +1686,7 @@ export default function BirthResuscitationForm() {
     let eid = String(formData.enrollment_id || confirmedEnrollmentId || getStoredId("current_enrollment_id") || "").trim();
     if (!isUsableEnrollmentId(eid)) {
       if (formData.required_resuscitation === "No" || formData.randomised === "No") {
-        eid = `NR-${sid}`;
+        eid = nrId(sid);
       } else {
         eid = "";
       }
@@ -1801,6 +1827,43 @@ export default function BirthResuscitationForm() {
                     <label>3. Mother's First Name</label>
                     <input value={formData.mother_name_first} readOnly className="readonly-input"/>
                   </div>
+                </div>
+                {/* Twins / triplets (PI 2026-10-29): one Form B per baby, each
+                    randomised with its own envelope; Form A is the mother's. */}
+                <div className="form-grid-3">
+                  <div className="form-group">
+                    <label>Number of babies born to this mother</label>
+                    <select name="number_of_babies" value={String(formData.number_of_babies || "1")}
+                      disabled={!isFieldEditable}
+                      onChange={e => set({ number_of_babies: e.target.value })}>
+                      {[["1", "1 (single baby)"], ["2", "2 (twins)"], ["3", "3 (triplets)"], ["4", "4 (quadruplets)"]]
+                        .filter(([v]) => Number(v) >= babyNumber)
+                        .map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                    </select>
+                  </div>
+                  {Number(formData.number_of_babies) > 1 && (
+                    <div className="form-group" style={{ gridColumn: "span 2" }}>
+                      <label>This form is for baby {babyNumber} of {formData.number_of_babies}</label>
+                      <div className="baby-switch">
+                        {Array.from({ length: Number(formData.number_of_babies) }, (_, i) => i + 1).map(n => {
+                          const b = babies.find(x => x.baby_number === n);
+                          const here = n === babyNumber;
+                          return (
+                            <button key={n} type="button" disabled={here}
+                              className={`baby-switch-btn${here ? " is-current" : ""}${b ? "" : " is-missing"}`}
+                              title={b ? `Open baby ${n}'s Form B` : `Baby ${n}'s Form B is not entered yet`}
+                              onClick={() => navigate(n === 1 ? `/form-b/${screeningId}` : `/form-b/${screeningId}/${n}`)}>
+                              Baby {n}: {b ? (String(b.enrollment_id).startsWith("NR-") ? "not randomised" : b.enrollment_id)
+                                : (here ? "this form" : "+ add Form B")}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="field-hint">
+                        Each baby has its own Form B and, if randomised, its own envelope and Enrollment ID.
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="form-grid-3">
                   <div className="form-group">

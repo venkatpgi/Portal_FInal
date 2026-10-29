@@ -38,6 +38,7 @@ from html import escape
 logging.basicConfig(level=logging.WARNING)
 
 from ae_candidates import collect_ae_candidates  # noqa: E402
+from babies import baby_label, baby_no  # noqa: E402
 from ae_reference import AE_DEFINITIONS  # noqa: E402
 from ae_terms import term_of  # noqa: E402,F401  (AE-form row -> term; also used by the tests)
 from bpd_suggestion import INVASIVE_MODES  # noqa: E402
@@ -419,6 +420,8 @@ def _load(db, sites: list[str], now: datetime) -> list[dict]:
                             "helper_days": helper_days}, now)
         babies.append({
             "enrollment_id": eid, "screening_id": br.screening_id, "site": site, "dob": dob, "ga_days": ga_days,
+            # twins / triplets (babies.py): "Twin 2 of 2", "" for a singleton
+            "baby_number": baby_no(br), "twin": baby_label(br.baby_number, br.number_of_babies),
             "birth_weight": getattr(br, "birth_weight", None),
             "end_date": end, "died": died, "candidates": cand.get("candidates") or [],
             "pending_usg": cand.get("pending_cranial_usg_findings") or [],
@@ -505,18 +508,28 @@ def build(db, scope: str, now: datetime | None = None, snapshot=None) -> dict:
             "counts": counts, "per_site": per_site, "babies": babies, "mothers": mothers}
 
 
-def pii_names(db, screening_ids) -> dict:
+def pii_names(db, screening_ids, enrollment_ids=()) -> dict:
     """{screening_id: {"baby": "Baby of <mother>", "mother": "<mother>"}} from
     participant_pii, for the portal page only (the caller checks PII rights).
-    A baby name typed on Form E wins unless it is itself "Baby of ..."."""
+    A baby name typed on Form E wins unless it is itself "Baby of ...".
+    enrollment_ids: twin 2+ (babies.py) have their own row, keyed here by
+    enrollment id (screening and enrollment ids never look alike)."""
     from models import ParticipantPII
-    ids = sorted({x for x in screening_ids if x})
+    sids = sorted({x for x in screening_ids if x})
+    eids = sorted({x for x in enrollment_ids if x})
     out = {}
-    for p in db.query(ParticipantPII).filter(ParticipantPII.screening_id.in_(ids)).all() if ids else []:
+
+    def entry(p):
         mother = " ".join(x for x in (p.mother_first_name, p.mother_surname) if x).strip() or None
         own = (p.baby_name or "").strip()
         baby = own if own and not own.lower().startswith("baby of") else (f"Baby of {mother}" if mother else own)
-        out[p.screening_id] = {"baby": baby or None, "mother": mother}
+        return {"baby": baby or None, "mother": mother}
+
+    for p in db.query(ParticipantPII).filter(ParticipantPII.screening_id.in_(sids)).all() if sids else []:
+        out[p.screening_id] = entry(p)
+    for p in db.query(ParticipantPII).filter(ParticipantPII.enrollment_id.in_(eids)).all() if eids else []:
+        if not p.screening_id:
+            out[p.enrollment_id] = entry(p)
     return out
 
 

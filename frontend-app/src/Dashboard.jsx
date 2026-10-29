@@ -57,6 +57,7 @@ const TASK_COLORS = {
   ppv_no_form_c: C.blue,
   form_i_due: C.purple,
   daily_logs_missing: C.orange,
+  multiple_no_form_b: C.red,
 };
 const QUICK_AI_QUESTIONS = [
   "What's the current trial status?",

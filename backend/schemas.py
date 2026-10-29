@@ -528,6 +528,8 @@ class BirthResuscitationCreate(BaseModel):
     is_complete: Optional[bool] = None  # web green-tick flag (see models)
     screening_id: Optional[str] = None
     enrollment_id: Optional[str] = None
+    baby_number: Optional[int] = None       # twins / triplets (babies.py)
+    number_of_babies: Optional[int] = None
 
     mother_name_first: Optional[str] = None
     mother_name_surname: Optional[str] = None

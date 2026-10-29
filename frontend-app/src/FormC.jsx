@@ -410,6 +410,10 @@ export default function FormC() {
   const [message,        setMessage]        = useState("");
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [isFormCLoaded,  setIsFormCLoaded]  = useState(false);
+  // Twins / triplets (PI 2026-10-29): a co-twin's saved Form C this baby can
+  // start from (maternal details are the same mother's), and the one chosen.
+  const [siblingFormC, setSiblingFormC] = useState(null);
+  const [copyFrom, setCopyFrom] = useState(null);
   // True after GET for this enrollment finishes (record or 404). Distinct
   // from isFormCLoaded, which means a maternal_details row already exists.
   const [isFormCFetchDone, setIsFormCFetchDone] = useState(false);
@@ -719,6 +723,27 @@ export default function FormC() {
           const resC = await api.get(`/maternal-details/${enrollmentId}`);
           if (resC.data) { formCData = resC.data; setIsFormCLoaded(true); }
         } catch (_) { setIsFormCLoaded(false); }
+        setSiblingFormC(null);
+        if (!formCData && formAData?.screening_id) {
+          try {
+            const bl = await api.get(`/screenings/${formAData.screening_id}/babies`);
+            for (const b of (bl.data?.babies || [])) {
+              if (!b.enrollment_id || b.enrollment_id === enrollmentId) continue;
+              try {
+                const sib = await api.get(`/maternal-details/${b.enrollment_id}`);
+                if (sib.data) {
+                  setSiblingFormC({ enrollment_id: b.enrollment_id, baby_number: b.baby_number });
+                  if (copyFrom?.to === enrollmentId && copyFrom.from === b.enrollment_id) {
+                    // a new record for THIS baby, never the co-twin's row
+                    const { id, created_at, updated_at, explicitly_saved, is_complete, ...rest } = sib.data;
+                    formCData = { ...rest, enrollment_id: enrollmentId };
+                  }
+                  break;
+                }
+              } catch (_) { /* no Form C for that baby */ }
+            }
+          } catch (_) { /* singleton or older server */ }
+        }
         try {
           const resB = await api.get(`/birth-resuscitation/${enrollmentId}`);
           formBData = resB?.data || null;
@@ -905,7 +930,7 @@ export default function FormC() {
       }
     };
     fetchData();
-  }, [enrollmentId, isEditMode]); // eslint-disable-line
+  }, [enrollmentId, isEditMode, copyFrom]); // eslint-disable-line
 
   useEffect(() => {
     if (patientData?.dob) set({ dob: patientData.dob });
@@ -1552,6 +1577,20 @@ export default function FormC() {
               </div>
             </div>
             <FieldLogicLegend />
+            {siblingFormC && !isFormCLoaded && (
+              <div className="field-hint field-hint-auto" style={{ margin: "0 0 12px" }}>
+                {copyFrom?.to === enrollmentId
+                  ? `Copied from baby ${siblingFormC.baby_number}'s Form C (${siblingFormC.enrollment_id}). Check every answer for this baby, then save.`
+                  : `Baby ${siblingFormC.baby_number} of this mother (${siblingFormC.enrollment_id}) already has Form C.`}
+                {copyFrom?.to !== enrollmentId && (
+                  <>{" "}
+                    <button type="button" className="link-button" onClick={() => setCopyFrom({ to: enrollmentId, from: siblingFormC.enrollment_id })}>
+                      Copy its answers to this baby
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* ══════════════════════════════════════
                 C1 — IDENTIFICATION

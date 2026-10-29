@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, aliased
 
 from db import get_db
 from deps import ROLE_SITE_PI, get_current_user, is_global
-from models import AuditLog, Screening, User
+from models import AuditLog, BirthResuscitation, Screening, User
 from schemas import AuditLogOut
 
 # Keep in sync with dashboard.py ALL_SITES (site filter validation).
@@ -156,8 +156,14 @@ def patient_save_history(
         raise HTTPException(status_code=403, detail="Not authorized for this site")
 
     filters = [AuditLog.screening_id == screening_id]
-    if screening.enrollment_id:
-        filters.append(AuditLog.enrollment_id == screening.enrollment_id)
+    # every baby of this mother (twins: babies.py)
+    eids = {screening.enrollment_id} | {
+        e for (e,) in db.query(BirthResuscitation.enrollment_id)
+        .filter(BirthResuscitation.screening_id == screening_id).all()}
+    eids.discard(None)
+    eids.discard("")
+    if eids:
+        filters.append(AuditLog.enrollment_id.in_(eids))
     logs = (
         db.query(AuditLog)
         .filter(or_(*filters))

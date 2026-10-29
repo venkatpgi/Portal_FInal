@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 from deps import get_current_user
+from babies import screening_for_enrollment
 from models import ParticipantPII, Screening, User
 from pii_service import (
     can_view_pii_for_site,
@@ -24,7 +25,7 @@ def _resolve_site(
     screening_id: str | None,
 ) -> str | None:
     if enrollment_id:
-        s = db.query(Screening).filter(Screening.enrollment_id == enrollment_id).first()
+        s = screening_for_enrollment(db, enrollment_id)   # twin 2 too (babies.py)
         if s:
             return s.site_name
     if screening_id:

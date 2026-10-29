@@ -28,10 +28,17 @@ def get_site_summary(site: str | None = None, db: Session = Depends(get_db),
     scope = sites[0] if len(sites) == 1 else site_summary.ALL_SITES
     out = site_summary.build(db, scope)
     rows = out["babies"] + out["mothers"]
+    allowed = [x for x in rows if can_view_pii_for_site(current_user, x["site"])]
     names = site_summary.pii_names(
-        db, [x["screening_id"] for x in rows if can_view_pii_for_site(current_user, x["site"])])
+        db, [x["screening_id"] for x in allowed],
+        [x["enrollment_id"] for x in allowed if x.get("baby_number", 1) > 1])
     for x in out["babies"]:
-        x["name"] = names.get(x["screening_id"], {}).get("baby")
+        if x.get("baby_number", 1) > 1:   # twin 2+: its own row, never baby 1's name
+            mother = (names.get(x["screening_id"]) or {}).get("mother")
+            x["name"] = (names.get(x["enrollment_id"]) or {}).get("baby") or (
+                f"Baby of {mother}" if mother else None)
+        else:
+            x["name"] = names.get(x["screening_id"], {}).get("baby")
     for x in out["mothers"]:
         x["name"] = names.get(x["screening_id"], {}).get("mother")
     out["rules"] = site_summary.RULES

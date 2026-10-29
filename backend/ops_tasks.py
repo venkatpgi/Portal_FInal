@@ -18,6 +18,9 @@ only the first week of Helper 2. Now a form is a task only once it is due:
   survive" day).
 - daily_logs_missing: PPV baby with 2 or more days missing in Helper 2, 4
   or 5, counting Day 1 to yesterday (stopping at discharge/death).
+- multiple_no_form_b: twins / triplets (babies.py) -- Form B's "number of
+  babies", or the Log of All Births rows linked to her, say more babies than
+  she has Form B records.
 
 ROP items (rop_detected_no_form_g, rop_form_mismatch) are unchanged and
 still come from SQL / rop_consistency in routers/dashboard.py.
@@ -32,12 +35,13 @@ ACTION_LABELS = {
     "ppv_no_form_c": "PPV baby, Form C (Maternal Details) missing",
     "form_i_due": "Form I (Study Outcomes) due (≥36 wk PMA or discharged/died) but missing",
     "daily_logs_missing": "Helper 2 / 4 / 5 daily logs: 2 or more days missing",
+    "multiple_no_form_b": "Twin / triplet: Form B not entered for every baby",
     "rop_detected_no_form_g": "ROP detected on Helper 5 but Form G screening missing for that date",
     "rop_form_mismatch": "Form H vs Form G ROP mismatch (unreviewed)",
 }
 
 # Keys counted as "pending forms" / "log gaps" in the ops-summary KPIs.
-PENDING_FORM_KEYS = ("delivered_no_form_b", "ppv_no_form_c", "form_i_due")
+PENDING_FORM_KEYS = ("delivered_no_form_b", "ppv_no_form_c", "form_i_due", "multiple_no_form_b")
 LOG_GAP_KEYS = ("daily_logs_missing",)
 
 TERM_DAYS = 37 * 7
@@ -127,24 +131,36 @@ def iter_form_tasks(db, now: datetime | None = None):
                                              Screening.site_name.isnot(None), Screening.site_name != "")
                   .all())
     by_sid = {s.screening_id: s for s in screenings}
-    births = {b.screening_id: b for b in db.query(BirthResuscitation)
-              .filter(BirthResuscitation.screening_id.in_(list(by_sid))).all()} if by_sid else {}
-    logged = {sid for (sid,) in db.query(BirthLogEntry.matched_screening_id)
-              .filter(BirthLogEntry.match_status == "matched",
-                      BirthLogEntry.matched_screening_id.isnot(None)).all()}
+    babies = {}   # screening id -> every Form B of that mother (twins: babies.py)
+    for b in (db.query(BirthResuscitation).filter(BirthResuscitation.screening_id.in_(list(by_sid))).all()
+              if by_sid else []):
+        babies.setdefault(b.screening_id, []).append(b)
+    logged, logged_babies = set(), {}
+    for sid, n in (db.query(BirthLogEntry.matched_screening_id, BirthLogEntry.multiple_birth_count)
+                   .filter(BirthLogEntry.match_status == "matched",
+                           BirthLogEntry.matched_screening_id.isnot(None)).all()):
+        logged.add(sid)
+        logged_babies[sid] = max(n or 1, logged_babies.get(sid, 1))
 
     for s in screenings:
         screened_on = s.screening_datetime or s.created_at
         if isinstance(screened_on, datetime):
             screened_on = screened_on.date()
         w = {"consent_given": s.consent_given, "consent_withdrawn": bool(getattr(s, "consent_withdrawn", None)),
-             "has_form_b": s.screening_id in births, "birth_logged": s.screening_id in logged,
+             "has_form_b": s.screening_id in babies, "birth_logged": s.screening_id in logged,
              "pregnancy_outcome": getattr(s, "pregnancy_outcome", None),
              "ga_weeks": s.gestation_weeks, "ga_days": s.gestation_days, "screened_on": screened_on}
         for key, detail in woman_tasks(w, now.date()):
             yield key, s.site_name, s.screening_id, detail
+        mine = babies.get(s.screening_id, [])
+        if mine:
+            expected = max([b.number_of_babies or 1 for b in mine] + [logged_babies.get(s.screening_id, 1)])
+            if expected > len(mine):
+                yield ("multiple_no_form_b", s.site_name, s.screening_id,
+                       f"{len(mine)} of {expected} babies have Form B")
 
-    eids = [b.enrollment_id for b in births.values() if b.enrollment_id and b.required_resuscitation is True]
+    births = [b for mine in babies.values() for b in mine]
+    eids = [b.enrollment_id for b in births if b.enrollment_id and b.required_resuscitation is True]
     if not eids:
         return
     form_c = {e for (e,) in db.query(MaternalDetails.enrollment_id).filter(MaternalDetails.enrollment_id.in_(eids))}
@@ -161,7 +177,7 @@ def iter_form_tasks(db, now: datetime | None = None):
                          MetabRenalVascEyeDayLog.survived_the_day.is_(False))):
         death_day[e] = min(d, death_day.get(e, d))
 
-    for b in births.values():
+    for b in births:
         if b.enrollment_id not in helper_days:
             continue
         s = by_sid[b.screening_id]

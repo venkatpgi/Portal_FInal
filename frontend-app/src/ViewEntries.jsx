@@ -813,6 +813,7 @@ export default function ViewEntries() {
     const matchQ = !q ||
       (e.screening_id  || "").toLowerCase().includes(q) ||
       (e.enrollment_id || "").toLowerCase().includes(q) ||
+      (stageByScreening[e.screening_id]?.babies || []).some(b => (b.enrollment_id || "").toLowerCase().includes(q)) ||
       (e.site_name     || "").toLowerCase().includes(q) ||
       (e.screened_by   || "").toLowerCase().includes(q) ||
       baby.toLowerCase().includes(q) ||
@@ -821,7 +822,7 @@ export default function ViewEntries() {
     const matchSite = !siteFilter || canonicalSiteKey(e.site_name) === siteFilter;
     const matchTile = !tileFilter || tileIds.has(e.screening_id);
     return matchQ && matchSite && matchTile;
-  }), [entries, search, siteFilter, tileFilter, tileIds, piiByScreening, enrollData]);
+  }), [entries, search, siteFilter, tileFilter, tileIds, piiByScreening, enrollData, stageByScreening]);
 
   const siteOptions = useMemo(() => {
     const seen = new Map();
@@ -1011,7 +1012,14 @@ export default function ViewEntries() {
                       <td className="ve-td ve-td--baby">
                         {listNameForEntry(piiByScreening[entry.screening_id], enr) || "—"}
                       </td>
-                      <td className="ve-td ve-td--md">{entry.enrollment_id || "—"}</td>
+                      <td className="ve-td ve-td--md">
+                        {(stageByScreening[entry.screening_id]?.babies || []).length > 1
+                          ? stageByScreening[entry.screening_id].babies.map(b => (
+                              <div key={b.enrollment_id} title={`Baby ${b.baby_number} of this mother`}>
+                                <small>B{b.baby_number}</small> {String(b.enrollment_id).startsWith("NR-") ? "not randomised" : b.enrollment_id}
+                              </div>))
+                          : (entry.enrollment_id || "—")}
+                      </td>
                       <td className="ve-td ve-td--md" title={formatSiteName(entry.site_name)}>{formatSiteShort(entry.site_name)}</td>
                       <td className="ve-td ve-td--center ve-td--bold">{ga}</td>
 

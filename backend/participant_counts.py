@@ -11,9 +11,14 @@ compute_screening_status, as the screenings list does. Delivery and
 randomisation tiles come straight from Form B (birth_resuscitation), so a
 baby is counted whatever the mother's Form A says; "Randomised" is the same
 br.randomised = TRUE count the Dashboard has always called Enrolled.
+Twins / triplets (babies.py): Form A tiles count the mother once, Form B
+tiles (delivered onwards) count each baby.
 No arm is shown anywhere: allocation is not in this database (blinded).
 """
 from collections import defaultdict
+from types import SimpleNamespace
+
+from babies import baby_no
 
 from models import BirthResuscitation, Screening
 from patient_stage import followup_stage, patient_stage
@@ -42,28 +47,39 @@ def scoped_screenings(db, sites):
 
 def stage_items(db, rows):
     """[(screening row, status, stage key, Form B row or None)] for Form A rows."""
+    """One item per baby: a twin mother gives two items, the second with
+    b.first = False (so her Form A tiles are counted once)."""
     sids = [r.screening_id for r in rows if r.screening_id]
-    form_b = {}
+    form_b = defaultdict(list)
     if sids:
-        for b in (db.query(BirthResuscitation.screening_id, BirthResuscitation.required_resuscitation,
-                           BirthResuscitation.randomised)
+        for b in (db.query(BirthResuscitation.id, BirthResuscitation.screening_id, BirthResuscitation.enrollment_id,
+                           BirthResuscitation.required_resuscitation, BirthResuscitation.randomised,
+                           BirthResuscitation.baby_number)
                   .filter(BirthResuscitation.screening_id.in_(sids)).all()):
-            form_b[b.screening_id] = b
+            form_b[b.screening_id].append(b)
     out = []
     for r in rows:
-        b = form_b.get(r.screening_id)
+        babies = sorted(form_b.get(r.screening_id, []), key=lambda x: (baby_no(x), x.id)) or [None]
         status = compute_screening_status(r)
-        key = patient_stage(status, r.consent_given, r.gestation_weeks, r.gestation_days,
-                            b is not None, b.required_resuscitation if b else None,
-                            b.randomised if b else None)
-        if key == "awaiting_delivery":
-            key = followup_stage(r.pregnancy_episodes, r.pregnancy_outcome, r.consent_withdrawn) or key
-        out.append((r, status, key, b))
+        for i, row in enumerate(babies):
+            b = None if row is None else SimpleNamespace(
+                screening_id=row.screening_id, enrollment_id=row.enrollment_id,
+                required_resuscitation=row.required_resuscitation,
+                randomised=row.randomised, baby_number=baby_no(row), first=i == 0)
+            key = patient_stage(status, r.consent_given, r.gestation_weeks, r.gestation_days,
+                                b is not None, b.required_resuscitation if b else None,
+                                b.randomised if b else None)
+            if key == "awaiting_delivery":
+                key = followup_stage(r.pregnancy_episodes, r.pregnancy_outcome, r.consent_withdrawn) or key
+            out.append((r, status, key, b))
     return out
 
 
 def tile_keys(status, consent_given, stage, b):
-    """Which COUNT_KEYS tiles one Form A (+ its Form B) is counted in."""
+    """Which COUNT_KEYS tiles one Form A (+ one of its Form B) is counted in.
+    A later twin (b.first False) only adds its own Form B tiles."""
+    if b is not None and getattr(b, "first", True) is False:
+        return _form_b_keys(b)
     keys = ["screened", {
         "Eligible": "eligible",
         "Not Eligible": "not_eligible",
@@ -75,7 +91,11 @@ def tile_keys(status, consent_given, stage, b):
         keys.append("awaiting_delivery")
     if b is None:
         return keys
-    keys.append("delivered")
+    return keys + _form_b_keys(b)
+
+
+def _form_b_keys(b):
+    keys = ["delivered"]
     if b.randomised is True:
         keys.append("randomised")
     if b.required_resuscitation is True or b.randomised is True:

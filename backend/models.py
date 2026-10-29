@@ -204,6 +204,10 @@ class BirthResuscitation(Base):
 
     screening_id = Column(String, index=True)
     enrollment_id = Column(String, unique=True, index=True)
+    # Twins / triplets (PI 2026-10-29, babies.py): this baby's number under
+    # the mother's Form A and how many babies she delivered. NULL = baby 1.
+    baby_number = Column(Integer, nullable=True)
+    number_of_babies = Column(Integer, nullable=True)
 
     mother_name_first = Column(String)
     mother_name_surname = Column(String)
