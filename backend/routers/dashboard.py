@@ -267,11 +267,11 @@ SCREENING_QUERY = text(f"""
         -- stop -- can only ever be reached from a Gestation Log entry
         -- that was Reliable and within the 25+0-31+6 week window (or a
         -- direct Form A entry bypassing the log).
-        COUNT(*) AS box3,
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 THEN 1 ELSE 0 END) AS box3,
 
         -- Box 4a: screened, no exclusion flag, but GA unknown or outside
         -- the 25w0d–31w6d inclusion window.
-        SUM(CASE WHEN COALESCE(s.exclusion_present, FALSE) = FALSE
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 AND COALESCE(s.exclusion_present, FALSE) = FALSE
                  AND {_GA_OUT_OR_UNKNOWN_SQL}
             THEN 1 ELSE 0 END) AS box4a,
 
@@ -280,31 +280,31 @@ SCREENING_QUERY = text(f"""
         -- consent are the "Met exclusion criteria" sub-reasons; the IUFD
         -- line here is legacy-only (pre-2026-09-24 records where IUFD was
         -- still a Form A exclusion, not a Gestation Log outcome).
-        SUM(CASE WHEN s.exclusion_present = TRUE THEN 1 ELSE 0 END) AS box4b,
-        SUM(CASE WHEN s.exclusion_present = TRUE
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 AND s.exclusion_present = TRUE THEN 1 ELSE 0 END) AS box4b,
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 AND s.exclusion_present = TRUE
                  AND s.exclusion_reasons LIKE '%Structural anomaly%'
             THEN 1 ELSE 0 END) AS box4b_anomaly,
-        SUM(CASE WHEN s.exclusion_present = TRUE
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 AND s.exclusion_present = TRUE
                  AND s.exclusion_reasons LIKE '%Fetal hydrops%'
             THEN 1 ELSE 0 END) AS box4b_hydrops,
-        SUM(CASE WHEN s.exclusion_present = TRUE
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 AND s.exclusion_present = TRUE
                  AND s.exclusion_reasons LIKE '%Forego resuscitation%'
             THEN 1 ELSE 0 END) AS box4b_forgo_resus,
-        SUM(CASE WHEN s.exclusion_present = TRUE
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 AND s.exclusion_present = TRUE
                  AND s.exclusion_reasons LIKE '%Insufficient time%'
             THEN 1 ELSE 0 END) AS box4b_insufficient_time,
-        SUM(CASE WHEN s.exclusion_present = TRUE
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 AND s.exclusion_present = TRUE
                  AND s.exclusion_reasons LIKE '%IUFD%'
             THEN 1 ELSE 0 END) AS box4b_iufd_legacy,
 
         -- Box 5: screened, no exclusion flag, GA known and within window.
-        SUM(CASE WHEN COALESCE(s.exclusion_present, FALSE) = FALSE
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 AND COALESCE(s.exclusion_present, FALSE) = FALSE
                  AND {_GA_IN_WINDOW_SQL}
             THEN 1 ELSE 0 END) AS box5,
 
         -- Box 6: eligible (= Box 5 condition), consent not given/refused,
         -- and no Form B record exists at all.
-        SUM(CASE WHEN COALESCE(s.exclusion_present, FALSE) = FALSE
+        SUM(CASE WHEN COALESCE(br.baby_rank, 1) = 1 AND COALESCE(s.exclusion_present, FALSE) = FALSE
                  AND {_GA_IN_WINDOW_SQL}
                  AND (s.consent_given IS NULL OR s.consent_given != 'Yes')
                  AND br.enrollment_id IS NULL
@@ -328,7 +328,13 @@ SCREENING_QUERY = text(f"""
         SUM(CASE WHEN br.randomised = TRUE THEN 1 ELSE 0 END) AS box8
 
     FROM screenings s
-    LEFT JOIN birth_resuscitation br ON br.screening_id = s.screening_id
+    -- Twins / triplets (babies.py): one row per baby. Boxes 3-6 count the
+    -- mother once (her first baby's row, baby_rank 1); Boxes 7-8 count babies.
+    LEFT JOIN (
+        SELECT b.*, ROW_NUMBER() OVER (
+            PARTITION BY b.screening_id ORDER BY COALESCE(b.baby_number, 1), b.id) AS baby_rank
+        FROM birth_resuscitation b
+    ) br ON br.screening_id = s.screening_id
     WHERE s.is_deleted = FALSE
       AND s.site_name IS NOT NULL AND s.site_name != ''
     GROUP BY s.site_name
@@ -1888,9 +1894,11 @@ def _sites_for_enrollments(db: Session, enrollment_ids: list[str]) -> dict[str, 
     routers/dashboard.py is imported BY main.py, so importing back from
     main.py would be circular; this file already duplicates ALL_SITES from
     main.py's CANONICAL_SITE_ID_MAP under the same constraint."""
+    from babies import parse_nr
+    from models import BirthResuscitation
     result: dict[str, str] = {}
     plain = [e for e in enrollment_ids if e and not e.startswith("NR-")]
-    nr = [e[3:] for e in enrollment_ids if e and e.startswith("NR-")]
+    nr = {e: parse_nr(e)[0] for e in enrollment_ids if e and e.startswith("NR-")}
     if plain:
         for eid, site in (
             db.query(Screening.enrollment_id, Screening.site_name)
@@ -1898,13 +1906,23 @@ def _sites_for_enrollments(db: Session, enrollment_ids: list[str]) -> dict[str, 
             .all()
         ):
             result[eid] = site
-    if nr:
-        for sid, site in (
-            db.query(Screening.screening_id, Screening.site_name)
-            .filter(Screening.screening_id.in_(nr))
+        # twin 2+ is not on Form A: go through its own Form B (babies.py)
+        for eid, site in (
+            db.query(BirthResuscitation.enrollment_id, Screening.site_name)
+            .join(Screening, Screening.screening_id == BirthResuscitation.screening_id)
+            .filter(BirthResuscitation.enrollment_id.in_(plain))
             .all()
         ):
-            result[f"NR-{sid}"] = site
+            result.setdefault(eid, site)
+    if nr:
+        sites = dict(
+            db.query(Screening.screening_id, Screening.site_name)
+            .filter(Screening.screening_id.in_(set(nr.values())))
+            .all()
+        )
+        for eid, sid in nr.items():
+            if sid in sites:
+                result[eid] = sites[sid]
     return result
 
 

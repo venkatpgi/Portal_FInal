@@ -131,9 +131,21 @@ form — a deliberate, upfront declaration, not a reactive override.
   know which twin was born first from the data alone); a nurse fills them
   in via Edit (chapter 09 §9 has the row ids).
 
+- **Twins in the portal (PI 2026-10-29, chapter 01 "Twins"):** a birth-log
+  row links to the Form B with the **same birth order as its baby number**
+  (`birth_log_matching._pick_baby`); no such Form B yet = no enrollment id.
+  A twin's copied identity row is never a match candidate (only rows with a
+  screening id are). Dashboard task **"Twin / triplet: Form B not entered for
+  every baby"** (`multiple_no_form_b`) when Form B's number of babies, or the
+  linked birth-log rows' birth type, exceed her Form B records.
+
 ## 4. CONSORT (Trial Monitoring dashboard, Section 1)
 Code: `backend/routers/dashboard.py`. **Its module docstring is the full,
 authoritative definition of every box** — read it before changing any count.
+**Twins (2026-10-29):** Boxes 3–6 count the **mother** once (her first baby's
+Form B row, `baby_rank` 1); Boxes 7–8 count **babies**. View Entries /
+Dashboard tiles (`participant_counts.py`) likewise: Form A tiles per mother,
+Delivered onwards per baby.
 Summary:
 
 | Box | Definition (source) |

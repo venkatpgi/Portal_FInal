@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, field_validator, field_serializer, model_validator
+﻿from pydantic import BaseModel, Field, field_validator, field_serializer, model_validator
 
 from mobile_numbers import mobile_pair_errors
 from typing import Optional, List, Dict
@@ -364,6 +364,7 @@ class ScreeningCreate(BaseModel):
     hospital_admission_number: Optional[str] = None
     
     gestation_known: Optional[str] = None
+    number_of_fetuses: Optional[int] = Field(None, ge=1, le=4)   # twins / triplets (babies.py)
     gestation_weeks: int
     gestation_days: int
     gestation_method: Optional[str] = None
@@ -437,6 +438,7 @@ class ScreeningClinicalOut(BaseModel):
     screening_status: Optional[str] = None
 
     gestation_known: Optional[str] = None
+    number_of_fetuses: Optional[int] = None
     gestation_weeks: Optional[int] = None
     gestation_days: Optional[int] = None
     gestation_method: Optional[str] = None
@@ -528,6 +530,8 @@ class BirthResuscitationCreate(BaseModel):
     is_complete: Optional[bool] = None  # web green-tick flag (see models)
     screening_id: Optional[str] = None
     enrollment_id: Optional[str] = None
+    baby_number: Optional[int] = None       # twins / triplets (babies.py)
+    number_of_babies: Optional[int] = None
 
     mother_name_first: Optional[str] = None
     mother_name_surname: Optional[str] = None
@@ -2361,6 +2365,7 @@ class AdverseEventRow(BaseModel):
     severity_desc: Optional[str] = None
     grade: Optional[str] = None
     converted_to_sae: Optional[str] = None
+    row_id: Optional[str] = None   # stable row id for merging saves (list_merge.py)
 
     class Config:
         extra = "ignore"
@@ -2382,6 +2387,8 @@ class AdverseEventsCreate(BaseModel):
     has_adverse_event: Optional[bool] = None
 
     events: Optional[List[AdverseEventRow]] = None
+    # the rows as this page loaded them; None = replace the list (mobile app)
+    base_events: Optional[List[AdverseEventRow]] = None
 
     completed_by: Optional[str] = None
     designation: Optional[str] = None
@@ -2413,6 +2420,7 @@ class SAEListRow(BaseModel):
     notify_initial: Optional[str] = None
     notify_10d: Optional[str] = None
     notify_resolution: Optional[str] = None
+    row_id: Optional[str] = None   # stable row id for merging saves (list_merge.py)
 
     class Config:
         extra = "ignore"
@@ -2428,6 +2436,8 @@ class SAEListCreate(BaseModel):
 
     enrollment_id: str
     rows: Optional[List[SAEListRow]] = None
+    # the rows as this page loaded them; None = replace the list (mobile app)
+    base_rows: Optional[List[SAEListRow]] = None
     completed_by: Optional[str] = None
     designation: Optional[str] = None
     completion_date: Optional[str] = None
@@ -3096,6 +3106,7 @@ class GACheckEntryCreate(BaseModel):
     gestation_method: Optional[str] = None
     gestation_weeks: Optional[int] = None
     gestation_days: Optional[int] = None
+    number_of_fetuses: Optional[int] = Field(None, ge=1, le=4)   # 1 single ... 4 quadruplets
 
     # Request-only (not a column): the user confirmed this is a new contact
     # of a woman whose CR number is already logged.

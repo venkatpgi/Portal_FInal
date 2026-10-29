@@ -130,6 +130,7 @@ const BLANK_FORM = {
      LMP/EDD-calculation path -- new saves always send gestation_known="Yes"
      and ga_source=null; see buildPayloadFrom(). */
   gestation_method:"",
+  number_of_fetuses:"1",   /* single / twins / triplets, from the Gestation Log (2026-10-29) */
   best_ga_weeks:"", best_ga_days:"",
   lmp_date:"", edd_date:"",
   /* A3 Maternal */
@@ -339,6 +340,7 @@ export default function ScreeningForm() {
           best_ga_weeks: seed.gestation_weeks ?? "",
           best_ga_days: seed.gestation_days ?? "",
           gestation_method: seed.gestation_method || "",
+          number_of_fetuses: String(seed.number_of_fetuses || 1),
         };
         pendingGaCheckIdRef.current = seed.id ?? null;
       }
@@ -413,6 +415,7 @@ export default function ScreeningForm() {
         best_ga_weeks:      d.gestation_weeks ?? "",
         best_ga_days:       d.gestation_days  ?? "",
         gestation_method:   d.gestation_method || "",
+        number_of_fetuses:  String(d.number_of_fetuses || 1),
         /* Prefer EDD derived from LMP so a stale expected_delivery_date cannot skew GA. */
         edd_date:           (() => {
           const lmp = d.lmp_date || "";
@@ -1078,6 +1081,7 @@ export default function ScreeningForm() {
       gestation_weeks:           parseInt(fd.best_ga_weeks) || 0,
       gestation_days:            parseInt(fd.best_ga_days) || 0,
       gestation_method:          fd.gestation_method || null,
+      number_of_fetuses:         parseInt(fd.number_of_fetuses) || 1,
       lmp_date:                  fd.lmp_date ? String(fd.lmp_date).slice(0, 10) : null,
       expected_delivery_date:    eddForSave,
       ga_source:                 null,
@@ -1469,6 +1473,16 @@ export default function ScreeningForm() {
                       <option value="Fundal Height">Fundal Height</option>
                       <option value="Unknown">Method not known</option>
                     </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Pregnancy</label>
+                    <select name="number_of_fetuses" value={formData.number_of_fetuses || "1"} onChange={handleChange} disabled={!isFieldEditable}>
+                      <option value="1">Single</option>
+                      <option value="2">Twins</option>
+                      <option value="3">Triplets</option>
+                      <option value="4">Quadruplets</option>
+                    </select>
+                    <div className="field-hint">Carried from the Gestation Log; Form B starts with this many babies.</div>
                   </div>
                 </div>
 

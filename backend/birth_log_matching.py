@@ -48,7 +48,8 @@ from typing import Iterable, Optional
 
 from sqlalchemy.orm import Session
 
-from models import BirthLogEntry, GACheckEntry, ParticipantPII, Screening
+from babies import baby_no
+from models import BirthLogEntry, BirthResuscitation, GACheckEntry, ParticipantPII, Screening
 
 # Same inclusion window used by the CONSORT dashboard's _GA_IN_WINDOW_SQL
 # (backend/routers/dashboard.py) -- kept in sync manually, not imported,
@@ -120,6 +121,9 @@ def _site_candidates(db: Session, site_name: Optional[str]) -> list[dict]:
         ParticipantPII.mother_surname,
         Screening.gestation_weeks, Screening.gestation_days, Screening.created_at,
     ).outerjoin(Screening, Screening.screening_id == ParticipantPII.screening_id)
+    # The mother's own row only: a twin's baby-2 row (screening_id NULL,
+    # babies.py) carries a copy of her CR and is not a separate woman.
+    query = query.filter(ParticipantPII.screening_id.isnot(None))
     if site_name:
         query = query.filter(ParticipantPII.site_name == site_name)
     out = []
@@ -180,6 +184,25 @@ def match_against(candidates: Iterable[dict], mother_uid, mother_name, gestation
     }
 
 
+def _site_baby_ids(db: Session, site_name: Optional[str]) -> dict:
+    """{(screening id, baby number): enrollment id} for the site's Form B rows."""
+    query = db.query(BirthResuscitation.screening_id, BirthResuscitation.enrollment_id,
+                     BirthResuscitation.baby_number)
+    if site_name:
+        query = query.join(Screening, Screening.screening_id == BirthResuscitation.screening_id).filter(
+            Screening.site_name == site_name)
+    return {(sid, baby_no(n)): eid for sid, eid, n in query.all() if sid and eid}
+
+
+def _pick_baby(match: dict, birth_order, baby_ids: dict) -> dict:
+    """A twin's birth-log row links to the Form B with the same birth order
+    (baby number); none yet -> no enrollment id. Singletons are unchanged."""
+    sid = match.get("matched_screening_id")
+    if sid and birth_order:
+        match["matched_enrollment_id"] = baby_ids.get((sid, baby_no(birth_order)))
+    return match
+
+
 def _site_ga_rows(db: Session, site_name: Optional[str]) -> list:
     query = db.query(GACheckEntry.mother_uid, GACheckEntry.mother_name)
     if site_name:
@@ -195,11 +218,13 @@ def match_birth_log_entry(
     gestation_weeks: Optional[int],
     gestation_days: Optional[int],
     date_of_birth=None,
+    birth_order=None,
 ) -> dict:
     """Returns {"matched_screening_id", "matched_enrollment_id", "match_status", "ga_log_missing"}."""
-    return match_against(_site_candidates(db, site_name), mother_uid, mother_name,
-                         gestation_weeks, gestation_days, date_of_birth,
-                         ga_rows=_site_ga_rows(db, site_name))
+    m = match_against(_site_candidates(db, site_name), mother_uid, mother_name,
+                      gestation_weeks, gestation_days, date_of_birth,
+                      ga_rows=_site_ga_rows(db, site_name))
+    return _pick_baby(m, birth_order, _site_baby_ids(db, site_name))
 
 
 _MATCH_FIELDS = ("matched_screening_id", "matched_enrollment_id", "match_status", "ga_log_missing")
@@ -223,10 +248,11 @@ def refresh_birth_log_matches(db: Session, site_names: Optional[Iterable[str]] =
         by_site.setdefault(e.site_name, []).append(e)
     changed = 0
     for site, rows in by_site.items():
-        cands, ga_rows = _site_candidates(db, site), _site_ga_rows(db, site)
+        cands, ga_rows, baby_ids = _site_candidates(db, site), _site_ga_rows(db, site), _site_baby_ids(db, site)
         for e in rows:
-            m = match_against(cands, e.mother_uid, e.mother_name, e.gestation_weeks,
-                              e.gestation_days, e.date_of_birth, ga_rows=ga_rows)
+            m = _pick_baby(match_against(cands, e.mother_uid, e.mother_name, e.gestation_weeks,
+                                         e.gestation_days, e.date_of_birth, ga_rows=ga_rows),
+                           e.birth_order, baby_ids)
             if any(getattr(e, f) != m[f] for f in _MATCH_FIELDS):
                 for f in _MATCH_FIELDS:
                     setattr(e, f, m[f])

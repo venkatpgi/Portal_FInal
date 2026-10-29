@@ -69,20 +69,50 @@ Gestation Log entry ──(Continue to Form A)──► Form A  screening_id 01-
   `required_resuscitation = False` and no id was typed
   (`main.resolve_birth_enrollment_id`).
 
+### Twins, triplets and more (`backend/babies.py`, PI 2026-10-29)
+- Form A is the **mother** (one screening id; her consent covers all her
+  babies). **Each baby has its own Form B** with `baby_number` (1, 2, 3 …) and
+  `number_of_babies` (kept the same on every Form B of that mother). NULL
+  `baby_number` = baby 1 (every record saved before this change).
+- Each baby is randomised **independently with its own envelope** (PI), so a
+  randomised twin types its own enrollment id. A baby not randomised gets
+  `NR-<screening id>` as baby 1 and **`NR-<screening id>-<n>`** from baby 2.
+- Web address: `/form-b/<screening id>/<n>`; `/form-b/<screening id>` = baby 1.
+  The page is remounted per baby (`App.js` `BirthResuscitationPerBaby`).
+- Form B is saved by **mother + baby number**: a second save of baby 2 updates
+  baby 2, never baby 1. Refused: an enrollment id already used by another baby
+  of the mother (409), a baby number already saved under another id (409),
+  baby n of fewer than n babies (422). A baby first saved as not randomised
+  and then randomised keeps its one row (renamed to the new id) unless forms
+  after Form B were already saved under the NR id (409).
+- `screenings.enrollment_id` keeps pointing at **baby 1** (the mobile app reads
+  it). **To find the mother of any baby use `babies.screening_for_enrollment`**
+  (through the baby's own Form B); every site check and site lookup does
+  (`require_enrollment_access`, `site_for_enrollment`, PII router, enrollment
+  status, audit page, SAE context, helper record lists, dashboard).
+- Identity: the mother's `participant_pii` row (keyed by screening id) belongs
+  to baby 1. Baby 2+ gets its own row keyed by its enrollment id only, seeded
+  once with the mother's details (`pii_service.seed_sibling_pii`), so its
+  Form D/E baby name never overwrites baby 1's.
+- `GET /screenings/{screening_id}/babies` lists them (Form B switcher, sidebar
+  switcher, Form C "copy from baby n").
+- Mobile app: no baby number yet, so its saves are baby 1 (as before). A
+  second twin is entered on the web until the app is updated (Harsh).
+
 ### Form A ↔ Form B link (`main.link_screening_enrollment`)
 - Every Form B create/update **writes `enrollment_id` onto the screening row**
   (`screenings.enrollment_id`) and merges the Form A / Form B identity rows in
   `participant_pii`.
-- It **overwrites** — the screening always points at the *latest* Form B
-  enrollment id saved for it.
+- It **overwrites** for baby 1 only — the screening points at baby 1's latest
+  Form B enrollment id. Baby 2+ never touches Form A (see Twins above).
 
 ### Form B create (`main.create_birth_resuscitation`)
 1. Resolve the id (typed, or `NR-…`).
 2. 409 if **another patient** already owns that enrollment id
    (`find_enrollment_id_conflict`) or that baby UID (`_assert_baby_uid_unique`).
-3. Look for an existing row **with the same enrollment id** (or, for NR/no-PPV,
-   the same screening id) → update it (skipping `None` values so a partial
-   mobile save doesn't wipe the other half).
+3. Look for an existing row **with the same enrollment id**, else the same
+   mother + baby number (twins, above) → update it (skipping `None` values so
+   a partial mobile save doesn't wipe the other half).
 4. Otherwise **insert a new row**. So if the enrollment id changes between saves
    for a randomised baby (e.g. an autosave with a half-typed id), a **second
    row** is created — see chapter 09 §1.

@@ -77,7 +77,12 @@ const BLANK_FORM = {
   gestation_method: "",
   gestation_weeks: "",
   gestation_days: "",
+  number_of_fetuses: "1",
 };
+
+// Pregnancy (2026-10-29): carried to Form A and Form B's number of babies.
+const PREGNANCY_OPTIONS = [["1", "Single"], ["2", "Twins"], ["3", "Triplets"], ["4", "Quadruplets"]];
+const PREGNANCY_LABEL = Object.fromEntries(PREGNANCY_OPTIONS);
 
 export const GA_CHECK_SEED_KEY = "ga_check_seed";
 
@@ -295,6 +300,7 @@ export default function GACheckLog() {
       gestation_method: isReliable ? (form.gestation_method || null) : null,
       gestation_weeks: isReliable && form.gestation_weeks !== "" ? Number(form.gestation_weeks) : null,
       gestation_days: isReliable && form.gestation_days !== "" ? Number(form.gestation_days) : null,
+      number_of_fetuses: form.found_iufd ? null : Number(form.number_of_fetuses || 1),
     };
     try {
       const res = editingId
@@ -325,6 +331,7 @@ export default function GACheckLog() {
       gestation_weeks: entry.gestation_weeks ?? "",
       gestation_days: entry.gestation_days ?? "",
       gestation_method: entry.gestation_method || "",
+      number_of_fetuses: entry.number_of_fetuses ?? "",
     }));
     setLastResult(null);
     navigate("/form-a");
@@ -354,6 +361,7 @@ export default function GACheckLog() {
       gestation_method: entry.found_iufd ? "" : (entry.gestation_method || ""),
       gestation_weeks: entry.found_iufd || entry.ga_source !== RELIABLE_SOURCE ? "" : (entry.gestation_weeks ?? ""),
       gestation_days: entry.found_iufd || entry.ga_source !== RELIABLE_SOURCE ? "" : (entry.gestation_days ?? ""),
+      number_of_fetuses: String(entry.number_of_fetuses || 1),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -538,6 +546,13 @@ export default function GACheckLog() {
               <input type="number" min="0" max="6" placeholder="days" value={form.gestation_days} onChange={(e) => setField("gestation_days", e.target.value)} disabled={!isReliable} />
             </div>
           </label>
+          <label className="gac-field">
+            <span>Pregnancy</span>
+            <select value={form.number_of_fetuses} onChange={(e) => setField("number_of_fetuses", e.target.value)}
+              disabled={form.found_iufd}>
+              {PREGNANCY_OPTIONS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+            </select>
+          </label>
           <label className="gac-field gac-field--iufd">
             <span>&nbsp;</span>
             <span className="gac-checkbox-row">
@@ -646,6 +661,9 @@ export default function GACheckLog() {
                     <td>{METHOD_LABELS[e.gestation_method] || e.gestation_method || "—"}</td>
                     <td>
                       {e.gestation_weeks != null ? `${e.gestation_weeks}w ${e.gestation_days ?? 0}d` : "—"}
+                      {e.number_of_fetuses > 1 && (
+                        <div><span className="gac-badge">{PREGNANCY_LABEL[String(e.number_of_fetuses)] || `${e.number_of_fetuses} babies`}</span></div>
+                      )}
                       {e.current_ga_days != null && e.live_status !== "delivered" && (
                         <div className="gac-now-ga">now {fmtGa(e.current_ga_days)}</div>
                       )}

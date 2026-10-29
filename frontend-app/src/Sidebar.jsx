@@ -242,6 +242,41 @@ export default function Sidebar({ currentForm }) {
     return () => { active = false; window.removeEventListener('portal-mml-saved', onSaved); };
   }, [enrollmentId, location.pathname]);
 
+  // Twins / triplets (PI 2026-10-29): every baby of this mother, so the
+  // Form B link opens the right baby and a switcher can change baby.
+  const [family, setFamily] = useState({ sid: null, total: 1, babies: [] });
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      let sid = screeningId;
+      if (!sid && enrollmentId) {
+        try { sid = (await api.get(`/screenings/by-enrollment/${enrollmentId}`)).data?.screening_id || null; }
+        catch (_) { sid = null; }
+      }
+      if (!sid) { if (active) setFamily({ sid: null, total: 1, babies: [] }); return; }
+      try {
+        const r = await api.get(`/screenings/${sid}/babies`);
+        if (active) setFamily({ sid, total: r.data?.number_of_babies || 1, babies: r.data?.babies || [] });
+      } catch (_) { if (active) setFamily({ sid, total: 1, babies: [] }); }
+    };
+    load();
+    return () => { active = false; };
+  }, [screeningId, enrollmentId, location.pathname]);
+  const formBMatch = location.pathname.match(/^\/form-b\/[^/]+\/(\d+)/);
+  const currentBaby = (family.babies.find(b => b.enrollment_id === enrollmentId) || {}).baby_number
+    || (formBMatch ? Number(formBMatch[1]) : 1);
+  const openBaby = (n) => {
+    const b = family.babies.find(x => x.baby_number === n);
+    if (b && b.enrollment_id) localStorage.setItem('current_enrollment_id', b.enrollment_id);
+    else localStorage.removeItem('current_enrollment_id');
+    if (family.sid) localStorage.setItem('current_screening_id', family.sid);
+    window.dispatchEvent(new Event('storage'));
+    const meta = SECTIONS.flatMap(sec => sec.items).find(i => i.id === currentForm);
+    const stayOnForm = b && b.enrollment_id && meta && !['form_a', 'form_b'].includes(meta.id);
+    guardedNavigate(null, stayOnForm ? `${meta.path}/${b.enrollment_id}`
+      : (n === 1 ? `/form-b/${family.sid}` : `/form-b/${family.sid}/${n}`));
+  };
+
   const [enrollmentLocked, setEnrollmentLocked] = useState(
     localStorage.getItem('enrollment_locked') === 'true'
   );
@@ -337,9 +372,13 @@ export default function Sidebar({ currentForm }) {
     const sid = ids.screeningId  && ids.screeningId  !== 'undefined' ? ids.screeningId  : null;
     const rawEid = ids.enrollmentId && ids.enrollmentId !== 'undefined' ? ids.enrollmentId : null;
     const eid = isUsableEnrollmentId(rawEid) ? String(rawEid).trim() : null;
-    if (form.id === 'form_a') return sid ? `/form-a/${sid}` : '/form-a';
-    // /form-b/:screeningId only — bare /form-b is handled by ScreeningFormRedirect.
-    if (form.id === 'form_b') return sid ? `/form-b/${sid}` : null;
+    const motherSid = sid || family.sid;
+    if (form.id === 'form_a') return motherSid ? `/form-a/${motherSid}` : '/form-a';
+    // /form-b/:screeningId[/:babyNumber] — bare /form-b is handled by ScreeningFormRedirect.
+    if (form.id === 'form_b') {
+      if (!motherSid) return null;
+      return currentBaby > 1 ? `/form-b/${motherSid}/${currentBaby}` : `/form-b/${motherSid}`;
+    }
     // Routes are /form-c/:enrollmentId etc. — bare /form-c does not match any route (blank page).
     return eid ? `${form.path}/${eid}` : null;
   };
@@ -510,6 +549,27 @@ export default function Sidebar({ currentForm }) {
             <span>Log of All Births</span>
           </NavLink>
           <div className="sidebar-sep" />
+
+          {family.total > 1 && (
+            <div className="sidebar-babies" aria-label="Babies of this mother">
+              <span className="sidebar-babies-title">
+                {({ 2: 'Twins', 3: 'Triplets', 4: 'Quadruplets' })[family.total] || 'Babies'} · mother {family.sid}
+              </span>
+              <div className="sidebar-babies-row">
+                {Array.from({ length: family.total }, (_, i) => i + 1).map(n => {
+                  const b = family.babies.find(x => x.baby_number === n);
+                  const label = !b ? 'no Form B' : String(b.enrollment_id).startsWith('NR-') ? 'not randomised' : b.enrollment_id;
+                  return (
+                    <button key={n} type="button"
+                      className={`sidebar-baby-btn${n === currentBaby ? ' is-current' : ''}${b ? '' : ' is-missing'}`}
+                      onClick={() => openBaby(n)} title={`Baby ${n}: ${label}`}>
+                      Baby {n}<small>{label}</small>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {!isProgressLoaded ? (
             <div className="sidebar-loading">

@@ -644,3 +644,22 @@
     width: min(300px, 92vw);
   }
 }
+
+/* ─── TWINS / TRIPLETS BABY SWITCHER (PI 2026-10-29) ─── */
+.sidebar-babies {
+  margin: 0 2px 12px; padding: 8px; border: 1px solid var(--sb-primary-lt);
+  border-radius: 8px; background: var(--sb-primary-bg);
+}
+.sidebar-babies-title {
+  display: block; font-size: 10px; font-weight: 700; color: var(--sb-text-sub);
+  text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 6px;
+}
+.sidebar-babies-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.sidebar-baby-btn {
+  flex: 1 1 0; min-width: 72px; display: flex; flex-direction: column; align-items: flex-start;
+  padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 700;
+  border: 1px solid var(--sb-primary-lt); background: var(--sb-bg); color: var(--sb-text-main);
+}
+.sidebar-baby-btn small { font-size: 10px; font-weight: 500; color: var(--sb-text-sub); }
+.sidebar-baby-btn.is-current { border-color: var(--sb-primary); box-shadow: inset 0 0 0 1px var(--sb-primary); }
+.sidebar-baby-btn.is-missing small { color: #b45309; }

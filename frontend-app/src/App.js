@@ -1,7 +1,7 @@
 // src/App.js
 
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation, useParams } from "react-router-dom";
 import { Activity, ClipboardList, FileSpreadsheet, HeartPulse, Home, Hospital, Plus, Search, Users } from "lucide-react";
 
 import { FormProgressProvider } from "./context/FormProgressContext";
@@ -63,6 +63,12 @@ import {
 
 import "./App.css";
 import "./styles/UnifiedForms.css";
+
+// Twins / triplets: a fresh Form B per baby (same page, new state).
+function BirthResuscitationPerBaby() {
+  const { screeningId, babyNumber } = useParams();
+  return <BirthResuscitation key={`${screeningId}/${babyNumber || 1}`} />;
+}
 
 
 function AppContent() {
@@ -294,7 +300,8 @@ function AppContent() {
                           }
                         />
                       ))}
-                      <Route path="/form-b/:screeningId" element={<ProtectedRoute><FormLayout currentForm="form_b"><BirthResuscitation /></FormLayout></ProtectedRoute>} />
+                      <Route path="/form-b/:screeningId" element={<ProtectedRoute><FormLayout currentForm="form_b"><BirthResuscitationPerBaby /></FormLayout></ProtectedRoute>} />
+                      <Route path="/form-b/:screeningId/:babyNumber" element={<ProtectedRoute><FormLayout currentForm="form_b"><BirthResuscitationPerBaby /></FormLayout></ProtectedRoute>} />
                       {ENROLLMENT_ID_FORM_REDIRECTS.map(({ basePath, currentForm, label }) => (
                         <Route
                           key={basePath}

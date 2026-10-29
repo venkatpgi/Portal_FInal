@@ -5,6 +5,11 @@ export const COMPLETE_ENROLLMENT_RE = /^\d{2}-[A-D]-\d{3}$/;
 export const isNrEnrollmentId = (value) =>
   /^NR-.+/i.test(String(value || "").trim());
 
+/** NR- placeholder of baby n of one mother (twins: baby 1 = NR-<sid>,
+ *  baby 2 = NR-<sid>-2; backend babies.nr_enrollment_id). */
+export const nrEnrollmentId = (screeningId, babyNumber = 1) =>
+  Number(babyNumber) > 1 ? `NR-${screeningId}-${Number(babyNumber)}` : `NR-${screeningId}`;
+
 /** Safe to persist, route on, and use as Form C/D/E key. */
 export const isUsableEnrollmentId = (value) => {
   const v = String(value || "").trim();

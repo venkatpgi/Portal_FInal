@@ -9,7 +9,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from models import ParticipantPII, Screening
+from models import BirthResuscitation, ParticipantPII, Screening
 
 # Who may see participant identity (explicit list: access hierarchy SOP 1 Oct
 # 2026, PI 2026-10-15). All sites: Global PI, Overall Project Scientist
@@ -141,6 +141,12 @@ def _collapse_pii_duplicates(
     return keep
 
 
+def _later_baby(db: Session, enrollment_id: str) -> bool:
+    n = (db.query(BirthResuscitation.baby_number)
+         .filter(BirthResuscitation.enrollment_id == enrollment_id).scalar())
+    return n is not None and n > 1
+
+
 def upsert_participant_pii(
     db: Session,
     *,
@@ -149,6 +155,8 @@ def upsert_participant_pii(
     site_name: str | None = None,
     **fields: Any,
 ) -> ParticipantPII:
+    if enrollment_id and screening_id and _later_baby(db, enrollment_id):
+        screening_id = None  # twin 2+: never merge into the mother's (baby 1's) row
     by_enrollment = None
     by_screening = None
     if enrollment_id:
@@ -290,6 +298,27 @@ def pii_to_dict(record: ParticipantPII | None) -> dict | None:
     }
 
 
+_SIBLING_SKIP = {"id", "enrollment_id", "screening_id", "baby_name", "created_at", "updated_at"}
+
+
+def seed_sibling_pii(db: Session, screening_id: str, enrollment_id: str) -> ParticipantPII | None:
+    """Twin / triplet baby 2+ (babies.py): its own identity row, keyed by its
+    enrollment id only (screening_id is unique and belongs to the mother's
+    row), with the mother's details copied once so pages that look a baby up
+    by enrollment id still show the mother. The baby name is never copied."""
+    row = db.query(ParticipantPII).filter(ParticipantPII.enrollment_id == enrollment_id).first()
+    if row is not None:
+        return row
+    mother = db.query(ParticipantPII).filter(ParticipantPII.screening_id == screening_id).first()
+    row = ParticipantPII(enrollment_id=enrollment_id, created_at=utc_now(), updated_at=utc_now())
+    if mother is not None:
+        for col in ParticipantPII.__table__.columns:
+            if col.name not in _SIBLING_SKIP:
+                setattr(row, col.name, getattr(mother, col.name))
+    db.add(row)
+    return row
+
+
 def get_pii_for_participant(
     db: Session,
     *,
@@ -310,6 +339,10 @@ def get_pii_for_participant(
             .filter(ParticipantPII.screening_id == screening_id)
             .first()
         )
+    # Twin / triplet baby 2+: the mother's row belongs to baby 1, so this
+    # baby's own row wins (its baby name is its own).
+    if by_enrollment and by_screening and by_screening.enrollment_id not in (None, enrollment_id):
+        return by_enrollment
     # Prefer Form A (screening-keyed) identity when two rows still exist;
     # Form B save will collapse them. Do not return the enrollment-only stub
     # and hide the mother's Form A name / UID.

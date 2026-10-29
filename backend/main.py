@@ -5,7 +5,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from rate_limit import get_real_client_ip
 from sqlalchemy.orm import Session
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time, timedelta, timezone
 import random, string
 import json
 import re
@@ -16,6 +16,13 @@ from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from db import Base, engine, SessionLocal, get_db
 from models import SteroidData
 import models
+from babies import (
+    MAX_BABIES, baby_label, baby_no, babies_of, enrollments_by_screening, nr_enrollment_id,
+    screening_for_enrollment,
+)
+from list_merge import MergeConflict, merge_rows, with_row_ids
+from models import AuditLog
+from clinical_time import CLINICAL_TZ
 from ae_reference import (
     detect_metab_renal_vasc_eye_candidates,
     detect_form_h_morbidity_candidates,
@@ -74,7 +81,7 @@ from models import (
     CranialUSGRecord, SAEReport, AdverseEvents,
     SAEList, User, MRIBrainAssessment, BlenderStudySummary, ParticipantPII, BirthLogEntry, GACheckEntry
 )
-from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, PregnancyFollowUpUpdate, BirthResuscitationCreate,MetabRenalVascEyeDayCreate, MetabRenalVascEyeDaySubmit, MinimalMonitoringDayCreate, MinimalMonitoringDayOut, BirthResuscitationOut, MaternalDetailsCreate, MaternalDetailsOut, PostnatalDay1Create, PostnatalDay1Out,NICUAdmissionCreate,NICUAdmissionOut,NeonatalMorbiditiesCreate,NeonatalMorbiditiesOut,StudyOutcomesCreate, CranialUSGCreate, CranialUSGSubmit, StudyOutcomesOut,CranialUltrasoundCreate, CranialUltrasoundOut,ROPScreeningCreate, ROPScreeningOut,CompositeOutcomeCreate, CompositeOutcomeOut, ExternalHospitalAssessmentCreate, ExternalHospitalAssessmentOut, FiO2AUCLogCreate, FiO2AUCLogOut, RespCVNeuroLogCreate,RespCVNeuroDayCreate, RespCVNeuroDaySubmit, DischargeUpdate, RespCVNeuroLogOut,InfectGIHemaLogCreate, InfectGIHemaLogOut,MetabRenalVascEyeLogCreate,MetabRenalVascEyeLogOut,SAEReportCreate, SAEReportOut, AdverseEventsCreate, AdverseEventsOut ,SAEListCreate, SAEListOut, UserCreate, UserUpdate, UserOut, UserRosterOut, SitePiContactOut, LoginRequest, LoginResponse, RefreshTokenRequest, TokenRefreshResponse, RespiratoryLogCreate, RespiratoryLogBulkCreate, InfectGIHemaDayCreate, InfectGIHemaDaySubmit,  SteroidDataCreate, FirebaseScreeningImportCreate, MRIBrainCreate, MRIBrainSubmit, MRIBrainOut, BlenderSummaryCreate, BlenderSummarySubmit, BlenderSummaryOut, HelperFormRecordOut, HelperFormRecordsPage, BirthLogEntryCreate, BirthLogEntryOut, GACheckEntryCreate, GACheckEntryOut, GACheckLinkRequest
+from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, PregnancyFollowUpUpdate, BirthResuscitationCreate,MetabRenalVascEyeDayCreate, MetabRenalVascEyeDaySubmit, MinimalMonitoringDayCreate, MinimalMonitoringDayOut, BirthResuscitationOut, MaternalDetailsCreate, MaternalDetailsOut, PostnatalDay1Create, PostnatalDay1Out,NICUAdmissionCreate,NICUAdmissionOut,NeonatalMorbiditiesCreate,NeonatalMorbiditiesOut,StudyOutcomesCreate, CranialUSGCreate, CranialUSGSubmit, StudyOutcomesOut,CranialUltrasoundCreate, CranialUltrasoundOut,ROPScreeningCreate, ROPScreeningOut,CompositeOutcomeCreate, CompositeOutcomeOut, ExternalHospitalAssessmentCreate, ExternalHospitalAssessmentOut, FiO2AUCLogCreate, FiO2AUCLogOut, RespCVNeuroLogCreate,RespCVNeuroDayCreate, RespCVNeuroDaySubmit, DischargeUpdate, RespCVNeuroLogOut,InfectGIHemaLogCreate, InfectGIHemaLogOut,MetabRenalVascEyeLogCreate,MetabRenalVascEyeLogOut,SAEReportCreate, SAEReportOut, AdverseEventsCreate, AdverseEventsOut ,SAEListCreate, SAEListOut, AdverseEventRow, SAEListRow, UserCreate, UserUpdate, UserOut, UserRosterOut, SitePiContactOut, LoginRequest, LoginResponse, RefreshTokenRequest, TokenRefreshResponse, RespiratoryLogCreate, RespiratoryLogBulkCreate, InfectGIHemaDayCreate, InfectGIHemaDaySubmit,  SteroidDataCreate, FirebaseScreeningImportCreate, MRIBrainCreate, MRIBrainSubmit, MRIBrainOut, BlenderSummaryCreate, BlenderSummarySubmit, BlenderSummaryOut, HelperFormRecordOut, HelperFormRecordsPage, BirthLogEntryCreate, BirthLogEntryOut, GACheckEntryCreate, GACheckEntryOut, GACheckLinkRequest
 from pydantic import BaseModel
 from typing import Optional, List
 from deps import (
@@ -135,6 +142,7 @@ from pii_service import (
     extract_screening_pii,
     clear_screening_pii_columns,
     split_and_store_pii,
+    seed_sibling_pii as _seed_sibling_pii,
     migrate_legacy_pii,
     upsert_participant_pii,
     get_pii_for_participant,
@@ -184,6 +192,24 @@ app.include_router(reports_router.router)
 app.include_router(site_summary_router.router)
 
 
+def _backfill_row_ids() -> None:
+    """Give every AE-form and SAE-list row a row_id once (list_merge.py).
+    One worker does it (advisory lock); the other skips."""
+    with SessionLocal() as db:
+        if not db.execute(text("SELECT pg_try_advisory_xact_lock(726101)")).scalar():
+            return
+        n = 0
+        for model, attr in ((AdverseEvents, "events"), (SAEList, "rows")):
+            for rec in db.query(model).all():
+                rows = getattr(rec, attr) or []
+                if isinstance(rows, list) and any(isinstance(r, dict) and not r.get("row_id") for r in rows):
+                    setattr(rec, attr, with_row_ids(rows))
+                    n += 1
+        db.commit()
+        if n:
+            logger.info("Assigned row ids on %s AE / SAE list record(s)", n)
+
+
 @app.on_event("startup")
 def on_startup_migrations():
     #  -  DB connectivity check with retry (safe for AWS RDS cold start)  - 
@@ -205,6 +231,11 @@ def on_startup_migrations():
         apply_schema_patches(engine)
     except Exception as exc:
         logger.warning("Schema patches skipped: %s", exc)
+
+    try:
+        _backfill_row_ids()
+    except Exception as exc:
+        logger.warning("Row id backfill skipped: %s", exc)
 
     try:
         from crypto import _get_fernet
@@ -503,16 +534,8 @@ def require_enrollment_access(enrollment_id: str, db: Session, user: User):
             status_code=422,
             detail="enrollment_id is required — this form can't be saved until randomization assigns one.",
         )
-    eid = enrollment_id.strip()
-    # Non-randomised / no-PPV placeholder IDs: NR-{screening_id}
-    if eid.startswith("NR-"):
-        screening = db.query(Screening).filter(
-            Screening.screening_id == eid[3:]
-        ).first()
-        if screening:
-            ensure_same_site(screening.site_name, user)
-        return
-    screening = db.query(Screening).filter(Screening.enrollment_id == eid).first()
+    # Any baby (twin 2 too, NR- placeholders included) -> the mother's Form A
+    screening = screening_for_enrollment(db, enrollment_id)
     if screening:
         ensure_same_site(screening.site_name, user)
 
@@ -520,26 +543,67 @@ def require_enrollment_access(enrollment_id: str, db: Session, user: User):
 def site_for_enrollment(db: Session, enrollment_id: str | None) -> str | None:
     if not enrollment_id:
         return None
-    eid = enrollment_id.strip()
-    if eid.startswith("NR-"):
-        screening = db.query(Screening).filter(
-            Screening.screening_id == eid[3:]
-        ).first()
-        return screening.site_name if screening else None
-    screening = db.query(Screening).filter(Screening.enrollment_id == eid).first()
+    screening = screening_for_enrollment(db, enrollment_id)
     return screening.site_name if screening else None
 
 
 def resolve_birth_enrollment_id(data) -> str | None:
-    """Return enrollment_id, auto-assigning NR-{screening_id} for non-randomised / no-PPV."""
+    """Return enrollment_id, auto-assigning NR-{screening_id} (baby 1) or
+    NR-{screening_id}-{n} (baby n of a twin/triplet) for non-randomised / no-PPV."""
     eid = (data.enrollment_id or "").strip() if data.enrollment_id else ""
     if eid:
         return eid
     if data.screening_id and (
         data.randomised is False or data.required_resuscitation is False
     ):
-        return f"NR-{data.screening_id}"
+        return nr_enrollment_id(data.screening_id, getattr(data, "baby_number", None))
     return None
+
+
+def _check_baby_number(baby_number, number_of_babies) -> None:
+    """Twins / triplets (babies.py): baby n of N, 1 <= n <= N <= MAX_BABIES."""
+    total = number_of_babies if number_of_babies is not None else None
+    if total is not None and not 1 <= total <= MAX_BABIES:
+        raise HTTPException(status_code=422, detail=f"Number of babies must be 1 to {MAX_BABIES}.")
+    if baby_number is None:
+        return
+    if not 1 <= baby_number <= MAX_BABIES:
+        raise HTTPException(status_code=422, detail=f"Baby number must be 1 to {MAX_BABIES}.")
+    if baby_number > (total or 1):
+        raise HTTPException(
+            status_code=422,
+            detail=f"This is baby {baby_number}, but the number of babies is {total or 1}. Correct the number of babies first.",
+        )
+
+
+def _screening_site(db: Session, screening_id: str | None) -> str | None:
+    if not screening_id:
+        return None
+    return db.query(Screening.site_name).filter(Screening.screening_id == screening_id).scalar()
+
+
+def _has_later_forms(db: Session, enrollment_id: str | None) -> bool:
+    """Any form after Form B saved under this id (renaming it would orphan it)."""
+    if not enrollment_id:
+        return False
+    for model in (MaternalDetails, PostnatalDay1, NICUAdmission, NeonatalMorbidities, StudyOutcomes,
+                  MinimalMonitoringDayLog, RespCVNeuroDayLog, InfectGIHemaDayLog, MetabRenalVascEyeDayLog):
+        if db.query(model.id).filter(model.enrollment_id == enrollment_id).first():
+            return True
+    return False
+
+
+def _sync_number_of_babies(db: Session, screening_id: str | None, total) -> None:
+    """The same "number of babies" on every Form B of one mother."""
+    if not screening_id or total is None:
+        return
+    changed = False
+    for b in babies_of(db, screening_id):
+        if b.number_of_babies != total:
+            b.number_of_babies = total
+            changed = True
+    if changed:
+        db.commit()
 
 
 ENROLLMENT_ID_FORMAT_HINT = "e.g. 01-A-001 (site-blender-number)"
@@ -597,7 +661,7 @@ def require_eligible_screening_for_form_b(db: Session, screening_id: str | None)
 
 
 def link_screening_enrollment(
-    db: Session, screening_id: str | None, enrollment_id: str | None
+    db: Session, screening_id: str | None, enrollment_id: str | None, baby_number=None
 ) -> None:
     """Write enrollment_id (incl. NR- placeholders) onto the screening row.
 
@@ -607,12 +671,20 @@ def link_screening_enrollment(
 
     Also keep participant_pii.enrollment_id / screening_id in sync so Form B
     identity fields (maternal UID, mother name, phones) resolve after enroll.
+
+    Twins (babies.py): only baby 1 is written onto Form A and merged with the
+    mother's identity row; baby 2+ keeps its own identity row (its baby name
+    must not overwrite baby 1's), seeded with the mother's details.
     """
     if not screening_id or not enrollment_id:
         return
     sid = str(screening_id).strip()
     eid = str(enrollment_id).strip()
     if not sid or not eid:
+        return
+    if baby_no(baby_number) > 1:
+        _seed_sibling_pii(db, sid, eid)
+        db.commit()
         return
     db.query(Screening).filter(Screening.screening_id == sid).update(
         {"enrollment_id": eid}
@@ -722,11 +794,7 @@ def list_site_roster(
     roster_site = current_user.site_name
     if enrollment_id:
         require_enrollment_access(enrollment_id, db, current_user)
-        scr = (
-            db.query(Screening)
-            .filter(Screening.enrollment_id == enrollment_id)
-            .first()
-        )
+        scr = screening_for_enrollment(db, enrollment_id)
         if scr and scr.site_name:
             roster_site = scr.site_name
     if roster_site:
@@ -1008,7 +1076,17 @@ def get_screening_stages(
     from participant_counts import stage_items
     from patient_stage import stage_payload
     rows = get_accessible_screening_query(db, current_user).all()
-    return {r.screening_id: stage_payload(key) for r, _, key, _ in stage_items(db, rows)}
+    out, babies = {}, {}
+    for r, _, key, b in stage_items(db, rows):
+        if b is None or b.first:   # a twin mother's stage = her first baby's
+            out[r.screening_id] = stage_payload(key)
+        if b is not None:
+            babies.setdefault(r.screening_id, []).append(
+                {"enrollment_id": b.enrollment_id, "baby_number": b.baby_number})
+    for sid, mine in babies.items():
+        if len(mine) > 1:   # twins / triplets: every baby, for the list and its search
+            out[sid] = {**out.get(sid, {}), "babies": mine}
+    return out
 
 
 @app.get("/screenings/summary")
@@ -1159,6 +1237,7 @@ def create_screening(
                 site_id=screening.site_id,
                 screened_by=screening.screened_by,
                 gestation_known=screening.gestation_known,
+                number_of_fetuses=screening.number_of_fetuses,
                 gestation_weeks=screening.gestation_weeks,
                 gestation_days=screening.gestation_days,
                 gestation_method=screening.gestation_method,
@@ -1531,15 +1610,51 @@ def get_screening_by_screening_id(
     mirror_consent_signature_fields(entry)
     return entry
 
+@app.get("/screenings/{screening_id}/babies")
+def list_babies_of_screening(
+    screening_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Every baby (Form B) of one mother, baby 1 first (twins: babies.py)."""
+    entry = get_accessible_screening_query(db, current_user).filter(
+        Screening.screening_id == screening_id
+    ).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Screening not found")
+    rows = babies_of(db, screening_id)
+    total = max([b.number_of_babies or 1 for b in rows] + [1])
+    # What the logs say (Form B prefills from them; Log of All Births first)
+    logged = [n for (n,) in db.query(BirthLogEntry.multiple_birth_count)
+              .filter(BirthLogEntry.matched_screening_id == screening_id).all() if n]
+    return {
+        "screening_id": screening_id,
+        "number_of_babies": total,
+        "log_of_births_babies": max(logged) if logged else None,
+        "pregnancy_babies": entry.number_of_fetuses,   # Gestation Log -> Form A
+        "babies": [{
+            "enrollment_id": b.enrollment_id,
+            "baby_number": baby_no(b),
+            "number_of_babies": b.number_of_babies or total,
+            "label": baby_label(baby_no(b), total),
+            "randomised": b.randomised,
+            "required_resuscitation": b.required_resuscitation,
+            "date_of_birth": b.date_of_birth,
+            "is_complete": b.is_complete,
+        } for b in rows],
+    }
+
+
 @app.get("/screenings/by-enrollment/{enrollment_id}", response_model=ScreeningClinicalOut)
 def get_screening_by_enrollment(
     enrollment_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    mother = screening_for_enrollment(db, enrollment_id)   # twin 2 too (babies.py)
     entry = get_accessible_screening_query(db, current_user).filter(
-        Screening.enrollment_id == enrollment_id
-    ).first()
+        Screening.screening_id == mother.screening_id
+    ).first() if mother else None
 
     if not entry:
         raise HTTPException(status_code=404, detail="Screening not found")
@@ -1647,12 +1762,14 @@ def create_birth_resuscitation(
     # record really was saved, but res.data.enrollment_id came back
     # missing/malformed from this endpoint's response, so the browser never
     # got the ID to store for the next screen.
+    _check_baby_number(data.baby_number, data.number_of_babies)
     enrollment_id = resolve_birth_enrollment_id(data)
     require_enrollment_access(enrollment_id, db, current_user)
     require_valid_enrollment_id_format(enrollment_id)
     require_eligible_screening_for_form_b(db, data.screening_id)
     # Re-bind so payload / DB row use the resolved id (incl. NR- placeholders).
     data = data.model_copy(update={"enrollment_id": enrollment_id})
+    this_baby = baby_no(data.baby_number)
     eid_conflict = find_enrollment_id_conflict(db, enrollment_id, data.screening_id)
     if eid_conflict:
         raise HTTPException(
@@ -1672,24 +1789,40 @@ def create_birth_resuscitation(
             data.model_dump(exclude_unset=True),
             BIRTH_PII_FIELDS,
             enrollment_id=enrollment_id,
-            screening_id=data.screening_id,
-            site_name=site_for_enrollment(db, enrollment_id),
+            # twin 2+ keeps its own identity row (babies.py)
+            screening_id=data.screening_id if this_baby == 1 else None,
+            site_name=site_for_enrollment(db, enrollment_id) or _screening_site(db, data.screening_id),
         )
         existing = (
             db.query(BirthResuscitation)
             .filter(BirthResuscitation.enrollment_id == enrollment_id)
             .first()
         )
-        # Non-randomised / no-PPV: also match prior row by screening_id so
-        # re-saves don't create a second record if the placeholder id changes.
-        if not existing and data.screening_id and (
-            data.randomised is False or data.required_resuscitation is False
-        ):
-            existing = (
-                db.query(BirthResuscitation)
-                .filter(BirthResuscitation.screening_id == data.screening_id)
-                .first()
+        if (existing and existing.screening_id == data.screening_id
+                and data.baby_number is not None and baby_no(existing) != this_baby):
+            raise HTTPException(
+                status_code=409,
+                detail=(f"Enrollment ID '{enrollment_id}' is already baby {baby_no(existing)} of this mother "
+                        f"(screening {data.screening_id}). Each baby needs its own enrollment ID."),
             )
+        if not existing and data.screening_id:
+            # Same mother + same baby number = the same baby (twins: babies.py)
+            same_baby = [b for b in babies_of(db, data.screening_id) if baby_no(b) == this_baby]
+            if same_baby:
+                prior = same_baby[0]
+                if data.randomised is False or data.required_resuscitation is False:
+                    # Non-randomised / no-PPV re-save: keep the placeholder aligned.
+                    existing = prior
+                elif (prior.enrollment_id or "").upper().startswith("NR-") and not _has_later_forms(db, prior.enrollment_id):
+                    # Saved as not randomised first, now randomised with its own id.
+                    existing = prior
+                else:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(f"Baby {this_baby} of mother {data.screening_id} is already saved as "
+                                f"{prior.enrollment_id}. For a twin or triplet, choose the next baby number "
+                                "(\"Add baby\" on Form B); to correct this baby, open its own Form B."),
+                    )
         if existing:
             # CRITICAL FIX: previously, ANY existing record with this
             # enrollment_id got overwritten with the incoming data ?
@@ -1729,8 +1862,9 @@ def create_birth_resuscitation(
             # Always link screening ↔ birth row (randomised OR NR- placeholder)
             # so web Form B can reload mobile-synced data.
             link_screening_enrollment(
-                db, existing.screening_id, existing.enrollment_id
+                db, existing.screening_id, existing.enrollment_id, existing.baby_number
             )
+            _sync_number_of_babies(db, existing.screening_id, data.number_of_babies)
             _sync_day1_date(db, existing.enrollment_id, dob=existing.date_of_birth)
 
             return existing
@@ -1742,7 +1876,8 @@ def create_birth_resuscitation(
 
         # Always write enrollment_id back to screenings (incl. NR- ids from
         # mobile / not-randomised / no-PPV saves) so Form B reopen works.
-        link_screening_enrollment(db, entry.screening_id, entry.enrollment_id)
+        link_screening_enrollment(db, entry.screening_id, entry.enrollment_id, entry.baby_number)
+        _sync_number_of_babies(db, entry.screening_id, data.number_of_babies)
         _sync_day1_date(db, entry.enrollment_id, dob=entry.date_of_birth)
 
         return entry
@@ -1903,6 +2038,20 @@ def update_birth_resuscitation(
             ),
         )
 
+    new_baby = updated_data.baby_number if updated_data.baby_number is not None else entry.baby_number
+    _check_baby_number(
+        new_baby,
+        updated_data.number_of_babies if updated_data.number_of_babies is not None else entry.number_of_babies,
+    )
+    if baby_no(new_baby) != baby_no(entry):
+        taken = [b.enrollment_id for b in babies_of(db, entry.screening_id)
+                 if b.id != entry.id and baby_no(b) == baby_no(new_baby)]
+        if taken:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Baby {baby_no(new_baby)} of this mother is already saved as {taken[0]}.",
+            )
+
     try:
         update_data = updated_data.model_dump(exclude_unset=True)
         update_data.pop("enrollment_id", None)
@@ -1911,7 +2060,8 @@ def update_birth_resuscitation(
             update_data,
             BIRTH_PII_FIELDS,
             enrollment_id=enrollment_id,
-            screening_id=updated_data.screening_id,
+            # twin 2+ keeps its own identity row (babies.py)
+            screening_id=updated_data.screening_id if baby_no(new_baby) == 1 else None,
             site_name=site_for_enrollment(db, enrollment_id),
         )
 
@@ -1931,7 +2081,8 @@ def update_birth_resuscitation(
         db.refresh(entry)
 
         # Keep screenings.enrollment_id in sync for randomised and NR- rows.
-        link_screening_enrollment(db, entry.screening_id, entry.enrollment_id)
+        link_screening_enrollment(db, entry.screening_id, entry.enrollment_id, entry.baby_number)
+        _sync_number_of_babies(db, entry.screening_id, updated_data.number_of_babies)
         _sync_day1_date(db, entry.enrollment_id, dob=entry.date_of_birth)
 
         return entry
@@ -5868,7 +6019,7 @@ def _assemble_sae_context(db, enrollment_id, record, current_user):
 
     site_code = (record.site or "").strip()
     if not site_code:
-        scr = db.query(Screening).filter(Screening.enrollment_id == enrollment_id).first()
+        scr = screening_for_enrollment(db, enrollment_id)
         site_code = (scr.site_name or "").strip() if scr else ""
 
     br = (
@@ -5876,7 +6027,7 @@ def _assemble_sae_context(db, enrollment_id, record, current_user):
         .filter(BirthResuscitation.enrollment_id == enrollment_id)
         .first()
     )
-    scr = db.query(Screening).filter(Screening.enrollment_id == enrollment_id).first()
+    scr = screening_for_enrollment(db, enrollment_id)
     nicu = (
         db.query(NICUAdmission)
         .filter(NICUAdmission.enrollment_id == enrollment_id)
@@ -5984,7 +6135,7 @@ def _clean_ae_events(events) -> list:
             fc.answered(e.get("definition_no")) and str(e.get("definition_no")).strip().upper() != "NA")
         if named:
             keep.append(e)
-        elif any(fc.answered(v) for v in e.values()):
+        elif any(fc.answered(v) for k, v in e.items() if k != "row_id"):
             unnamed.append(i)
     if unnamed:
         raise HTTPException(
@@ -5993,6 +6144,35 @@ def _clean_ae_events(events) -> list:
                    "enter the event (term) or delete the row.",
         )
     return keep
+
+
+AE_ROW_KEYS = tuple(k for k in AdverseEventRow.model_fields if k != "row_id")
+SAE_ROW_KEYS = tuple(k for k in SAEListRow.model_fields if k != "row_id")
+
+
+def _merged_rows(db, table: str, enrollment_id: str, base, current, mine, keys, label, what: str):
+    """list_merge.merge_rows, or a 409 naming the rows and who saved last."""
+    try:
+        return merge_rows(base, current, mine, keys, label=label)
+    except MergeConflict as e:
+        last = (db.query(AuditLog.username, AuditLog.created_at)
+                .filter(AuditLog.table_name == table, AuditLog.enrollment_id == enrollment_id,
+                        AuditLog.action == "UPDATE")
+                .order_by(AuditLog.created_at.desc()).first())
+        who = ""
+        if last and last.created_at:
+            at = last.created_at.replace(tzinfo=timezone.utc).astimezone(CLINICAL_TZ)
+            who = f" ({last.username}, {at.strftime('%d %b %H:%M')} IST)"
+        raise HTTPException(
+            status_code=409,
+            detail=(f"Someone else saved this {what} while you had it open{who} and changed the same "
+                    f"row{'s' if len(e.rows) > 1 else ''}: {', '.join(e.rows)}. Nothing was saved. "
+                    "Reload the page to see their version, then make your change again."),
+        )
+
+
+def _ae_label(r) -> str:
+    return " ".join(str(r.get("description") or r.get("definition_no") or "an unnamed row").split())
 
 
 @app.post("/adverse-events/", response_model=AdverseEventsOut)
@@ -6024,6 +6204,10 @@ def create_adverse_events(
         .filter(AdverseEvents.enrollment_id == data.enrollment_id)
         .first()
     )
+    base = None if data.base_events is None else [r.model_dump() for r in data.base_events]
+    payload["events"] = _merged_rows(
+        db, "adverse_events", data.enrollment_id, base, existing.events if existing else [],
+        payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
     if existing:
         for key, value in payload.items():
             if key == "enrollment_id":
@@ -6089,6 +6273,9 @@ def update_adverse_events(
         site_name=site_for_enrollment(db, enrollment_id),
     )
     payload = {k: v for k, v in payload.items() if k in allowed}
+    base = None if data.base_events is None else [r.model_dump() for r in data.base_events]
+    payload["events"] = _merged_rows(db, "adverse_events", enrollment_id, base, record.events,
+                                     payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
     for key, value in payload.items():
         setattr(record, key, value)
 
@@ -6219,6 +6406,9 @@ def create_sae_list(
         .filter(SAEList.enrollment_id == data.enrollment_id)
         .first()
     )
+    base = None if data.base_rows is None else [r.model_dump() for r in data.base_rows]
+    payload["rows"] = _merged_rows(db, "sae_list", data.enrollment_id, base, existing.rows if existing else [],
+                                   payload["rows"], SAE_ROW_KEYS, lambda r: (r.get("sae") or "a row"), "SAE list")
     if existing:
         for key, value in payload.items():
             if key == "enrollment_id":
@@ -6264,30 +6454,18 @@ def sae_list_summary(
         site = (current_user.site_name or "").strip()
         if not site:
             return {"total": 0, "items": []}
-        site_eids = (
-            db.query(Screening.enrollment_id)
-            .filter(
-                Screening.site_name == site,
-                Screening.is_deleted.isnot(True),
-                Screening.enrollment_id.isnot(None),
-                Screening.enrollment_id != "",
-            )
-        )
+        site_eids = list(enrollments_by_screening(db, (
+            db.query(Screening)
+            .filter(Screening.site_name == site, Screening.is_deleted.isnot(True))
+            .all()
+        )))
         q = q.filter(SAEList.enrollment_id.in_(site_eids))
     records = q.all()
-    eids = [r.enrollment_id for r in records if r.enrollment_id]
     by_eid = {}
-    if eids:
-        for s in (
-            db.query(Screening)
-            .filter(
-                Screening.enrollment_id.in_(eids),
-                Screening.is_deleted.isnot(True),
-            )
-            .all()
-        ):
-            if s.enrollment_id and s.enrollment_id not in by_eid:
-                by_eid[s.enrollment_id] = s
+    for rec in records:
+        s = screening_for_enrollment(db, rec.enrollment_id)   # twin 2 too (babies.py)
+        if s is not None and not s.is_deleted:
+            by_eid[rec.enrollment_id] = s
     items = []
     for rec in records:
         rows = rec.rows if isinstance(rec.rows, list) else []
@@ -6351,6 +6529,9 @@ def update_sae_list(
     payload = {k: v for k, v in data.model_dump().items() if k in allowed}
     if payload.get("rows") is None:
         payload["rows"] = []
+    base = None if data.base_rows is None else [r.model_dump() for r in data.base_rows]
+    payload["rows"] = _merged_rows(db, "sae_list", enrollment_id, base, record.rows, payload["rows"],
+                                   SAE_ROW_KEYS, lambda r: (r.get("sae") or "a row"), "SAE list")
     for key, value in payload.items():
         setattr(record, key, value)
 
@@ -6605,11 +6786,7 @@ def get_enrollment_status(
     current_user: User = Depends(get_current_user),
 ):
     require_enrollment_access(enrollment_id, db, current_user)
-    screening = (
-        db.query(Screening)
-        .filter(Screening.enrollment_id == enrollment_id)
-        .first()
-    )
+    screening = screening_for_enrollment(db, enrollment_id)
 
     if not screening:
         raise HTTPException(status_code=404, detail="Enrollment not found")
@@ -6887,7 +7064,7 @@ def _helper_records_page(
     elif site:
         screening_query = screening_query.filter(Screening.site_name == site)
 
-    accessible = {s.enrollment_id: s for s in screening_query.all() if s.enrollment_id}
+    accessible = enrollments_by_screening(db, screening_query.all())   # every baby (babies.py)
     if not accessible:
         return HelperFormRecordsPage(total=0, page=page, per_page=per_page, records=[])
 
@@ -6997,9 +7174,11 @@ def _helper_records_page(
 def _helper_records_latest_update(db, current_user, model):
     """Most recent updated_at across accessible day logs of one helper, so the
     page can detect new/edited records with a cheap poll."""
+    # Form B links every baby (twins too, babies.py) to the mother's Form A
     query = (
         db.query(func.max(model.updated_at))
-        .join(Screening, Screening.enrollment_id == model.enrollment_id)
+        .join(BirthResuscitation, BirthResuscitation.enrollment_id == model.enrollment_id)
+        .join(Screening, Screening.screening_id == BirthResuscitation.screening_id)
         .filter(Screening.is_deleted.isnot(True))
     )
     if not is_global(current_user):
@@ -8892,6 +9071,7 @@ def create_birth_log_entry(
         db, site_name, record.mother_uid, record.mother_name,
         record.gestation_weeks, record.gestation_days,
         date_of_birth=record.date_of_birth,
+        birth_order=record.birth_order,
     )
     record.matched_screening_id = match["matched_screening_id"]
     record.matched_enrollment_id = match["matched_enrollment_id"]
@@ -8934,6 +9114,7 @@ def update_birth_log_entry(
         db, record.site_name, record.mother_uid, record.mother_name,
         record.gestation_weeks, record.gestation_days,
         date_of_birth=record.date_of_birth,
+        birth_order=record.birth_order,
     )
     record.matched_screening_id = match["matched_screening_id"]
     record.matched_enrollment_id = match["matched_enrollment_id"]

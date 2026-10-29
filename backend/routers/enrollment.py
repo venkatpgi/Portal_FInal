@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from babies import screening_for_enrollment
 from models import (
     Screening,
     BirthResuscitation,
@@ -23,9 +24,7 @@ def get_enrollment_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    screening = db.query(Screening).filter(
-        Screening.enrollment_id == enrollment_id
-    ).first()
+    screening = screening_for_enrollment(db, enrollment_id)   # twin 2 too (babies.py)
 
     if not screening:
         raise HTTPException(status_code=404, detail="Enrollment not found")
