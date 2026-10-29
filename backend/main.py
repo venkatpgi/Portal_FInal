@@ -5,7 +5,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from rate_limit import get_real_client_ip
 from sqlalchemy.orm import Session
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time, timedelta, timezone
 import random, string
 import json
 import re
@@ -16,6 +16,9 @@ from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from db import Base, engine, SessionLocal, get_db
 from models import SteroidData
 import models
+from list_merge import MergeConflict, merge_rows, with_row_ids
+from models import AuditLog
+from clinical_time import CLINICAL_TZ
 from ae_reference import (
     detect_metab_renal_vasc_eye_candidates,
     detect_form_h_morbidity_candidates,
@@ -74,7 +77,7 @@ from models import (
     CranialUSGRecord, SAEReport, AdverseEvents,
     SAEList, User, MRIBrainAssessment, BlenderStudySummary, ParticipantPII, BirthLogEntry, GACheckEntry
 )
-from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, PregnancyFollowUpUpdate, BirthResuscitationCreate,MetabRenalVascEyeDayCreate, MetabRenalVascEyeDaySubmit, MinimalMonitoringDayCreate, MinimalMonitoringDayOut, BirthResuscitationOut, MaternalDetailsCreate, MaternalDetailsOut, PostnatalDay1Create, PostnatalDay1Out,NICUAdmissionCreate,NICUAdmissionOut,NeonatalMorbiditiesCreate,NeonatalMorbiditiesOut,StudyOutcomesCreate, CranialUSGCreate, CranialUSGSubmit, StudyOutcomesOut,CranialUltrasoundCreate, CranialUltrasoundOut,ROPScreeningCreate, ROPScreeningOut,CompositeOutcomeCreate, CompositeOutcomeOut, ExternalHospitalAssessmentCreate, ExternalHospitalAssessmentOut, FiO2AUCLogCreate, FiO2AUCLogOut, RespCVNeuroLogCreate,RespCVNeuroDayCreate, RespCVNeuroDaySubmit, DischargeUpdate, RespCVNeuroLogOut,InfectGIHemaLogCreate, InfectGIHemaLogOut,MetabRenalVascEyeLogCreate,MetabRenalVascEyeLogOut,SAEReportCreate, SAEReportOut, AdverseEventsCreate, AdverseEventsOut ,SAEListCreate, SAEListOut, UserCreate, UserUpdate, UserOut, UserRosterOut, SitePiContactOut, LoginRequest, LoginResponse, RefreshTokenRequest, TokenRefreshResponse, RespiratoryLogCreate, RespiratoryLogBulkCreate, InfectGIHemaDayCreate, InfectGIHemaDaySubmit,  SteroidDataCreate, FirebaseScreeningImportCreate, MRIBrainCreate, MRIBrainSubmit, MRIBrainOut, BlenderSummaryCreate, BlenderSummarySubmit, BlenderSummaryOut, HelperFormRecordOut, HelperFormRecordsPage, BirthLogEntryCreate, BirthLogEntryOut, GACheckEntryCreate, GACheckEntryOut, GACheckLinkRequest
+from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, PregnancyFollowUpUpdate, BirthResuscitationCreate,MetabRenalVascEyeDayCreate, MetabRenalVascEyeDaySubmit, MinimalMonitoringDayCreate, MinimalMonitoringDayOut, BirthResuscitationOut, MaternalDetailsCreate, MaternalDetailsOut, PostnatalDay1Create, PostnatalDay1Out,NICUAdmissionCreate,NICUAdmissionOut,NeonatalMorbiditiesCreate,NeonatalMorbiditiesOut,StudyOutcomesCreate, CranialUSGCreate, CranialUSGSubmit, StudyOutcomesOut,CranialUltrasoundCreate, CranialUltrasoundOut,ROPScreeningCreate, ROPScreeningOut,CompositeOutcomeCreate, CompositeOutcomeOut, ExternalHospitalAssessmentCreate, ExternalHospitalAssessmentOut, FiO2AUCLogCreate, FiO2AUCLogOut, RespCVNeuroLogCreate,RespCVNeuroDayCreate, RespCVNeuroDaySubmit, DischargeUpdate, RespCVNeuroLogOut,InfectGIHemaLogCreate, InfectGIHemaLogOut,MetabRenalVascEyeLogCreate,MetabRenalVascEyeLogOut,SAEReportCreate, SAEReportOut, AdverseEventsCreate, AdverseEventsOut ,SAEListCreate, SAEListOut, AdverseEventRow, SAEListRow, UserCreate, UserUpdate, UserOut, UserRosterOut, SitePiContactOut, LoginRequest, LoginResponse, RefreshTokenRequest, TokenRefreshResponse, RespiratoryLogCreate, RespiratoryLogBulkCreate, InfectGIHemaDayCreate, InfectGIHemaDaySubmit,  SteroidDataCreate, FirebaseScreeningImportCreate, MRIBrainCreate, MRIBrainSubmit, MRIBrainOut, BlenderSummaryCreate, BlenderSummarySubmit, BlenderSummaryOut, HelperFormRecordOut, HelperFormRecordsPage, BirthLogEntryCreate, BirthLogEntryOut, GACheckEntryCreate, GACheckEntryOut, GACheckLinkRequest
 from pydantic import BaseModel
 from typing import Optional, List
 from deps import (
@@ -184,6 +187,24 @@ app.include_router(reports_router.router)
 app.include_router(site_summary_router.router)
 
 
+def _backfill_row_ids() -> None:
+    """Give every AE-form and SAE-list row a row_id once (list_merge.py).
+    One worker does it (advisory lock); the other skips."""
+    with SessionLocal() as db:
+        if not db.execute(text("SELECT pg_try_advisory_xact_lock(726101)")).scalar():
+            return
+        n = 0
+        for model, attr in ((AdverseEvents, "events"), (SAEList, "rows")):
+            for rec in db.query(model).all():
+                rows = getattr(rec, attr) or []
+                if isinstance(rows, list) and any(isinstance(r, dict) and not r.get("row_id") for r in rows):
+                    setattr(rec, attr, with_row_ids(rows))
+                    n += 1
+        db.commit()
+        if n:
+            logger.info("Assigned row ids on %s AE / SAE list record(s)", n)
+
+
 @app.on_event("startup")
 def on_startup_migrations():
     #  -  DB connectivity check with retry (safe for AWS RDS cold start)  - 
@@ -205,6 +226,11 @@ def on_startup_migrations():
         apply_schema_patches(engine)
     except Exception as exc:
         logger.warning("Schema patches skipped: %s", exc)
+
+    try:
+        _backfill_row_ids()
+    except Exception as exc:
+        logger.warning("Row id backfill skipped: %s", exc)
 
     try:
         from crypto import _get_fernet
@@ -5980,7 +6006,7 @@ def _clean_ae_events(events) -> list:
             fc.answered(e.get("definition_no")) and str(e.get("definition_no")).strip().upper() != "NA")
         if named:
             keep.append(e)
-        elif any(fc.answered(v) for v in e.values()):
+        elif any(fc.answered(v) for k, v in e.items() if k != "row_id"):
             unnamed.append(i)
     if unnamed:
         raise HTTPException(
@@ -5989,6 +6015,35 @@ def _clean_ae_events(events) -> list:
                    "enter the event (term) or delete the row.",
         )
     return keep
+
+
+AE_ROW_KEYS = tuple(k for k in AdverseEventRow.model_fields if k != "row_id")
+SAE_ROW_KEYS = tuple(k for k in SAEListRow.model_fields if k != "row_id")
+
+
+def _merged_rows(db, table: str, enrollment_id: str, base, current, mine, keys, label, what: str):
+    """list_merge.merge_rows, or a 409 naming the rows and who saved last."""
+    try:
+        return merge_rows(base, current, mine, keys, label=label)
+    except MergeConflict as e:
+        last = (db.query(AuditLog.username, AuditLog.created_at)
+                .filter(AuditLog.table_name == table, AuditLog.enrollment_id == enrollment_id,
+                        AuditLog.action == "UPDATE")
+                .order_by(AuditLog.created_at.desc()).first())
+        who = ""
+        if last and last.created_at:
+            at = last.created_at.replace(tzinfo=timezone.utc).astimezone(CLINICAL_TZ)
+            who = f" ({last.username}, {at.strftime('%d %b %H:%M')} IST)"
+        raise HTTPException(
+            status_code=409,
+            detail=(f"Someone else saved this {what} while you had it open{who} and changed the same "
+                    f"row{'s' if len(e.rows) > 1 else ''}: {', '.join(e.rows)}. Nothing was saved. "
+                    "Reload the page to see their version, then make your change again."),
+        )
+
+
+def _ae_label(r) -> str:
+    return " ".join(str(r.get("description") or r.get("definition_no") or "an unnamed row").split())
 
 
 @app.post("/adverse-events/", response_model=AdverseEventsOut)
@@ -6020,6 +6075,10 @@ def create_adverse_events(
         .filter(AdverseEvents.enrollment_id == data.enrollment_id)
         .first()
     )
+    base = None if data.base_events is None else [r.model_dump() for r in data.base_events]
+    payload["events"] = _merged_rows(
+        db, "adverse_events", data.enrollment_id, base, existing.events if existing else [],
+        payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
     if existing:
         for key, value in payload.items():
             if key == "enrollment_id":
@@ -6085,6 +6144,9 @@ def update_adverse_events(
         site_name=site_for_enrollment(db, enrollment_id),
     )
     payload = {k: v for k, v in payload.items() if k in allowed}
+    base = None if data.base_events is None else [r.model_dump() for r in data.base_events]
+    payload["events"] = _merged_rows(db, "adverse_events", enrollment_id, base, record.events,
+                                     payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
     for key, value in payload.items():
         setattr(record, key, value)
 
@@ -6215,6 +6277,9 @@ def create_sae_list(
         .filter(SAEList.enrollment_id == data.enrollment_id)
         .first()
     )
+    base = None if data.base_rows is None else [r.model_dump() for r in data.base_rows]
+    payload["rows"] = _merged_rows(db, "sae_list", data.enrollment_id, base, existing.rows if existing else [],
+                                   payload["rows"], SAE_ROW_KEYS, lambda r: (r.get("sae") or "a row"), "SAE list")
     if existing:
         for key, value in payload.items():
             if key == "enrollment_id":
@@ -6347,6 +6412,9 @@ def update_sae_list(
     payload = {k: v for k, v in data.model_dump().items() if k in allowed}
     if payload.get("rows") is None:
         payload["rows"] = []
+    base = None if data.base_rows is None else [r.model_dump() for r in data.base_rows]
+    payload["rows"] = _merged_rows(db, "sae_list", enrollment_id, base, record.rows, payload["rows"],
+                                   SAE_ROW_KEYS, lambda r: (r.get("sae") or "a row"), "SAE list")
     for key, value in payload.items():
         setattr(record, key, value)
 

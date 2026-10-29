@@ -3,6 +3,7 @@
 DMS: union-merge entries_json by block + entry id (different sections / new
 readings both keep). Helper day logs: optimistic lock via expected_updated_at.
 FiO₂: merge by (day, block) so omitted (hidden) days stay on the server.
+AE form events / SAE list rows: row-by-row three-way merge, see list_merge.py.
 """
 from __future__ import annotations
 

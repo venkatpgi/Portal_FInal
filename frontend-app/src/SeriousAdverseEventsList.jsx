@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import api from "./api/axios";
 import { isSaeListComplete } from "./utils/formCompletion";
@@ -67,6 +67,7 @@ function mapApiToForm(row) {
         notify_initial: dateOnly(r?.notify_initial),
         notify_10d: dateOnly(r?.notify_10d),
         notify_resolution: dateOnly(r?.notify_resolution),
+        row_id: r?.row_id || "",
       }))
     : [];
   return {
@@ -79,9 +80,12 @@ function mapApiToForm(row) {
   };
 }
 
-function buildPayload(data) {
+// base = the rows as this page last loaded / saved them: the server merges
+// row by row, so a co-worker's save in between is kept (list_merge.py).
+function buildPayload(data, base = null) {
   return {
     enrollment_id: data.enrollment_id,
+    base_rows: base,
     rows: (data.rows || []).map((r) => ({
       sae: emptyToNull(r.sae),
       definition_no: emptyToNull(r.definition_no),
@@ -91,6 +95,7 @@ function buildPayload(data) {
       notify_initial: emptyToNull(r.notify_initial),
       notify_10d: emptyToNull(r.notify_10d),
       notify_resolution: emptyToNull(r.notify_resolution),
+      row_id: emptyToNull(r.row_id),
     })),
     completed_by: emptyToNull(data.completed_by),
     designation: emptyToNull(data.designation),
@@ -193,6 +198,7 @@ export default function SeriousAdverseEventsList() {
   };
 
   const [formData, setFormData] = useState(() => BLANK());
+  const baseRowsRef = useRef(null);   // rows as last loaded / saved (null = not loaded yet)
   const [isSaved, setIsSaved] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [assessors, setAssessors] = useState([]);
@@ -257,14 +263,15 @@ export default function SeriousAdverseEventsList() {
     api
       .get(`/sae-list/${encodeURIComponent(id)}`)
       .then((res) => {
-        if (!res.data || !res.data.enrollment_id) return;
+        if (!res.data || !res.data.enrollment_id) { baseRowsRef.current = []; return; }
+        baseRowsRef.current = res.data.rows || [];
         const mapped = mapApiToForm(res.data);
         setFormData(mapped);
         syncTick(mapped);
         setIsSaved(true);
       })
       .catch((err) => {
-        if (err?.response?.status === 404) return;
+        if (err?.response?.status === 404) { baseRowsRef.current = []; return; }
         console.error("Failed to load SAE list", err);
       });
   }, [routeId, patientData, location.state]);
@@ -287,7 +294,8 @@ export default function SeriousAdverseEventsList() {
       return false;
     }
     try {
-      const res = await api.post("/sae-list/", buildPayload(formData));
+      const res = await api.post("/sae-list/", buildPayload(formData, baseRowsRef.current));
+      baseRowsRef.current = res.data?.rows || [];
       const saved = mapApiToForm(res.data);
       setFormData(saved);
       syncTick(saved);
