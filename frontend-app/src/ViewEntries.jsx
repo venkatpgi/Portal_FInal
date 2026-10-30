@@ -305,7 +305,8 @@ function KpiRecordsModal({
         row.definition_no, row.start_date, row.end_date, name,
       ].some(v => String(v || "").toLowerCase().includes(needle));
     }
-    const name = listNameForEntry(piiByScreening[row.screening_id], row.enrollment_id ? enrollData[row.enrollment_id] : null);
+    const name = listNameForEntry(piiByScreening[row.screening_id],
+      row.rowKey ? { form_b: true } : (row.enrollment_id ? enrollData[row.enrollment_id] : null));
     const exclusions = exclusionReasonList(row).join(" ");
     return [
       row.screening_id, row.enrollment_id, row.site_name, row.screening_status,
@@ -435,9 +436,12 @@ function KpiRecordsModal({
               <tbody>
                 {visible.map(row => {
                   const sk = statusKey(row.screening_status);
+                  // a row from a Form B tile is a baby with a Form B: always "B/o"
+                  // (twin 2's Form B status is not fetched, only Form A's baby 1)
                   const name = listNameForEntry(
                     piiByScreening[row.screening_id],
-                    row.enrollment_id ? enrollData[row.enrollment_id] : null,
+                    row.rowKey ? { form_b: true }
+                      : (row.enrollment_id ? enrollData[row.enrollment_id] : null),
                   );
                   return (
                     <tr
