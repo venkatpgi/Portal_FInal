@@ -145,7 +145,10 @@ authoritative definition of every box** — read it before changing any count.
 **Twins (2026-10-29):** Boxes 3–6 count the **mother** once (her first baby's
 Form B row, `baby_rank` 1); Boxes 7–8 count **babies**. View Entries /
 Dashboard tiles (`participant_counts.py`) likewise: Form A tiles per mother,
-Delivered onwards per baby.
+Delivered onwards per baby. The record list behind a Delivered-onwards tile shows
+one row per baby (`baby_members`, `/screenings/summary` "babies"); before
+2026-10-30 it listed the mother once, so Randomised showed 7 while its list
+had 6 rows (Diya's twins 01-B-004 / 01-B-005).
 Summary:
 
 | Box | Definition (source) |

@@ -1094,10 +1094,11 @@ def get_screening_summary(
     """Participant tiles for View Entries; the Dashboard's ops-summary uses
     the same counts (participant_counts.py), so the two pages always agree.
     Global roles may narrow to one site with ?site=."""
-    from participant_counts import counts_by_site, members, scoped_screenings, stage_items
+    from participant_counts import baby_members, counts_by_site, members, scoped_screenings, stage_items
     items = stage_items(db, scoped_screenings(db, dashboard_router._dashboard_sites(current_user, site)))
     ids = members(items)
-    return {"counts": {k: len(v) for k, v in ids.items()}, "ids": ids, "by_site": counts_by_site(items)}
+    return {"counts": {k: len(v) for k, v in ids.items()}, "ids": ids, "babies": baby_members(items),
+            "by_site": counts_by_site(items)}
 
 @app.patch("/screenings/{screening_id}/pregnancy-follow-up", response_model=ScreeningClinicalOut)
 def update_pregnancy_follow_up(
