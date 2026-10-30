@@ -85,7 +85,7 @@ from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, Pregnan
 from pydantic import BaseModel
 from typing import Optional, List
 from deps import (
-    get_current_user, is_superadmin, is_global, require_superadmin, require_user_manager, ensure_same_site,
+    get_current_user, is_superadmin, is_global, require_superadmin, ensure_same_site,
     ALL_ROLES, ROLE_SUPERADMIN, ROLE_SITE_PI, ROLE_SITE_SCIENTIST,
 )
 from routers import enrollment
@@ -827,8 +827,9 @@ def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Directory of every login account. Global PI and PTS-3."""
-    require_user_manager(current_user)
+    """Superadmin-only directory of every login account, so accounts can be
+    found (and their id looked up) before deactivating/removing one."""
+    require_superadmin(current_user)
     return db.query(User).order_by(User.site_name, User.role, User.username).all()
 
 
@@ -836,10 +837,10 @@ def list_users(
 def list_pi_contacts(
     current_user: User = Depends(get_current_user),
 ):
-    """Site PI emails used for SAE alerts. Shown on Manage Staff.
-    These are configured in sae_config — site PI logins are not created,
-    so they do not appear in the staff directory."""
-    require_user_manager(current_user)
+    """Superadmin-only. Site PI emails used for SAE alerts. These are
+    configured in sae_config — site PI logins are not created, so they
+    do not appear in the staff directory."""
+    require_superadmin(current_user)
     import sae_config
     rows = []
     for code, cfg in sae_config.SITES.items():
@@ -862,12 +863,13 @@ def remove_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Deactivate a login (Global PI and PTS-3). By default this sets
-    is_active=False rather than deleting the row — the account can no
-    longer log in, but historical screenings/forms created under their
-    username still show who did what. Pass hard_delete=true only if the
-    account never created any records."""
-    require_user_manager(current_user)
+    """Superadmin-only. By default this DEACTIVATES the account (is_active=
+    False) rather than deleting the row ? the account can no longer log in,
+    but historical screenings/forms created under their username still show
+    who did what. Pass ?hard_delete=true only if you're certain the account
+    never created any records (irreversible, and will break any records
+    that do reference it)."""
+    require_superadmin(current_user)
 
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot remove your own account")
@@ -875,12 +877,8 @@ def remove_user(
     target = db.query(User).filter(User.id == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
-    if (target.role or "").lower() == ROLE_SUPERADMIN and not is_superadmin(current_user):
-        raise HTTPException(status_code=403, detail="Only the Global PI can change a superadmin account")
 
     if hard_delete:
-        if not is_superadmin(current_user):
-            raise HTTPException(status_code=403, detail="Only the Global PI can permanently delete an account")
         db.delete(target)
         db.commit()
         return {"message": f"User '{target.username}' permanently deleted"}
@@ -896,7 +894,7 @@ def create_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    require_user_manager(current_user)
+    require_superadmin(current_user)
     role = (user.role or "").lower()
     if role not in ALL_ROLES:
         raise HTTPException(status_code=400, detail=f"Unknown role '{user.role}'")
@@ -937,13 +935,13 @@ def update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Partial update of a login account (Global PI and PTS-3)."""
-    require_user_manager(current_user)
+    """Superadmin-only. Partial update — only fields the caller sends
+    are changed. Exists so contact details (email, mobile, designation)
+    can be corrected without touching the database directly."""
+    require_superadmin(current_user)
     target = db.query(User).filter(User.id == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
-    if (target.role or "").lower() == ROLE_SUPERADMIN and not is_superadmin(current_user):
-        raise HTTPException(status_code=403, detail="Only the Global PI can change a superadmin account")
 
     payload = data.model_dump(exclude_unset=True)
     if "email" in payload and payload["email"]:
@@ -970,15 +968,13 @@ def admin_reset_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """New temporary password; the account must change it on next login.
-    Global PI and PTS-3. Staff accounts are username-only, so there is
-    no self-serve forgot-password flow."""
-    require_user_manager(current_user)
+    """Superadmin-triggered reset: generates a new temp password and forces
+    a change on next login. Exists because staff accounts are username-only
+    (no real email), so there's no self-serve forgot-password/OTP flow."""
+    require_superadmin(current_user)
     target = db.query(User).filter(User.id == user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
-    if (target.role or "").lower() == ROLE_SUPERADMIN and not is_superadmin(current_user):
-        raise HTTPException(status_code=403, detail="Only the Global PI can change a superadmin account")
 
     temp_password = generate_temp_password()
     target.hashed_password = hash_password(temp_password)

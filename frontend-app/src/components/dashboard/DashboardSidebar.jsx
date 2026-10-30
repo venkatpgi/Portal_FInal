@@ -31,7 +31,6 @@ const ITEMS = [
 
 const RL_MAP = {
   superadmin: "Super Admin",
-  tech_support: "Technical Support (PTS-3)",
   admin: "Administrator",
   pi: "Principal Investigator",
   scientist: "Scientist",
@@ -53,7 +52,7 @@ export default function DashboardSidebar({
   onTabChange,
   open,
   onClose,
-  canManageStaff,
+  isSuperadmin,
 }) {
   const { user } = useAuth();
   const roleLabel = RL_MAP[user?.role] || user?.role || "User";
@@ -113,7 +112,7 @@ export default function DashboardSidebar({
         >
           <List size={14} aria-hidden="true" /> View Entries
         </NavLink>
-        {canManageStaff && (
+        {isSuperadmin && (
           <NavLink
             to="/manage-staff"
             onClick={onClose}
