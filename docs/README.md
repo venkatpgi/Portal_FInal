@@ -36,6 +36,15 @@ the same commit.
 - **training.portaltrial.in**: same app, own database `icmr_training`,
   `LIVE_SITES=*`, red "TRAINING SITE" bar. Sites not yet enrolling practise
   there; the Android app has a "Training site" switch on the login screen.
+- **Logins (PI 2026-10-29):** the trial site's accounts are the master.
+  `backend/training_user_sync.py` (timer `portal-training-user-sync`, every
+  10 min) copies every account (password hash, role, site, on/off, contact
+  fields) to training and switches off training-only accounts. On training
+  (`LOGINS_FROM_TRIAL=1`) password changes and Manage Staff writes get 403
+  "change it on portaltrial.in", and the first-login password change is not
+  asked (`deps.logins_from_trial`). Found 2026-10-29: passwords differing
+  between the sites, two Site PIs missing on training, and six placeholder
+  accounts plus the old superadmin `portal_admin` still active there.
 - Trial start: `backend/trial_dates.py` `TRIAL_START_DATE` (2026-10-14) —
   CONSORT and Log of All Births alerts count from this date (chapter 08).
 

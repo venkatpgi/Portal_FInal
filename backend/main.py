@@ -1098,10 +1098,11 @@ def get_screening_summary(
     """Participant tiles for View Entries; the Dashboard's ops-summary uses
     the same counts (participant_counts.py), so the two pages always agree.
     Global roles may narrow to one site with ?site=."""
-    from participant_counts import counts_by_site, members, scoped_screenings, stage_items
+    from participant_counts import baby_members, counts_by_site, members, scoped_screenings, stage_items
     items = stage_items(db, scoped_screenings(db, dashboard_router._dashboard_sites(current_user, site)))
     ids = members(items)
-    return {"counts": {k: len(v) for k, v in ids.items()}, "ids": ids, "by_site": counts_by_site(items)}
+    return {"counts": {k: len(v) for k, v in ids.items()}, "ids": ids, "babies": baby_members(items),
+            "by_site": counts_by_site(items)}
 
 @app.patch("/screenings/{screening_id}/pregnancy-follow-up", response_model=ScreeningClinicalOut)
 def update_pregnancy_follow_up(
@@ -9311,6 +9312,13 @@ def update_ga_check_entry(
 def _attach_ga_live_status(db, records):
     """See ga_log_status.attach_live_status (must run before PII masking)."""
     ga_attach_live_status(db, records, clinical_today())
+    # Pregnancy as now on the linked Form A (display only, PI 2026-10-29): twins
+    # found after the triage check are corrected on Form A, never in the log.
+    sids = {r.screening_id for r in records if r.screening_id}
+    babies = dict(db.query(Screening.screening_id, Screening.number_of_fetuses)
+                  .filter(Screening.screening_id.in_(sids)).all()) if sids else {}
+    for r in records:
+        r.form_a_babies = babies.get(r.screening_id)
 
 
 @app.get("/ga-check/", response_model=List[GACheckEntryOut])

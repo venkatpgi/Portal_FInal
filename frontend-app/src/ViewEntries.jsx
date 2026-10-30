@@ -203,6 +203,15 @@ function buildKpiGroups(summary, entries, saeCount = 0) {
 }
 
 function entriesInTile(key, entries, summary) {
+  // Form B tiles count babies: one row per baby (twins: both, PI 2026-10-30)
+  const babies = summary?.babies?.[key];
+  if (Array.isArray(babies)) {
+    const bySid = new Map(entries.map(e => [e.screening_id, e]));
+    return babies
+      .filter(b => bySid.has(b.screening_id))
+      .map(b => ({ ...bySid.get(b.screening_id), enrollment_id: b.enrollment_id,
+                   baby_number: b.baby_number, rowKey: `${b.screening_id}/${b.enrollment_id}` }));
+  }
   const ids = new Set(summary?.ids?.[key] || []);
   return entries.filter(e => ids.has(e.screening_id));
 }
@@ -265,6 +274,7 @@ function KpiRecordsModal({
   rows,
   piiByScreening,
   enrollData,
+  stageByScreening,
   onClose,
   onOpenParticipant,
   onOpenSae,
@@ -295,7 +305,8 @@ function KpiRecordsModal({
         row.definition_no, row.start_date, row.end_date, name,
       ].some(v => String(v || "").toLowerCase().includes(needle));
     }
-    const name = listNameForEntry(piiByScreening[row.screening_id], row.enrollment_id ? enrollData[row.enrollment_id] : null);
+    const name = listNameForEntry(piiByScreening[row.screening_id],
+      row.rowKey ? { form_b: true } : (row.enrollment_id ? enrollData[row.enrollment_id] : null));
     const exclusions = exclusionReasonList(row).join(" ");
     return [
       row.screening_id, row.enrollment_id, row.site_name, row.screening_status,
@@ -425,19 +436,27 @@ function KpiRecordsModal({
               <tbody>
                 {visible.map(row => {
                   const sk = statusKey(row.screening_status);
+                  // a row from a Form B tile is a baby with a Form B: always "B/o"
+                  // (twin 2's Form B status is not fetched, only Form A's baby 1)
                   const name = listNameForEntry(
                     piiByScreening[row.screening_id],
-                    row.enrollment_id ? enrollData[row.enrollment_id] : null,
+                    row.rowKey ? { form_b: true }
+                      : (row.enrollment_id ? enrollData[row.enrollment_id] : null),
                   );
                   return (
                     <tr
-                      key={row.id || row.screening_id}
+                      key={row.rowKey || row.id || row.screening_id}
                       className="kpi-modal-row"
                       onClick={() => onOpenParticipant(row)}
                     >
                       <td className="kpi-modal-id">{row.screening_id || "—"}</td>
                       <td>{name || "—"}</td>
-                      <td>{row.enrollment_id || "—"}</td>
+                      <td>
+                        {row.enrollment_id || "—"}
+                        {(stageByScreening?.[row.screening_id]?.babies || []).length > 1 && row.baby_number && (
+                          <small> (baby {row.baby_number})</small>
+                        )}
+                      </td>
                       <td>{formatSiteName(row.site_name)}</td>
                       <td>{formatGa(row)}</td>
                       <td><Badge sk={sk} label={row.screening_status || "Pending"}/></td>
@@ -1178,6 +1197,7 @@ export default function ViewEntries() {
         rows={kpiModalRecords.rows}
         piiByScreening={piiByScreening}
         enrollData={enrollData}
+        stageByScreening={stageByScreening}
         onClose={() => setKpiModal(null)}
         onOpenParticipant={(entry) => {
           setKpiModal(null);

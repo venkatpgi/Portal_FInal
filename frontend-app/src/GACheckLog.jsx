@@ -664,6 +664,11 @@ export default function GACheckLog() {
                       {e.number_of_fetuses > 1 && (
                         <div><span className="gac-badge">{PREGNANCY_LABEL[String(e.number_of_fetuses)] || `${e.number_of_fetuses} babies`}</span></div>
                       )}
+                      {e.form_a_babies > 1 && e.form_a_babies !== (e.number_of_fetuses || 1) && (
+                        <div title="Corrected on Form A after this check; the log entry is left as recorded">
+                          <span className="gac-badge">{PREGNANCY_LABEL[String(e.form_a_babies)] || `${e.form_a_babies} babies`} (from Form A)</span>
+                        </div>
+                      )}
                       {e.current_ga_days != null && e.live_status !== "delivered" && (
                         <div className="gac-now-ga">now {fmtGa(e.current_ga_days)}</div>
                       )}

@@ -116,6 +116,20 @@ def members(items):
     return m
 
 
+def baby_members(items):
+    """{Form B tile key: [{screening_id, enrollment_id, baby_number}, ...]} --
+    one entry per baby, so a twin mother's list shows both babies (members()
+    lists her screening id once per baby, which a list of Form A rows shows once)."""
+    out = defaultdict(list)
+    for r, _status, _stage, b in items:
+        if b is None:
+            continue
+        for k in _form_b_keys(b):
+            out[k].append({"screening_id": r.screening_id, "enrollment_id": b.enrollment_id,
+                           "baby_number": b.baby_number})
+    return dict(out)
+
+
 def counts(items):
     return {k: len(v) for k, v in members(items).items()}
 

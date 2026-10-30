@@ -3117,6 +3117,7 @@ class GACheckEntryCreate(BaseModel):
 
 class GACheckEntryOut(GACheckEntryCreate):
     id: int
+    form_a_babies: Optional[int] = None  # linked Form A's pregnancy (computed, display only)
     cr_pending: Optional[bool] = None  # no CR number yet (computed, not a column)
     # Live status (ga_log_status.py; computed per read, not columns)
     live_status: Optional[str] = None  # delivered | cr_check | overdue | crossed_32 | now_eligible | pre_trial

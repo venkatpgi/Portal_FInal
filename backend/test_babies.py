@@ -2,7 +2,7 @@ from types import SimpleNamespace as NS
 
 from babies import baby_label, baby_no, nr_enrollment_id, parse_nr
 from birth_log_matching import _pick_baby
-from participant_counts import counts
+from participant_counts import baby_members, counts
 
 
 def test_nr_ids_per_baby():
@@ -21,7 +21,7 @@ def test_baby_number_and_label():
 
 
 def _b(n, rand, first):
-    return NS(required_resuscitation=True, randomised=rand, baby_number=n, first=first)
+    return NS(required_resuscitation=True, randomised=rand, baby_number=n, first=first, enrollment_id=f"e{n}")
 
 
 def test_twins_count_mother_once_and_each_baby():
@@ -31,6 +31,9 @@ def test_twins_count_mother_once_and_each_baby():
     c = counts(items)
     assert (c["screened"], c["eligible"], c["consented"]) == (1, 1, 1)
     assert (c["delivered"], c["needed_ppv"], c["randomised"], c["not_randomised"]) == (2, 2, 1, 1)
+    babies = baby_members(items)
+    assert [b["baby_number"] for b in babies["delivered"]] == [1, 2]
+    assert [b["baby_number"] for b in babies["randomised"]] == [1] and "screened" not in babies
 
 
 def test_birth_log_row_links_to_the_baby_with_its_birth_order():
