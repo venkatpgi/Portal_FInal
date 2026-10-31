@@ -12,7 +12,7 @@ helpers (and, separately, Form H — chapter 04).
 | Working day | before **08:00 IST** = previous day | `clinical_time.py`, `form_completion.nicu_day_today`, frontend `nicuDayNumberFromDay1` |
 | DMS sheet date | today; or **yesterday until 08:00** (the date picker offers only these) | `main._mml_sheet_date`, `_validate_mml_manual_on_date` (400 for any other date) |
 | Helper "today" | the working day; future days are not editable; past days lock | helper pages (`useNicuWorkingDay`) |
-| Discharge cut-off | helper pages stop asking for days after the **Form H discharge date** (returned as `discharge_date` by `GET /birth-resuscitation/{id}` since 29-09-2026) | `get_birth_resuscitation`, helper `setDischargeDay` |
+| End-of-stay lock | DMS and Helpers 2, 4, 5 take **nothing after the end of stay**: the earliest of the Form H discharge date and the first Helper 5 "did not survive" day (PI 2026-10-31). That day itself stays open. Enforced on the server (422), so an old tablet app cannot get round it; helper pages and the DMS go read-only. `GET /birth-resuscitation/{id}` returns the end as `discharge_date`, plus `died`. Form H outcome Died with no date locks nothing | `stay_end.py`, `get_birth_resuscitation`, helper `setDischargeDay`, DMS `stayClosed` |
 
 > **Two different "Day 1" anchors exist.** The DMS read-time overlays use the
 > **date of birth** (Form B). The DMS transfusion write-through (§3) and Form I's

@@ -1754,6 +1754,7 @@ export default function MinimalMonitoringLog() {
 
   const [entries, setEntries] = useState(emptyEntries);
   const [sheetDate, setSheetDate] = useState("");
+  const [stayEnd, setStayEnd] = useState(null);
   const [giFeedFrequencyHours, setGiFeedFrequencyHours] = useState(2);
   const [glucoseFrequencyHours, setGlucoseFrequencyHours] = useState(2);
   const [vitalsFrequencyHours, setVitalsFrequencyHours] = useState(2);
@@ -1820,7 +1821,9 @@ export default function MinimalMonitoringLog() {
   const backToSections = () => { setView("sections"); setActiveSection(null); setActiveBlock(null); };
   const backToFields = () => { setView("fields"); setActiveBlock(null); };
 
-  const isEditable = true;
+  // End of stay (backend/stay_end.py): the sheet closes after the day of death or discharge.
+  const stayClosed = !!stayEnd && !!sheetDate && sheetDate > stayEnd.date;
+  const isEditable = !stayClosed;
   const notRequiredNow = useMemo(
     () => activeNotRequired(entries, notRequiredBlocks),
     [entries, notRequiredBlocks],
@@ -1945,6 +1948,7 @@ export default function MinimalMonitoringLog() {
         const birth = await api.get(`/birth-resuscitation/${enrollmentId}`);
         const b = birth?.data || {};
         setDobYmd(b.date_of_birth ? String(b.date_of_birth).slice(0, 10) : "");
+        setStayEnd(b.discharge_date ? { date: String(b.discharge_date).slice(0, 10), died: !!b.died } : null);
         setPatientInfo(prev => ({
           ...prev, enrollmentId,
           babyUid: b.baby_uid || "",
@@ -2723,6 +2727,14 @@ export default function MinimalMonitoringLog() {
             <p className="rcn-patient-header-subtitle">
               Same-day scratchpad — jot spot values as they occur, then copy into the CRF helpers
             </p>
+            {stayClosed && (
+              <div className="rcn-status-banner rcn-status-banner--discharged">
+                <div className="rcn-status-banner-text">
+                  <strong>{stayEnd.died ? "Baby died" : "Patient Discharged"}</strong>
+                  <span>The last day was {stayEnd.date}. This sheet is closed for entries.</span>
+                </div>
+              </div>
+            )}
             <div className="mml-sheet-header-row">
               <p className="mml-sheet-note">
                 Sheet date — before {MML_DROPDOWN_CUTOFF_HOUR}:00 you can choose yesterday or today;
