@@ -1,4 +1,4 @@
-import { deathDetailUpdates as up } from "./deathDetails";
+import { ageAtDeath, ageUpdates, deathDetailUpdates as up } from "./deathDetails";
 
 const yes = { mortality_7_days: "Yes", mortality_28_days: "Yes", death36: "Yes", mortality_in_hospital: "Yes" };
 
@@ -31,4 +31,23 @@ test("clearing clears the matching places and does not refill", () => {
   const b = { ...yes, mortality_7d_time: "10:00", mortality_28d_time: "10:00" };
   const c = { ...b, mortality_7d_time: "" };
   expect(up(b, c)).toEqual({ mortality_28d_time: "" });
+});
+
+test("age uses date and time of birth and of death", () => {
+  expect(ageAtDeath("2026-10-28", "22:30:00", "2026-10-30", "14:00", "age_hrs")).toBe(40);
+  expect(ageAtDeath("2026-10-28", "22:30:00", "2026-10-30", "14:00", "age_days")).toBe(1);
+  expect(ageAtDeath("2026-10-28", "06:00:00", "2026-10-30", "14:00", "age_hrs")).toBe(56);
+  expect(ageAtDeath("2026-10-28", "06:00:00", "2026-10-30", "14:00", "age_days")).toBe(2);
+});
+
+test("a missing time falls back to the dates, and death before birth gives blank", () => {
+  expect(ageAtDeath("2026-10-28", "", "2026-10-30", "14:00", "age_hrs")).toBe(48);
+  expect(ageAtDeath("2026-10-28", "06:00", "2026-10-30", "", "age_hrs")).toBe(48);
+  expect(ageAtDeath("2026-10-30", "14:00", "2026-10-30", "06:00", "age_hrs")).toBe("");
+});
+
+test("ageUpdates settles: a form already right needs no change", () => {
+  const f = { dob: "2026-10-28", tob: "06:00:00", mortality_7d_date: "2026-10-30", mortality_7d_time: "14:00", mortality_7d_age_hrs: 48 };
+  expect(ageUpdates(f)).toEqual({ mortality_7d_age_hrs: 56 });
+  expect(ageUpdates({ ...f, mortality_7d_age_hrs: 56 })).toEqual({});
 });
