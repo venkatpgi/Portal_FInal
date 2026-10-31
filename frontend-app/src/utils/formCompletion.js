@@ -62,6 +62,7 @@ export function isFormHComplete(data, { errors, infectionReviewed } = {}) {
   if (!infectionReviewed) return false;
   if (errors && Object.values(errors).some(Boolean)) return false;
   if (!answered(d.outcome) || !answered(d.discharge_date)) return false;
+  if (d.outcome === "Died" && !answered(d.death_time)) return false;
   return signedOff(d.completed_by, d.completion_date);
 }
 

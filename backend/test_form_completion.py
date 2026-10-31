@@ -86,3 +86,10 @@ def test_fio2_auc_rule():
 
 def test_fio2_unanswered_supp_o2_is_unknown():
     assert not fc.fio2_auc_complete([], {1: None}, 1)
+
+
+def test_form_h_death_needs_a_time():
+    h = NS(is_complete=True, infection_flags_reviewed=[], outcome="Died", discharge_date="2026-10-30",
+           completed_by="A", completion_date="2026-10-31", death_time=None)
+    assert not fc.form_h_complete(h, [])
+    assert fc.form_h_complete(NS(**{**h.__dict__, "death_time": "14:00"}), [])

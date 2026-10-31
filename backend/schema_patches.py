@@ -1344,6 +1344,10 @@ SCREENING_PREGNANCY_FOLLOWUP_PATCHES = [
 ]
 
 # DMS "Not required today" per block (2026-10-20).
+FORM_H_DEATH_TIME_PATCHES = [
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS death_time VARCHAR",
+]
+
 SAE_REPORT_DEATH_LINK_PATCHES = [
     "ALTER TABLE sae_reports ADD COLUMN IF NOT EXISTS death_from_event BOOLEAN",
 ]

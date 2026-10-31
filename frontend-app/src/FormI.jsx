@@ -1041,7 +1041,7 @@ export default function FormI() {
   //   anything post-discharge.
   const OVERALL_PREFILL_FIELDS = [
     "mv_days", "cpap_days", "hfnc_days", "nippv_days",
-    "sepsis_overall", "mortality_in_hospital", "mortality_hospital_date",
+    "sepsis_overall", "mortality_in_hospital", "mortality_hospital_date", "mortality_hospital_time",
   ];
   // Day counts naturally grow as the admission continues (same convention
   // as every Form H day-count field) so they're excluded from staleness
@@ -1078,7 +1078,9 @@ export default function FormI() {
       }
       if (surv?.did_not_survive || surv?.form_h_died) {
         mapped.mortality_in_hospital = "Yes";
-        if (surv.date) mapped.mortality_hospital_date = surv.date;
+        const deathDate = surv.form_h_date || surv.date;
+        if (deathDate) mapped.mortality_hospital_date = deathDate;
+        if (surv.time) mapped.mortality_hospital_time = surv.time;
       } else if (surv?.stay_ended) {
         // "No" only once the stay has ended: a baby still admitted has no answer yet.
         mapped.mortality_in_hospital = "No";

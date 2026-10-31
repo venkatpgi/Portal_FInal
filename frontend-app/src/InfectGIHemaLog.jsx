@@ -1421,7 +1421,7 @@ export default function InfectGIHemaLog() {
           gestationSource: gestSource,
           admissionDate: dob,
           dischargeDate: b.discharge_date || "",
-          status: b.discharge_date ? "Discharged" : "In NICU",
+          status: b.died ? "Died" : b.discharge_date ? "Discharged" : "In NICU",
         }));
         setTotalDays(helperDayStripLength({
           dischargeDay: timelineDisch,
@@ -2258,7 +2258,7 @@ export default function InfectGIHemaLog() {
               <div className="rcn-status-banner rcn-status-banner--discharged">
                 <span style={{ fontSize: 18 }}>🏠</span>
                 <div className="rcn-status-banner-text">
-                  <strong>Patient Discharged</strong>
+                  <strong>{patientInfo.status === "Died" ? "Baby died" : "Patient Discharged"}</strong>
                   <span>Day {dischargeDay} was the last NICU day. Data entry beyond this point is locked.</span>
                 </div>
               </div>

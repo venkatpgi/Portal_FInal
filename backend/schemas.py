@@ -855,8 +855,9 @@ class BirthResuscitationCreate(BaseModel):
 
 class BirthResuscitationOut(BirthResuscitationCreate):
     id: int
-    # Read-only, from Form H (the helper pages' discharge cut-off).
+    # Read-only: end of stay, discharge or death (stay_end.py), the helper pages' cut-off.
     discharge_date: Optional[date] = None
+    died: bool = False
     created_at: Optional[datetime]
     original_gestation_weeks: Optional[int] = None
     original_gestation_days: Optional[int] = None
@@ -1369,6 +1370,7 @@ class NeonatalMorbiditiesCreate(BaseModel):
     nicu_days: int | None = None
     discharge_weight: float | None = None
     discharge_date: date | None = None
+    death_time: str | None = None
     outcome: str | None = None
     back_referred_hospital: str | None = None
 

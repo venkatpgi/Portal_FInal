@@ -56,6 +56,8 @@ warning / Force refill. This is by design.
 
 ## Form H — Neonatal morbidities (`neonatal_morbidities`)
 
+**Outcome Died (PI 2026-10-31):** H12.4 asks Date of death (stored in `discharge_date`, prefilled from Helper 5) and Time of death (`death_time`); the Discharge Date box is hidden. Both are needed for the Form H tick. Form I's in-hospital mortality takes them.
+
 Sign-off (form completed by, designation, date) is at the end of H12 Hospital Course; the separate Review & Submit tab held nothing else and was removed (PI 2026-10-31). Completed by is a drop-down.
 
 One record per baby, filled across the admission. Required for completion:

@@ -96,6 +96,7 @@ from routers import data_queries as data_queries_router
 from routers import dashboard as dashboard_router
 from routers import reports as reports_router
 from routers import site_summary as site_summary_router
+from stay_end import refuse_after_stay, stay_end
 from routers import shift_report as shift_report_router
 from routers import auth as auth_router
 from baby_uid_duplicate import (
@@ -1997,13 +1998,10 @@ def get_birth_resuscitation(
     # The helper pages read b.discharge_date from this response to stop
     # requiring days after discharge, but it was never included - the date
     # lives on Form H (PATCH /enrollment/{id}/discharge writes it there).
-    form_h_dd = (
-        db.query(NeonatalMorbidities.discharge_date)
-        .filter(NeonatalMorbidities.enrollment_id == enrollment_id)
-        .order_by(NeonatalMorbidities.id.desc())
-        .first()
-    )
-    record_dict["discharge_date"] = form_h_dd[0] if form_h_dd else None
+    # A death counts too, with or without a Form H date (stay_end.py).
+    end = stay_end(db, enrollment_id)
+    record_dict["discharge_date"] = end["date"] if end else None
+    record_dict["died"] = bool(end and end["died"])
 
     return record_dict
 
@@ -4335,9 +4333,12 @@ def get_survival_check(
         .first()
     )
     # For Form I's in-hospital mortality: "No" only once the stay has ended.
+    died_on_h = bool(form_h and form_h.outcome == "Died")
     h = {
-        "form_h_died": bool(form_h and form_h.outcome == "Died"),
+        "form_h_died": died_on_h,
         "stay_ended": bool(form_h and (form_h.outcome or form_h.discharge_date)),
+        "form_h_date": form_h.discharge_date.isoformat() if died_on_h and form_h.discharge_date else None,
+        "time": form_h.death_time if died_on_h else None,
     }
     if not death_days:
         return {"did_not_survive": False, **h}
@@ -7524,6 +7525,7 @@ def create_resp_cv_neuro_day(
     current_user: User    = Depends(get_current_user),
 ):
     require_enrollment_access(data.enrollment_id, db, current_user)
+    refuse_after_stay(db, data.enrollment_id, nicu_day=data.nicu_day)
 
     # Prevent duplicate  -  upsert pattern
     existing = (
@@ -7562,6 +7564,7 @@ def update_resp_cv_neuro_day(
     current_user:  User    = Depends(get_current_user),
 ):
     require_enrollment_access(enrollment_id, db, current_user)
+    refuse_after_stay(db, enrollment_id, nicu_day=nicu_day)
     record = (
         db.query(RespCVNeuroDayLog)
         .filter(
@@ -7957,6 +7960,7 @@ def create_infect_gi_hema_day(
     current_user: User    = Depends(get_current_user),
 ):
     require_enrollment_access(data.enrollment_id, db, current_user)
+    refuse_after_stay(db, data.enrollment_id, nicu_day=data.nicu_day)
 
     existing = (
         db.query(InfectGIHemaDayLog)
@@ -7993,6 +7997,7 @@ def update_infect_gi_hema_day(
     current_user:  User    = Depends(get_current_user),
 ):
     require_enrollment_access(enrollment_id, db, current_user)
+    refuse_after_stay(db, enrollment_id, nicu_day=nicu_day)
     record = (
         db.query(InfectGIHemaDayLog)
         .filter(
@@ -8288,6 +8293,7 @@ def create_metab_renal_vasc_eye_day(
     current_user: User = Depends(get_current_user),
 ):
     require_enrollment_access(data.enrollment_id, db, current_user)
+    refuse_after_stay(db, data.enrollment_id, nicu_day=data.nicu_day)
     existing = db.query(MetabRenalVascEyeDayLog).filter(
         MetabRenalVascEyeDayLog.enrollment_id == data.enrollment_id,
         MetabRenalVascEyeDayLog.nicu_day      == data.nicu_day,
@@ -8318,6 +8324,7 @@ def update_metab_renal_vasc_eye_day(
     current_user: User = Depends(get_current_user),
 ):
     require_enrollment_access(enrollment_id, db, current_user)
+    refuse_after_stay(db, enrollment_id, nicu_day=nicu_day)
     record = db.query(MetabRenalVascEyeDayLog).filter(
         MetabRenalVascEyeDayLog.enrollment_id == enrollment_id,
         MetabRenalVascEyeDayLog.nicu_day      == nicu_day,
@@ -8596,6 +8603,7 @@ def _upsert_minimal_monitoring_for_date(
     db: Session,
 ) -> MinimalMonitoringDayLog:
     """Upsert one calendar-date scratchpad row (shared by /today and /on/{date})."""
+    refuse_after_stay(db, enrollment_id, on_date=record_date)
     payload = data.model_dump(exclude_unset=True)
     deleted_entry_ids = payload.pop("deleted_entry_ids", None)
     payload["enrollment_id"] = enrollment_id
