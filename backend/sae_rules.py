@@ -38,10 +38,28 @@ def list_row(sae) -> dict:
             "start_date": start or None, "end_date": (sae.end_datetime or "")[:10] or None}
 
 
+def _base(name) -> str:
+    return (name or "").lower().replace(", death", "").strip()
+
+
+def filled_rows(rows) -> list:
+    return [r for r in rows or [] if isinstance(r, dict) and any(v for k, v in r.items() if k != "row_id")]
+
+
 def on_list(rows, row: dict) -> bool:
     """Already listed: same event name, or the same name before ", Death" was added."""
-    base = lambda v: (v or "").lower().replace(", death", "").strip()
-    return any(isinstance(r, dict) and base(r.get("sae")) == base(row["sae"]) for r in rows or [])
+    return any(_base(r.get("sae")) == _base(row["sae"]) for r in filled_rows(rows))
+
+
+def add_to_list(rows, row: dict) -> list:
+    """rows with this report's event: a draft "Death" row takes the event's name."""
+    out = filled_rows(rows)
+    if on_list(out, row):
+        return out
+    for r in out:
+        if _base(r.get("sae")) == "death":
+            return [{**x, "sae": row["sae"]} if x is r else x for x in out]
+    return [*out, row]
 
 
 def apply_rules(payload: dict, old=None) -> str | None:

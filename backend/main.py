@@ -5843,8 +5843,7 @@ def _add_to_sae_list(db: Session, record: SAEReport) -> None:
         if listing is None:
             listing = SAEList(enrollment_id=record.enrollment_id, rows=[])
             db.add(listing)
-        if not sae_rules.on_list(listing.rows, row):
-            listing.rows = with_row_ids([*(listing.rows or []), row])
+        listing.rows = with_row_ids(sae_rules.add_to_list(listing.rows, row))
         db.commit()
     except Exception:
         db.rollback()
@@ -6477,6 +6476,8 @@ def create_sae_list(
     base = None if data.base_rows is None else [r.model_dump() for r in data.base_rows]
     payload["rows"] = _merged_rows(db, "sae_list", data.enrollment_id, base, existing.rows if existing else [],
                                    payload["rows"], SAE_ROW_KEYS, lambda r: (r.get("sae") or "a row"), "SAE list")
+    import sae_rules
+    payload["rows"] = sae_rules.filled_rows(payload["rows"])   # a blank row is not an SAE
     if existing:
         for key, value in payload.items():
             if key == "enrollment_id":
