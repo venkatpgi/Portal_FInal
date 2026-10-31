@@ -272,6 +272,14 @@ def _incomplete(form_label, table, offset_days=0):
     return fn
 
 
+def check_entries_after_stay_end(ctx):
+    return [finding(ctx["site_of_eid"].get(r["enrollment_id"]), "enrollment", r["enrollment_id"],
+                    "Daily log entries after the end of stay",
+                    f"{r['enrollment_id']}: stay ended {r['end']}; entries in " + "; ".join(r["items"]) + ".",
+                    {"end": r["end"], "items": r["items"]}, ctx["now"])
+            for r in ctx["after_stay"]]
+
+
 CHECKS = [
     Check("GA_ELIGIBLE_NO_FORM_A", "Gestation Log", "Eligible woman, still pregnant, with no Form A", check_ga_eligible_no_form_a),
     Check("GA_NOW_ELIGIBLE", "Gestation Log", "Logged before 25 weeks, now in the window, no Form A", check_ga_now_eligible),
@@ -286,11 +294,54 @@ CHECKS = [
     Check("FORMA_POSSIBLE_SAME_WOMAN", "Identity", "Two Form A with nearly the same CR, matching name and GA", check_formA_possible_same_woman, second_signoff=True),
     Check("FORMB_NOT_ELIGIBLE", "Consent / eligibility", "Form B saved for a screening that is not Eligible", check_formb_not_eligible, second_signoff=True),
     Check("DAY1_DATE_MISMATCH", "Clinical consistency", "Form E Day 1 date differs from Form B date of birth", check_day1_date_mismatch),
+    Check("LOG_AFTER_STAY_END", "Clinical consistency", "DMS or Helper entries after death or discharge", check_entries_after_stay_end),
     Check("FORM_C_INCOMPLETE", "Form timeliness", "Form C (maternal details) not complete", _incomplete("Form C", "maternal_details"), raise_after=AMBER_AFTER),
     Check("FORM_D_INCOMPLETE", "Form timeliness", "Form D (postnatal day 1) not complete", _incomplete("Form D", "postnatal_day1", 1), raise_after=AMBER_AFTER),
     Check("FORM_E_INCOMPLETE", "Form timeliness", "Form E (NICU admission) not complete", _incomplete("Form E", "nicu_admission"), raise_after=AMBER_AFTER),
 ]
 CHECKS_BY_ID = {c.check_id: c for c in CHECKS}
+
+
+def _day(v) -> Optional[date]:
+    return date.fromisoformat(str(v)[:10]) if v else None
+
+
+def _entries_after_stay(db) -> list:
+    """Babies with a saved DMS or Helper entry after the end of stay
+    (stay_end.py), or a DMS reading timed after the time of death."""
+    from stay_end import end_of_stay, entries_after_death
+    deaths = defaultdict(list)
+    for eid, day in db.execute(text("SELECT enrollment_id, nicu_day FROM metab_renal_vasc_eye_day_logs "
+                                    "WHERE survived_the_day IS FALSE AND nicu_day IS NOT NULL")):
+        deaths[eid].append(day)
+    forms = {r[0]: r for r in db.execute(text(
+        "SELECT enrollment_id, discharge_date, outcome, death_time FROM neonatal_morbidities ORDER BY id"))}
+    out = []
+    for eid, dob in db.execute(text("SELECT enrollment_id, date_of_birth FROM birth_resuscitation "
+                                    "WHERE enrollment_id IS NOT NULL")):
+        h = forms.get(eid)
+        end = end_of_stay(_day(dob), _day(h[1]) if h else None, h[2] if h else None, deaths.get(eid, []),
+                          h[3] if h else None)
+        if not end or end["day"] is None:
+            continue
+        items = []
+        for label, table in (("Helper 2", "resp_cv_neuro_day_logs"), ("Helper 4", "infect_gi_hema_day_logs"),
+                             ("Helper 5", "metab_renal_vasc_eye_day_logs")):
+            days = [r[0] for r in db.execute(text(f"SELECT nicu_day FROM {table} WHERE enrollment_id = :e "
+                                                  "AND nicu_day > :d ORDER BY nicu_day"),
+                                             {"e": eid, "d": end["day"]})]
+            if days:
+                items.append(f"{label} Day {', '.join(str(d) for d in days)}")
+        for sheet, raw in db.execute(text("SELECT record_date, entries_json FROM minimal_monitoring_day_logs "
+                                          "WHERE enrollment_id = :e"), {"e": eid}):
+            if str(sheet) > end["date"].isoformat():
+                items.append(f"DMS {sheet}")
+            late = entries_after_death(end, sheet, raw)
+            if late:
+                items.append(f"DMS {sheet} after the time of death ({len(late)})")
+        if items:
+            out.append({"enrollment_id": eid, "end": end["date"].isoformat(), "items": items})
+    return out
 
 
 def _context(db, now: datetime, today: date) -> dict:
@@ -323,6 +374,7 @@ def _context(db, now: datetime, today: date) -> dict:
         "pii": [p for p in db.query(ParticipantPII).all() if p.screening_id in live_sids],
         "complete": complete,
         "screening_ga": screening_ga,
+        "after_stay": _entries_after_stay(db),
         "day1_mismatch": db.execute(text("""
             SELECT n.enrollment_id, n.day1_date, b.date_of_birth
             FROM nicu_admission n JOIN birth_resuscitation b ON b.enrollment_id = n.enrollment_id

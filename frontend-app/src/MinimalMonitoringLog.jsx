@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
+import { isReadOnlyUser } from "./utils/roles";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import {
   toDateOnlyValue,
@@ -1755,6 +1756,9 @@ export default function MinimalMonitoringLog() {
   const [entries, setEntries] = useState(emptyEntries);
   const [sheetDate, setSheetDate] = useState("");
   const [stayEnd, setStayEnd] = useState(null);
+  const [showEndForm, setShowEndForm] = useState(false);
+  const [endForm, setEndForm] = useState({ outcome: "Died", date: toDateOnlyValue(new Date()), time: "" });
+  const [endError, setEndError] = useState("");
   const [giFeedFrequencyHours, setGiFeedFrequencyHours] = useState(2);
   const [glucoseFrequencyHours, setGlucoseFrequencyHours] = useState(2);
   const [vitalsFrequencyHours, setVitalsFrequencyHours] = useState(2);
@@ -1823,6 +1827,17 @@ export default function MinimalMonitoringLog() {
 
   // End of stay (backend/stay_end.py): the sheet closes after the day of death or discharge.
   const stayClosed = !!stayEnd && !!sheetDate && sheetDate > stayEnd.date;
+  const recordEndOfStay = async () => {
+    setEndError("");
+    try {
+      const res = await api.post(`/enrollment/${enrollmentId}/end-of-stay`, endForm);
+      setStayEnd({ date: res.data.date, died: res.data.outcome === "Died", time: res.data.time || "" });
+      setShowEndForm(false);
+    } catch (err) {
+      const d = err?.response?.data?.detail;
+      setEndError(typeof d === "string" ? d : "Could not save. Please try again.");
+    }
+  };
   const isEditable = !stayClosed;
   const notRequiredNow = useMemo(
     () => activeNotRequired(entries, notRequiredBlocks),
@@ -1948,7 +1963,8 @@ export default function MinimalMonitoringLog() {
         const birth = await api.get(`/birth-resuscitation/${enrollmentId}`);
         const b = birth?.data || {};
         setDobYmd(b.date_of_birth ? String(b.date_of_birth).slice(0, 10) : "");
-        setStayEnd(b.discharge_date ? { date: String(b.discharge_date).slice(0, 10), died: !!b.died } : null);
+        setStayEnd(b.discharge_date
+          ? { date: String(b.discharge_date).slice(0, 10), died: !!b.died, time: b.death_time || "" } : null);
         setPatientInfo(prev => ({
           ...prev, enrollmentId,
           babyUid: b.baby_uid || "",
@@ -2733,6 +2749,45 @@ export default function MinimalMonitoringLog() {
                   <strong>{stayEnd.died ? "Baby died" : "Patient Discharged"}</strong>
                   <span>The last day was {stayEnd.date}. This sheet is closed for entries.</span>
                 </div>
+              </div>
+            )}
+            {stayEnd?.died && stayEnd.time && sheetDate === stayEnd.date && (
+              <div className="rcn-status-banner rcn-status-banner--discharged">
+                <div className="rcn-status-banner-text">
+                  <strong>Baby died at {stayEnd.time}</strong>
+                  <span>Readings timed after this are not accepted.</span>
+                </div>
+              </div>
+            )}
+            {!stayEnd && !isReadOnlyUser(user) && !showEndForm && (
+              <button type="button" className="btn btn-draft" onClick={() => setShowEndForm(true)}>
+                Record death or discharge
+              </button>
+            )}
+            {!stayEnd && showEndForm && (
+              <div className="mml-end-form">
+                <p>This updates Form H and closes the DMS and Helpers after this date.</p>
+                <label>Outcome
+                  <select value={endForm.outcome} onChange={e => setEndForm(f => ({ ...f, outcome: e.target.value }))}>
+                    {["Died", "Discharged", "Back referred", "Discharged home on request", "Left Against Medical Advice"]
+                      .map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </label>
+                <label>{endForm.outcome === "Died" ? "Date of death" : "Date"}
+                  <input type="date" value={endForm.date} max={realCalendarDateYmd()}
+                    onChange={e => setEndForm(f => ({ ...f, date: e.target.value }))} />
+                </label>
+                {endForm.outcome === "Died" && (
+                  <label>Time of death (24 h)
+                    <input type="time" value={endForm.time}
+                      onChange={e => setEndForm(f => ({ ...f, time: e.target.value }))} />
+                  </label>
+                )}
+                <div>
+                  <button type="button" className="btn btn-save" onClick={recordEndOfStay}>Save</button>
+                  <button type="button" className="btn btn-draft" onClick={() => setShowEndForm(false)}>Cancel</button>
+                </div>
+                {endError && <div className="error-text" role="alert">{endError}</div>}
               </div>
             )}
             <div className="mml-sheet-header-row">

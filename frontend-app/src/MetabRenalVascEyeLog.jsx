@@ -1010,6 +1010,14 @@ export default function MetabRenalVascEyeLog() {
   // check here canSubmit was permanently false during any override —
   // the footer always fell to "Save Correction" and the day could never
   // be re-locked. Allow re-locking while the override window is open.
+  // "Survived the day": No on the day of death recorded elsewhere (DMS, Form H).
+  useEffect(() => {
+    if (patientInfo.status === "Died" && activeDay === dischargeDay && tailData.survived_the_day === null) {
+      setTailData(p => ({ ...p, survived_the_day: false }));
+    }
+  }, [patientInfo.status, activeDay, dischargeDay, tailData.survived_the_day]);
+  const laterDaysSaved = Object.keys(dayMeta).map(Number).filter(d => d > activeDay).sort((a, b) => a - b);
+
   const canSubmit     = completionPct === 100 && (!isSubmitted || isOverrideActiveDay);
 
   /* ── Setters ── */
@@ -2588,6 +2596,12 @@ export default function MetabRenalVascEyeLog() {
                 <YNRow label="Survived the day" value={tailData.survived_the_day}
                   onChange={v=>setTail("survived_the_day",v)} disabled={!isFieldEditable}/>
               </div>
+              {tailData.survived_the_day === false && laterDaysSaved.length > 0 && (
+                <div className="field-hint field-hint-warning">
+                  Day {laterDaysSaved.join(", ")} already {laterDaysSaved.length > 1 ? "have" : "has"} entries after this
+                  day. They will be raised as a data query.
+                </div>
+              )}
             </SectionCard>
 
           </div>

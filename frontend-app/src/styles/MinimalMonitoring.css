@@ -1282,3 +1282,7 @@
   font-size: 12px;
   color: #64748B;
 }
+
+.mml-end-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 10px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+.mml-end-form p { flex-basis: 100%; margin: 0; font-size: 13px; }
+.mml-end-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
