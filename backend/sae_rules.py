@@ -30,6 +30,20 @@ def event_title(diagnosis, fatal: bool) -> str:
     return f"{dx}, Death" if dx else "Death"
 
 
+def list_row(sae) -> dict:
+    """The SAE list row for a saved Initial report (its deadlines start here)."""
+    linked = sae.linked_ae if isinstance(sae.linked_ae, dict) else {}
+    start = (sae.onset_datetime or sae.date_of_death or sae.report_date or "")[:10]
+    return {"sae": event_title(sae.diagnosis, is_fatal(sae)), "definition_no": linked.get("definition_no"),
+            "start_date": start or None, "end_date": (sae.end_datetime or "")[:10] or None}
+
+
+def on_list(rows, row: dict) -> bool:
+    """Already listed: same event name, or the same name before ", Death" was added."""
+    base = lambda v: (v or "").lower().replace(", death", "").strip()
+    return any(isinstance(r, dict) and base(r.get("sae")) == base(row["sae"]) for r in rows or [])
+
+
 def apply_rules(payload: dict, old=None) -> str | None:
     """Fix up a Form Y payload before saving; returns a refusal message or None.
     old: the saved report on an update."""

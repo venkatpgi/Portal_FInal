@@ -1833,6 +1833,7 @@ export default function MinimalMonitoringLog() {
       const res = await api.post(`/enrollment/${enrollmentId}/end-of-stay`, endForm);
       setStayEnd({ date: res.data.date, died: res.data.outcome === "Died", time: res.data.time || "" });
       setShowEndForm(false);
+      window.dispatchEvent(new Event("portal:death-recorded"));
     } catch (err) {
       const d = err?.response?.data?.detail;
       setEndError(typeof d === "string" ? d : "Could not save. Please try again.");
