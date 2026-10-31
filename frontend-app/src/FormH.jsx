@@ -37,7 +37,6 @@ const FORMH_CATEGORIES = [
   { key: "vascular",  code: "H10", label: "Vascular Access", Icon: Syringe },
   { key: "infection", code: "H11", label: "Infection",       Icon: Bug },
   { key: "summary",   code: "H12", label: "Hospital Course", Icon: ClipboardList },
-  { key: "completion",code: "",    label: "Review & Submit", Icon: CheckCircle2 },
 ];
 
 /* ─── YesNoToggle — compact Yes/No segmented control (reference spec section I).
@@ -6008,10 +6007,7 @@ const peripheralStatus= getPeripheralStatus();
      </div>
      <div ref={jumpNavContentRef} />
 
-     {/* ================= IDENTIFICATION =================
-         Hidden on Review & Submit — that tab shows Enrollment ID
-         in the same grid as Form completed by / Designation / Date. */}
-{activeCategory !== "completion" && (
+     {/* ================= IDENTIFICATION ================= */}
 <div className="form-section soft-blue">
   <h3>IDENTIFICATION</h3>
 
@@ -6030,7 +6026,6 @@ const peripheralStatus= getPeripheralStatus();
     Complete when diagnosed or at discharge (trigger: daily surveillance sheet)
   </p>
 </div>
-)}
 
 {/* ================= NEUROLOGICAL ================= */}
 <div id="cat-neuro" className={`form-section soft-blue${activeCategory === "neuro" ? "" : " cat-hidden"}`}>
@@ -11268,29 +11263,17 @@ const peripheralStatus= getPeripheralStatus();
 
 </div>
 
-{/* ================= FORM COMPLETION ================= */}
-<div id="cat-completion" className={`form-section soft-blue${activeCategory === "completion" ? "" : " cat-hidden"}`}>
-  <h3>IDENTIFICATION</h3>
+{/* ================= SIGN-OFF (end of H12) ================= */}
+<div id="cat-completion" className={`form-section soft-blue${activeCategory === "summary" ? "" : " cat-hidden"}`}>
+  <h3>SIGN-OFF</h3>
 
   <div className="fh-grid-row">
     <div className="form-group">
-      <label>Enrollment ID</label>
-      <input
-        name="enrollment_id"
-        value={formData.enrollment_id || ""}
-        readOnly
-      />
-    </div>
-
-    <div className="form-group">
-      <PillSelect
-        label="Form completed by"
-        required
-        name="completed_by"
-        value={formData.completed_by || ""}
-        options={completedByOptions}
-        onChange={handleCompletedByChange}
-      />
+      <label>Form completed by <span className="required">*</span></label>
+      <select name="completed_by" value={formData.completed_by || ""} onChange={handleCompletedByChange}>
+        <option value="">-- Select --</option>
+        {completedByOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+      </select>
       {rosterReady && nurses.length === 0 && (
         <div className="field-note" style={{ marginTop: 4 }}>
           No staff found for your site — contact your admin

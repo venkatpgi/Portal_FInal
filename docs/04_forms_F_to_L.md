@@ -56,6 +56,8 @@ warning / Force refill. This is by design.
 
 ## Form H — Neonatal morbidities (`neonatal_morbidities`)
 
+Sign-off (form completed by, designation, date) is at the end of H12 Hospital Course; the separate Review & Submit tab held nothing else and was removed (PI 2026-10-31). Completed by is a drop-down.
+
 One record per baby, filled across the admission. Required for completion:
 outcome + discharge date + sign-off + all infection windows reviewed + no
 field error (chapter 06). **Discharge date here is the "discharge date"
@@ -87,12 +89,14 @@ Plus:
 
 ## Form I — Study outcomes (`study_outcomes`)
 
+**One death, one entry (PI 2026-10-31):** cause, date and time of death entered at any place carry to every other mortality place answered Yes (`utils/deathDetails.js`). A place changed by hand keeps its own text.
+
 | Section | Source | Rule |
 |---|---|---|
 | I.1 Resuscitation | Form B | PPV → ventilation required; chest compressions; intubation; time to spontaneous breathing (seconds). "Switched to 100% O₂" and HIE manual (the page says so; HIE feeds the AE scan, docs/07). |
 | I.2 Post-resuscitation (`get_post_resus_prefill`) | Helpers 2/4/5, Form H | #7 resp support 0.5–72 h: "No" only when days 1–3 all have a Helper 2 log with the item answered; #8 EOS / #9 LOS from infection windows (onset ≤ day 3 / after); **"No" only once the period is observed** (EOS: days 1–3 logged; LOS/culture: stay ended); mortality ≤ 7 / ≤ 28 d "No" only if known alive past that age |
 | I.3–I.5 at 36 / 40 / 44 wk PMA (`get_pma_assessment_prefill`) | Form H, Form F, Form G, Form J, Helpers | death (incremental windows), BPD (36 wk), NEC ≥ IIA, brain injury, ROP — **chapter 05**. Needs Form E Day 1 Date and gestation. |
-| I.6 Overall | Form H prefills | MV/CPAP/HFNC/NIPPV days, sepsis overall (any infection window), in-hospital death + date |
+| I.6 Overall | Form H prefills | MV/CPAP/HFNC/NIPPV days, sepsis overall (any infection window), in-hospital death + date: Yes from Helper 5 or Form H outcome Died; **No only once the stay has ended** (PI 2026-10-31; a baby still admitted stays blank) |
 
 ## Form J — External hospital / follow-up (`external_hospital_assessments`)
 - One row per visit week (36 / 40 / 44…; unique per `assessment_weeks`).

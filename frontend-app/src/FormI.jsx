@@ -15,6 +15,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
 import { fallbackCompletedByDesignation as getDesignation } from "./utils/completedByDesignation";
 import { resolveEffectiveGestation } from "./utils/gestation";
+import { deathDetailUpdates } from "./utils/deathDetails";
 import {
   Wind, Skull, CalendarClock, CalendarCheck, CalendarRange, ClipboardList, Home, Clock,
 } from "lucide-react";
@@ -1073,11 +1074,12 @@ export default function FormI() {
       if (inf?.has_data) {
         mapped.sepsis_overall = (inf.windows || []).length > 0 ? "Yes" : "No";
       }
-      if (surv) {
-        mapped.mortality_in_hospital = surv.did_not_survive ? "Yes" : "No";
-        if (surv.did_not_survive && surv.date) {
-          mapped.mortality_hospital_date = surv.date;
-        }
+      if (surv?.did_not_survive || surv?.form_h_died) {
+        mapped.mortality_in_hospital = "Yes";
+        if (surv.date) mapped.mortality_hospital_date = surv.date;
+      } else if (surv?.stay_ended) {
+        // "No" only once the stay has ended: a baby still admitted has no answer yet.
+        mapped.mortality_in_hospital = "No";
       }
 
       const filled = {};
@@ -1328,6 +1330,14 @@ export default function FormI() {
       setForceRefillingAllPma(false);
     }
   };
+
+  // One death: cause, date and time carry across the sections answered Yes.
+  const deathDetailsBefore = useRef(formData);
+  useEffect(() => {
+    const updates = deathDetailUpdates(deathDetailsBefore.current, formData);
+    deathDetailsBefore.current = formData;
+    if (Object.keys(updates).length) setFormData((p) => ({ ...p, ...updates }));
+  }, [formData]);
 
   /* ── Age-at-death auto-calc from DOB, mirrors the pattern already used
          elsewhere in this form for each of the five death timepoints ── */
