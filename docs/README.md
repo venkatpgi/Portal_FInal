@@ -181,6 +181,15 @@ produced. Three columns:
   detectors, worst grade, plus severe Form F scans not yet in Form H. Items
   not on the AE form are marked "auto-detected".
 
+## Enrolment status (PI 2026-10-31)
+
+`backend/enrolment_status.py`, `GET /shift-report/enrolment`, on the
+Twice-daily report page and tablet screen; same access. Replaces the 8-to-8
+message nurses typed by hand. Counts only, for the last finished 8 am-8 pm or
+8 pm-8 am (India time); no running totals (PI). The rules for which time
+places a record in the window are in the file's header. A record whose own
+date and time fall in a window already reported is not picked up later.
+
 ## Site summary (PI 2026-10-26)
 
 `backend/site_summary.py`, page `/site-summary` (`GET /site-summary`), email

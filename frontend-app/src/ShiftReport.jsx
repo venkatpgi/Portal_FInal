@@ -3,7 +3,7 @@
 // morbidities till date; randomised babies only, IDs only, nothing by arm
 // (backend/shift_report.py). Global PI and central scientists pick a site.
 import React, { useState } from "react";
-import { ClipboardCheck, Download, Share2 } from "lucide-react";
+import { ClipboardCheck, Copy, Download, Share2, Users } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import DashboardWorkspaceLayout from "./components/dashboard/DashboardWorkspaceLayout";
@@ -33,16 +33,38 @@ export default function ShiftReport() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+
+  const params = () => (global ? { site } : {});
+
+  const generateStatus = async () => {
+    setLoadingStatus(true);
+    setError("");
+    setNotice("");
+    try {
+      setStatus((await api.get("/shift-report/enrolment", { params: params() })).data);
+    } catch (err) {
+      const d = err?.response?.data?.detail;
+      setError(typeof d === "string" ? d : "Could not generate the enrolment status. Try again.");
+    } finally {
+      setLoadingStatus(false);
+    }
+  };
+
+  const copyStatus = async () => {
+    await navigator.clipboard.writeText(status.message);
+    setNotice("Copied.");
+  };
 
   const generate = async () => {
     setLoading(true);
     setError("");
     setNotice("");
     try {
-      const params = global ? { site } : {};
       const [json, pdf] = await Promise.all([
-        api.get("/shift-report", { params }),
-        api.get("/shift-report/pdf", { params, responseType: "blob" }),
+        api.get("/shift-report", { params: params() }),
+        api.get("/shift-report/pdf", { params: params(), responseType: "blob" }),
       ]);
       const m = (pdf.headers?.["content-disposition"] || "").match(/filename="?([^"]+)"?/);
       setReport(json.data);
@@ -89,7 +111,7 @@ export default function ShiftReport() {
             <p>
               Generate this in the morning and evening and share it to the site's WhatsApp group. Randomised babies
               still admitted or whose stay ended in the last 7 days. Enrolment IDs only: no names, and nothing by
-              study arm.
+              study arm. Enrolment status counts the last finished 8 am to 8 pm or 8 pm to 8 am from the saved forms.
             </p>
           </div>
         </div>
@@ -98,7 +120,7 @@ export default function ShiftReport() {
           {global ? (
             <label className="ss-field">
               <span>Site</span>
-              <select value={site} onChange={e => { setSite(e.target.value); setReport(null); setFile(null); }}>
+              <select value={site} onChange={e => { setSite(e.target.value); setReport(null); setFile(null); setStatus(null); }}>
                 <option value="">Pick a site</option>
                 {SITE_ORDER.map(s => <option key={s} value={s}>{formatSiteName(s)}</option>)}
               </select>
@@ -108,6 +130,9 @@ export default function ShiftReport() {
           )}
           <button type="button" className="ss-btn" onClick={generate} disabled={loading || (global && !site)}>
             <ClipboardCheck size={14} aria-hidden="true" /> {loading ? "Generating…" : "Generate report"}
+          </button>
+          <button type="button" className="ss-btn" onClick={generateStatus} disabled={loadingStatus || (global && !site)}>
+            <Users size={14} aria-hidden="true" /> {loadingStatus ? "Generating…" : "Enrolment status (8 to 8)"}
           </button>
           {file && (
             <>
@@ -123,6 +148,21 @@ export default function ShiftReport() {
 
         {error && <div className="ss-error" role="alert">{error}</div>}
         {notice && <span className="ss-note" role="status">{notice}</span>}
+
+        {status && (
+          <section className="ss-card">
+            <h2>Enrolment status</h2>
+            <pre className="ss-message">{status.message}</pre>
+            <div className="ss-bar">
+              <a className="ss-btn" href={`https://wa.me/?text=${encodeURIComponent(status.message)}`} target="_blank" rel="noopener noreferrer">
+                <Share2 size={14} aria-hidden="true" /> Share on WhatsApp
+              </a>
+              <button type="button" className="ss-btn" onClick={copyStatus}>
+                <Copy size={14} aria-hidden="true" /> Copy
+              </button>
+            </div>
+          </section>
+        )}
 
         {report && (
           <section className="ss-card">

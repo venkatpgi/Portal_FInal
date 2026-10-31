@@ -12,6 +12,7 @@ from audit_service import record_audit
 from db import get_db
 from deps import ROLE_TECH_SUPPORT, get_current_user
 from models import User
+import enrolment_status
 from routers.reports import ALL_SITES, CENTRAL
 import shift_report
 
@@ -33,6 +34,12 @@ def _site(user: User, site: str | None) -> str:
 def get_shift_report(site: str | None = None, db: Session = Depends(get_db),
                      current_user: User = Depends(get_current_user)):
     return shift_report.build(db, _site(current_user, site))
+
+
+@router.get("/enrolment")
+def get_enrolment_status(site: str | None = None, db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
+    return enrolment_status.build(db, _site(current_user, site))
 
 
 @router.get("/pdf")
