@@ -4333,9 +4333,12 @@ def get_survival_check(
         .first()
     )
     # For Form I's in-hospital mortality: "No" only once the stay has ended.
+    died_on_h = bool(form_h and form_h.outcome == "Died")
     h = {
-        "form_h_died": bool(form_h and form_h.outcome == "Died"),
+        "form_h_died": died_on_h,
         "stay_ended": bool(form_h and (form_h.outcome or form_h.discharge_date)),
+        "form_h_date": form_h.discharge_date.isoformat() if died_on_h and form_h.discharge_date else None,
+        "time": form_h.death_time if died_on_h else None,
     }
     if not death_days:
         return {"did_not_survive": False, **h}

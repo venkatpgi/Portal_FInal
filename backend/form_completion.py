@@ -86,6 +86,8 @@ def form_h_complete(r, infection_signatures: Iterable[str]) -> bool:
         return False
     if not answered(r.outcome) or not answered(r.discharge_date):
         return False
+    if r.outcome == "Died" and not answered(getattr(r, "death_time", None)):
+        return False
     return signed_off(r.completed_by, r.completion_date)
 
 

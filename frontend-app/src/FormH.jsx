@@ -1055,6 +1055,10 @@ const validateSummary = (name, value, updatedForm = formData) => {
       if (!value) error = "Required";
       break;
 
+    case "death_time":
+      if (updatedForm.outcome === "Died" && !value) error = "Required";
+      break;
+
     // ---------------- LOS ----------------
     // (total_los / nicu_days required-checks live in their dedicated
     // cases below so the range validation actually runs — previously
@@ -3170,6 +3174,13 @@ const fetchSurvivalCheck = async () => {
     console.log("Error fetching survival check", err);
   }
 };
+
+// Date of death from Helper 5 until someone enters one.
+useEffect(() => {
+  if (formData.outcome === "Died" && !formData.discharge_date && survivalAlert?.date) {
+    setFormData((prev) => ({ ...prev, discharge_date: prev.discharge_date || survivalAlert.date }));
+  }
+}, [formData.outcome, formData.discharge_date, survivalAlert]);
 
 const forceRefillAllDomains = async () => {
   if (
@@ -11162,6 +11173,8 @@ const peripheralStatus= getPeripheralStatus();
         )}
       </div>
 
+      {/* Died: this date is asked as Date of death under Outcome (H12.4). */}
+      {formData.outcome !== "Died" && (
       <div className="form-group">
         <label><span className="field-num">262.</span> Discharge Date</label>
         <input
@@ -11175,6 +11188,7 @@ const peripheralStatus= getPeripheralStatus();
           <div className="error-text">{errors.discharge_date}</div>
         )}
       </div>
+      )}
 
     </div>
   </CollapsibleCard>
@@ -11210,6 +11224,36 @@ const peripheralStatus= getPeripheralStatus();
         touched={!!errors.outcome}
       />
     </div>
+    {formData.outcome === "Died" && (
+      <div className="fh-grid-row">
+        <div className="form-group">
+          <label>Date of death <span className="required">*</span></label>
+          <input
+            type="date"
+            name="discharge_date"
+            value={formData.discharge_date || ""}
+            onChange={handleChange}
+            onBlur={handleBlur}
+          />
+          {errors.discharge_date && (
+            <div className="error-text">{errors.discharge_date}</div>
+          )}
+        </div>
+        <div className="form-group">
+          <label>Time of death (24 h) <span className="required">*</span></label>
+          <input
+            type="time"
+            name="death_time"
+            value={formData.death_time || ""}
+            onChange={handleChange}
+            onBlur={handleBlur}
+          />
+          {errors.death_time && (
+            <div className="error-text">{errors.death_time}</div>
+          )}
+        </div>
+      </div>
+    )}
   </CollapsibleCard>
 
   {/* ================= Back Referral ================= */}

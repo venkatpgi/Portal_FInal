@@ -2,9 +2,9 @@
 Helper logs take no later days. The day of death or discharge stays open, so a
 "did not survive" entered by mistake can be corrected there.
 
-End = the earliest of the Form H discharge date (for a death, the date in the
-same field) and the first Helper 5 "did not survive" day. Day 1 = date of birth.
-Form H outcome Died with no date gives no end date, so nothing is locked yet.
+End = the earliest of the Form H discharge date (for a death, Form H's Date of
+death, the same column) and the first Helper 5 "did not survive" day. Day 1 =
+date of birth. Form H outcome Died with no date gives no end date yet.
 """
 from __future__ import annotations
 

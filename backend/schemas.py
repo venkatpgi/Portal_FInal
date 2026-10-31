@@ -1370,6 +1370,7 @@ class NeonatalMorbiditiesCreate(BaseModel):
     nicu_days: int | None = None
     discharge_weight: float | None = None
     discharge_date: date | None = None
+    death_time: str | None = None
     outcome: str | None = None
     back_referred_hospital: str | None = None
 

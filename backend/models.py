@@ -704,7 +704,8 @@ class NeonatalMorbidities(Base):
     total_los_days = Column(Integer)
     nicu_days = Column(Integer)
     discharge_weight = Column(Float)
-    discharge_date = Column(Date)
+    discharge_date = Column(Date)                # date of death when outcome is Died
+    death_time = Column(String)                  # HH:MM, outcome Died
     outcome = Column(String)
     back_referred_hospital = Column(String)
 
