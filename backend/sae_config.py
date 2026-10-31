@@ -101,7 +101,8 @@ PGIMER_IEC = {
         "Room No. 6006, 6th Floor, P. N. Chuttani Block, PGIMER, Sector 12, "
         "Chandigarh - 160012"
     ),
-    "chairperson": "Prof. Parveen Kumar",  # PI: "according to one document I found" — confirm
+    "chairperson": "Justice M R Agnihotri",
+    "convener": "Dr Ashish Kakkar, Member-Secretary",
     "chairperson_address": "Institutional Ethics Committee, PGIMER, Sector 12, Chandigarh - 160012",
     "phone": "+91-172-2755266",
     "emails": ["iecpgi@gmail.com", "iecpgimerdt@gmail.com"],

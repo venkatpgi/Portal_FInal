@@ -474,3 +474,8 @@ p.fy-hint { margin-bottom: 10px; }
 }
 .fy-linked-ae-warn { margin-top: 4px; color: #b45309; font-weight: 600; font-size: 12.5px; }
 .fy-hint-warn { color: #b45309; }
+
+/* Causality on an Initial report */
+.fy-dull { opacity: 0.45; pointer-events: none; }
+.fy-draft-btn { padding: 7px 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font-weight: 600; cursor: pointer; }
+.fy-draft-btn:disabled { opacity: 0.6; cursor: default; }

@@ -20,15 +20,10 @@ from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 import sae_config as cfg
+from sae_rules import CAUSALITY_PENDING, event_title
+from sae_rules import is_fatal as _is_fatal
 
 _NA = "Not applicable"
-
-
-def _is_fatal(sae) -> bool:
-    """Fatal SAE: "Death" ticked under seriousness OR outcome "Fatal" (either
-    alone used to leave item 2 as "Other than death" and 16.2 blank)."""
-    seriousness = sae.seriousness if isinstance(sae.seriousness, list) else []
-    return "Death" in seriousness or (getattr(sae, "outcome", None) or "") == "Fatal"
 _BLANK = "—"
 
 # Default 15.4 wording; Form Y pre-fills it and the investigator may edit it.
@@ -207,7 +202,7 @@ def build_sae_report_docx(sae, ctx) -> bytes:
     _h(d, "1–10. Report and trial identification")
     _kv_table(d, [
         ("1. Country where the SAE occurred", cfg.TRIAL["country"]),
-        ("2. SAE report of", "Death" if death else "Other than death"),
+        ("2. SAE report of", event_title(sae.diagnosis, True) if death else "Other than death"),
         ("   If other than death, specify", _NA if death else _v(sae.diagnosis)),
         ("3. Protocol title", cfg.TRIAL["protocol_title"]),
         ("4. Protocol Study No / ID / Code", cfg.TRIAL["protocol_no"]),
@@ -287,15 +282,16 @@ def build_sae_report_docx(sae, ctx) -> bytes:
         ("a. Name and address", f'{iec["name"]}\n{iec["address"]}'),
         ("b. Name of Chairperson and address",
          f'{iec.get("chairperson", cfg.PH)}\n{iec.get("chairperson_address", cfg.PH)}'),
+        *([("   Name of Convener", iec["convener"])] if iec.get("convener") else []),
         ("c. Telephone / mobile", iec.get("phone", cfg.PH)),
         ("d. E-mail", ", ".join(iec.get("emails", []))),
     ])
 
     _h(d, "19–21. Causality and compensation")
     _kv_table(d, [
-        ("19. Causality assessment by Investigator (Related / Unrelated)", _v(sae.causality)),
+        ("19. Causality assessment by Investigator (Related / Unrelated)", _causality(sae, sae.causality)),
         ("20. Causality assessment by Sponsor / CRO (Related / Unrelated)",
-         _v(getattr(sae, "sponsor_causality", None))),
+         _causality(sae, getattr(sae, "sponsor_causality", None))),
         ("21. Details of compensation provided for injury or death "
          "(if none, the reason)", cfg.TRIAL["compensation_clause"]),
     ])
@@ -325,6 +321,13 @@ def build_sae_report_docx(sae, ctx) -> bytes:
     return buf.getvalue()
 
 
+def _causality(sae, value):
+    """Item 19 / 20: an Initial report does not ask for causality."""
+    if not (value or "").strip() and sae.report_type == "Initial":
+        return CAUSALITY_PENDING
+    return _v(value)
+
+
 def _prior_ref(prior):
     if not prior:
         return _NA
@@ -345,6 +348,8 @@ def _outcome_line(sae):
         parts.append(sae.outcome_details)
     if getattr(sae, "date_of_death", None):
         parts.append(f"Date of death: {sae.date_of_death}.")
+    if getattr(sae, "death_from_event", None):
+        parts.append("The death resulted from this event.")
     return " ".join(parts) if parts else _BLANK
 
 
@@ -383,7 +388,7 @@ def build_covering_letter_docx(sae, ctx) -> bytes:
     _kv_table(d, [
         ("Site", f'{site["display"]} (CT site no. {site["ct_site_number"]})'),
         ("Study enrolment ID", _v(sae.enrollment_id)),
-        ("Event term / diagnosis", _v(sae.diagnosis)),
+        ("Event term / diagnosis", _v(event_title(sae.diagnosis, death))),
         ("Category", "Death" if death else "Serious — other than death"),
         ("Seriousness criteria met", _yesno_list(sae.seriousness)),
         ("Date/time of onset", _fmt_dt(sae.onset_datetime)),

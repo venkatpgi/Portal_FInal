@@ -115,6 +115,18 @@ function isReportDelayed(data) {
   return reported - onset > 24 * 3600 * 1000;
 }
 
+/** Fatal SAE, as backend/sae_rules.py: Death ticked or outcome Fatal. */
+function isFatal(data) {
+  return data.outcome === "Fatal" || (data.seriousness || []).includes("Death");
+}
+
+/** The event as reported: "NEC, Death" for a fatal SAE. */
+function eventTitle(data) {
+  const dx = (data.diagnosis || "").trim();
+  if (!isFatal(data) || dx.toLowerCase().includes("death")) return dx;
+  return dx ? `${dx}, Death` : "Death";
+}
+
 const CAUSALITY_OPTIONS = [
   "Not Related (Clearly extraneous)",
   "Unlikely (Doubtfully related)",
@@ -224,6 +236,7 @@ function BLANK(enrollmentId = "") {
     death_details: "",
     other_relevant_info: "",
     sponsor_causality: "",
+    death_from_event: "",
   };
 }
 
@@ -264,6 +277,7 @@ function mapApiToForm(row) {
     death_details: row.death_details || "",
     other_relevant_info: row.other_relevant_info || "",
     sponsor_causality: row.sponsor_causality || "",
+    death_from_event: row.death_from_event === true ? "Yes" : "",
   };
 }
 
@@ -282,8 +296,7 @@ function buildPayload(data) {
     causality: emptyToNull(data.causality),
     action_taken: emptyToNull(data.action_taken),
     outcome: emptyToNull(data.outcome),
-    date_of_death:
-      data.outcome === "Fatal" ? emptyToNull(data.date_of_death) : null,
+    date_of_death: isFatal(data) ? emptyToNull(data.date_of_death) : null,
     narrative: emptyToNull(data.narrative),
     reporter_name: emptyToNull(data.reporter_name),
     reporter_designation: emptyToNull(data.reporter_designation),
@@ -297,8 +310,8 @@ function buildPayload(data) {
     linked_ae: data.linked_ae || null,
     dechallenge: emptyToNull(data.dechallenge),
     reporting_delay_reason: emptyToNull(data.reporting_delay_reason),
-    death_details: (data.outcome === "Fatal" || (data.seriousness || []).includes("Death"))
-      ? emptyToNull(data.death_details) : null,
+    death_details: isFatal(data) ? emptyToNull(data.death_details) : null,
+    death_from_event: isFatal(data) && data.death_from_event === "Yes" ? true : null,
     other_relevant_info: emptyToNull(data.other_relevant_info),
     sponsor_causality: emptyToNull(data.sponsor_causality),
   };
@@ -472,7 +485,7 @@ function SectionCard({ icon: Icon, num, title, children }) {
   );
 }
 
-function Chips({ options, value, onChange, multi = false }) {
+function Chips({ options, value, onChange, multi = false, disabled = false }) {
   const selected = multi
     ? Array.isArray(value)
       ? value
@@ -486,6 +499,7 @@ function Chips({ options, value, onChange, multi = false }) {
           <button
             key={opt}
             type="button"
+            disabled={disabled}
             className={`fy-chip${multi ? " multi" : ""}${active ? " active" : ""}`}
             onClick={() => {
               if (multi) {
@@ -523,6 +537,8 @@ export default function FormY_SAE() {
   const { markFormCompleted } = useFormProgress();
 
   const [formData, setFormData] = useState(() => BLANK());
+  const [sitePi, setSitePi] = useState("");
+  const [building, setBuilding] = useState(false);
   const [savedRows, setSavedRows] = useState([]);
   const [isSaved, setIsSaved] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
@@ -611,6 +627,40 @@ export default function FormY_SAE() {
       .catch(() => setAeRows([]));
   }, [routeId, patientData, location.state]);
 
+  useEffect(() => {
+    const id = routeId || patientData?.enrollment_id;
+    if (!id) return;
+    api
+      .get(`/sae-config/investigator/${encodeURIComponent(id)}`)
+      .then((res) => setSitePi(res.data?.name || ""))
+      .catch(() => setSitePi(""));
+  }, [routeId, patientData?.enrollment_id]);
+
+  useEffect(() => {
+    if (sitePi && !formData._record_id && !formData.investigator_name) {
+      setFormData((p) => ({ ...p, investigator_name: sitePi }));
+    }
+  }, [sitePi, formData._record_id, formData.investigator_name]);
+
+  const buildNarrative = async () => {
+    if (formData.narrative.trim() && !window.confirm("Replace the narrative typed here with a new draft?")) return;
+    setBuilding(true);
+    try {
+      const res = await api.post(
+        `/sae-report/${encodeURIComponent(formData.enrollment_id)}/draft-narrative`,
+        buildPayload(formData),
+      );
+      setFormData((p) => ({ ...p, narrative: res.data.narrative }));
+      setIsSaved(false);
+    } catch (err) {
+      console.error("Draft narrative failed", err);
+      setSaveMessage("❌ Could not build the draft narrative — try again.");
+      setTimeout(() => setSaveMessage(""), 5000);
+    } finally {
+      setBuilding(false);
+    }
+  };
+
   const prefillFromAe = (idx) => {
     const e = aeRows[Number(idx)];
     if (!e) return;
@@ -695,6 +745,16 @@ export default function FormY_SAE() {
       setSaveMessage("❌ Enrollment ID is required");
       return false;
     }
+    if (isFatal(formData) && formData.death_from_event !== "Yes") {
+      setSaveMessage(formData.death_from_event === "No"
+        ? "❌ Remove Death and Fatal from this report and file a separate SAE report for the death."
+        : "❌ Answer: did this SAE lead to the death?");
+      return false;
+    }
+    if (formData.report_type === "Final" && !(formData.causality && formData.sponsor_causality)) {
+      setSaveMessage("❌ A Final report needs Causality (item V) and Causality by Sponsor (item 20).");
+      return false;
+    }
     try {
       const payload = buildPayload(formData);
       let res;
@@ -726,6 +786,10 @@ export default function FormY_SAE() {
   };
 
   const endDisabled = !!formData.ongoing;
+  const causalityOff = formData.report_type === "Initial";
+  const causalityHint = causalityOff
+    ? "Not asked on an Initial report. Fill it in the Final report."
+    : formData.report_type === "Final" ? "Required on a Final report." : "";
 
   return (
     <form
@@ -956,11 +1020,15 @@ export default function FormY_SAE() {
       </SectionCard>
 
       <SectionCard icon={Link2} num="V" title="Causality (relationship to oxygen intervention)">
-        <Chips
-          options={CAUSALITY_OPTIONS}
-          value={formData.causality}
-          onChange={(v) => set("causality", v)}
-        />
+        <div className={causalityOff ? "fy-dull" : undefined}>
+          <Chips
+            options={CAUSALITY_OPTIONS}
+            value={formData.causality}
+            onChange={(v) => set("causality", v)}
+            disabled={causalityOff}
+          />
+        </div>
+        {causalityHint && <small className="fy-hint">{causalityHint}</small>}
       </SectionCard>
 
       <SectionCard icon={Wrench} num="VI" title="Action taken">
@@ -977,7 +1045,28 @@ export default function FormY_SAE() {
           value={formData.outcome}
           onChange={(v) => set("outcome", v)}
         />
-        {formData.outcome === "Fatal" && (
+        {isFatal(formData) && (
+          <div className="form-group" style={{ marginTop: 16 }}>
+            <label>Did this SAE lead to the death?</label>
+            <Chips
+              options={["Yes", "No"]}
+              value={formData.death_from_event}
+              onChange={(v) => set("death_from_event", v)}
+            />
+            {formData.death_from_event === "No" ? (
+              <small className="fy-hint fy-hint-warn">
+                Remove Death and Fatal from this report, and file a separate SAE report for the death.
+              </small>
+            ) : (
+              <small className="fy-hint">
+                Reported as: <strong>{eventTitle(formData)}</strong>. One report covers both. If this SAE was
+                already reported, use <strong>+ New report</strong>, type Follow-up or Final, within 24 hours of
+                the death.
+              </small>
+            )}
+          </div>
+        )}
+        {isFatal(formData) && (
           <div className="form-group" style={{ marginTop: 16, maxWidth: 280 }}>
             <label>If fatal — date of death</label>
             <DateField
@@ -986,7 +1075,7 @@ export default function FormY_SAE() {
             />
           </div>
         )}
-        {(formData.outcome === "Fatal" || (formData.seriousness || []).includes("Death")) && (
+        {isFatal(formData) && (
           <div className="form-group" style={{ marginTop: 12 }}>
             <label>16.2 Cause of death, its possible relationship to the event, post-mortem findings</label>
             <textarea rows={3} value={formData.death_details}
@@ -1004,6 +1093,15 @@ export default function FormY_SAE() {
             rows={6}
             placeholder="Describe the event chronologically, interventions, and current status…"
           />
+          <div style={{ marginTop: 8 }}>
+            <button type="button" className="fy-draft-btn" onClick={buildNarrative} disabled={building || !formData.enrollment_id}>
+              {building ? "Building…" : "Build draft narrative"}
+            </button>
+          </div>
+          <small className="fy-hint">
+            Built from the saved forms in date order, with no names and no oxygen values. Fill the sections above first,
+            then check and edit the draft before submitting.
+          </small>
         </div>
       </SectionCard>
 
@@ -1031,8 +1129,11 @@ export default function FormY_SAE() {
         </div>
         <div className="form-group">
           <label>20. Causality assessment by Sponsor / CRO</label>
-          <Chips options={SPONSOR_CAUSALITY_OPTIONS} value={formData.sponsor_causality}
-            onChange={(v) => set("sponsor_causality", v)} />
+          <div className={causalityOff ? "fy-dull" : undefined}>
+            <Chips options={SPONSOR_CAUSALITY_OPTIONS} value={formData.sponsor_causality}
+              onChange={(v) => set("sponsor_causality", v)} disabled={causalityOff} />
+          </div>
+          {causalityHint && <small className="fy-hint">{causalityHint}</small>}
         </div>
       </SectionCard>
 
@@ -1100,6 +1201,7 @@ export default function FormY_SAE() {
               value={formData.investigator_name}
               onChange={(e) => set("investigator_name", e.target.value)}
             />
+            <small className="fy-hint">The site PI fills in by default. Change it if someone else verifies. Enter the date when verified.</small>
           </div>
           <div className="form-group">
             <label>Date</label>

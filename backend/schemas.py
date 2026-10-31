@@ -2339,6 +2339,7 @@ class SAEReportCreate(BaseModel):
     death_details: Optional[str] = None
     other_relevant_info: Optional[str] = None
     sponsor_causality: Optional[str] = None
+    death_from_event: Optional[bool] = None
 
     class Config:
         extra = "ignore"

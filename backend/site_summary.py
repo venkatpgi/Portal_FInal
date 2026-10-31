@@ -49,6 +49,7 @@ from infection_windows import _compute_infection_windows  # noqa: E402
 from nec_suggestion import stage_rank  # noqa: E402
 from ops_tasks import baby_tasks, iter_form_tasks  # noqa: E402
 from rop_form_g_linkage import compute_rop_review_alerts  # noqa: E402
+from sae_rules import is_fatal  # noqa: E402
 from trial_dates import trial_start  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -260,8 +261,8 @@ def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> d
             watch.append(("W8", f"{label} on DOL {', '.join(str(d) for d in days)}"))
 
     # W9 death without an SAE report
-    if died and not b.get("has_sae_report"):
-        watch.append(("W9", f"Died{(' ' + _fmt(end)) if end else ''}: no SAE report with a diagnosis (Form Y)"))
+    if died and not b.get("has_death_report"):
+        watch.append(("W9", f"Died{(' ' + _fmt(end)) if end else ''}: no SAE report recording the death (Form Y)"))
 
     # W10 SAE reporting deadlines (SAE list)
     for r in b.get("sae_rows") or []:
@@ -426,8 +427,9 @@ def _load(db, sites: list[str], now: datetime) -> list[dict]:
             "end_date": end, "died": died, "candidates": cand.get("candidates") or [],
             "pending_usg": cand.get("pending_cranial_usg_findings") or [],
             "ae_events": (ae.events if ae else None) or [], "sae_rows": (sae.rows if sae else None) or [],
-            # an empty Form Y (no diagnosis) is not a report (01-B-001, PI 2026-10-26)
-            "has_sae_report": any(answered(r.diagnosis) for r in q(SAEReport).all()),
+            # an empty Form Y (no diagnosis) is not a report (01-B-001, PI 2026-10-26); a report
+            # about another event does not record the death (PI 2026-10-31)
+            "has_death_report": any(answered(r.diagnosis) and is_fatal(r) for r in q(SAEReport).all()),
             "resp_logs": resp, "inf_logs": inf, "metab_logs": metab,
             "nec_stage": nm.nec_stage if nm else None,
             "rop": q(ROPScreening, ROPScreening.id.desc()).first(),

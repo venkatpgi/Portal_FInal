@@ -1344,6 +1344,10 @@ SCREENING_PREGNANCY_FOLLOWUP_PATCHES = [
 ]
 
 # DMS "Not required today" per block (2026-10-20).
+SAE_REPORT_DEATH_LINK_PATCHES = [
+    "ALTER TABLE sae_reports ADD COLUMN IF NOT EXISTS death_from_event BOOLEAN",
+]
+
 DMS_NOT_REQUIRED_PATCHES = [
     "ALTER TABLE minimal_monitoring_day_logs ADD COLUMN IF NOT EXISTS not_required_blocks JSON",
 ]
