@@ -158,11 +158,11 @@ Summary:
 | 3 Screened for eligibility | all Form A records |
 | 4a Did not meet inclusion criteria | Form A GA out of window (legacy — Form A now refuses these) |
 | 4b Met exclusion criteria | Form A A4 exclusions (anomaly, hydrops, forego resuscitation, no time to approach for consent, legacy IUFD) |
-| 5 Eligible | Form A in window, no exclusion |
-| 6 Refused consent | consent No, by refusal reason |
-| 7 Consented, not randomised | Form B reason not randomised (dynamic breakdown) + **"vigorous, no PPV needed"** (`required_resuscitation = False`) |
-| 8 Randomised | Form B randomised = True |
-| 9–11 Followed up at 36 / 40 / 44 wk | expected PMA date passed; + 28-day grace separates lost-to-follow-up from awaiting |
+| 5 Eligible (mothers) | Form A in window, no exclusion |
+| 6 Refused consent (mothers) | consent No, by refusal reason |
+| 7 Consented, not randomised yet | **No Form B yet** (mothers) + **Form B saved, not randomised** (babies): Form B reason, "vigorous, no PPV needed" (`required_resuscitation = False`), "reason not entered". Extra twin / triplet babies shown when any |
+| 8 Randomised (babies) | Form B randomised = True, with mothers and extra babies from twins / triplets as sub-rows, so Box 6 + 7 + 8 − extra babies = Box 5 (PI 2026-10-31) |
+| 9–11 Status at 36 / 40 / 44 wk | From **Form I** (`study_outcomes`, PI 2026-10-31; the old `composite_outcomes` table has no form and was always empty). Died = `death36/40/44`, or a death on Form H / Helper 5 on or before the checkpoint. Assessed = `encounter36/40/44_method`. Lost to follow-up = 28 days past the expected date with neither. Form I has no reason-for-loss field |
 
 Every row carries a plain-language "where this number comes from" tooltip
 (`_row(..., source=...)`).

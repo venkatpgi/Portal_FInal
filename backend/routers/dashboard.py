@@ -105,6 +105,9 @@ text-value breakdown and needs this separate query.
 Depends on Issue #1 fixes (reason_for_consent_refusal, enrollment_id
 writeback, ltfu_reason_36/40/44) — all three are implemented alongside this
 endpoint.
+
+Boxes 9-11 read Form I (study_outcomes) since 2026-10-31, plus deaths on Form H / Helper 5: the
+composite_outcomes table has no form and stayed empty (followup_states).
 """
 
 import csv
@@ -125,7 +128,8 @@ from sqlalchemy.orm import Session
 
 from db import get_db
 from deps import get_current_user, is_superadmin, is_global, is_central_analytics, ROLE_NURSE
-from models import AdverseEvents, SAEReport, Screening, User, GACheckEntry, BirthLogEntry
+from models import (AdverseEvents, BirthLogEntry, GACheckEntry, MetabRenalVascEyeDayLog, NeonatalMorbidities,
+                    SAEReport, Screening, StudyOutcomes, User)
 from birth_log_matching import refresh_birth_log_matches
 
 _DOCX_MEDIA = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -323,9 +327,13 @@ SCREENING_QUERY = text(f"""
                  AND COALESCE(br.randomised, FALSE) = FALSE
                  AND br.required_resuscitation = FALSE
             THEN 1 ELSE 0 END) AS box7_vigorous,
+        SUM(CASE WHEN s.consent_given = 'Yes' AND br.id IS NULL THEN 1 ELSE 0 END) AS box7_no_form_b,
+        COUNT(DISTINCT CASE WHEN s.consent_given = 'Yes' AND COALESCE(br.randomised, FALSE) = FALSE
+                            THEN s.screening_id END) AS box7_mothers,
 
         -- Box 8: randomised. Denominator for Boxes 9-11.
-        SUM(CASE WHEN br.randomised = TRUE THEN 1 ELSE 0 END) AS box8
+        SUM(CASE WHEN br.randomised = TRUE THEN 1 ELSE 0 END) AS box8,
+        COUNT(DISTINCT CASE WHEN br.randomised = TRUE THEN s.screening_id END) AS box8_mothers
 
     FROM screenings s
     -- Twins / triplets (babies.py): one row per baby. Boxes 3-6 count the
@@ -365,21 +373,12 @@ NOT_RANDOMISED_REASON_QUERY = text("""
 FOLLOWUP_QUERY = text("""
     SELECT
         s.site_name AS site_name,
+        br.enrollment_id AS enrollment_id,
         br.date_of_birth AS date_of_birth,
         br.gestation_weeks AS gestation_weeks,
-        br.gestation_days AS gestation_days,
-        co.death_before_36 AS death_before_36,
-        co.assess_36_date AS assess_36_date,
-        co.ltfu_reason_36 AS ltfu_reason_36,
-        co.death_36_40 AS death_36_40,
-        co.assess_40_date AS assess_40_date,
-        co.ltfu_reason_40 AS ltfu_reason_40,
-        co.death_40_44 AS death_40_44,
-        co.assess_44_date AS assess_44_date,
-        co.ltfu_reason_44 AS ltfu_reason_44
+        br.gestation_days AS gestation_days
     FROM birth_resuscitation br
     JOIN screenings s ON s.screening_id = br.screening_id
-    LEFT JOIN composite_outcomes co ON co.enrollment_id = br.enrollment_id
     WHERE br.randomised = TRUE
       AND s.is_deleted = FALSE
       AND s.site_name IS NOT NULL AND s.site_name != ''
@@ -435,7 +434,8 @@ def _blank_screening_counts():
         "box3": 0,
         "box4a": 0, "box4b": 0, "box4b_anomaly": 0, "box4b_hydrops": 0,
         "box4b_forgo_resus": 0, "box4b_insufficient_time": 0, "box4b_iufd_legacy": 0,
-        "box5": 0, "box6": 0, "box7": 0, "box7_vigorous": 0, "box8": 0,
+        "box5": 0, "box6": 0, "box7": 0, "box7_vigorous": 0, "box7_no_form_b": 0, "box7_mothers": 0,
+        "box8": 0, "box8_mothers": 0,
     }
 
 
@@ -528,9 +528,28 @@ def _compute_ga_check_boxes(db: Session):
     return ga_counts_by_site, never_checked_by_site, never_checked_reasons_by_site, orphan_screenings_by_site
 
 
+def followup_states(dob, gest_weeks, gest_days, form_i, known_death, death_date, today):
+    """{36: state, 40: state, 44: state} for one baby; a checkpoint after the
+    baby's death is left out. form_i is the Form I row or None. "Died" is Form
+    I's death question at that checkpoint, or a death on Form H / Helper 5 on or
+    before it (death_date None when the date is not recorded), so a baby who
+    died does not drift to Lost to follow-up while Form I is pending."""
+    states = {}
+    for wk in (36, 40, 44):
+        expected = _expected_date(dob, gest_weeks, gest_days, wk)
+        died = getattr(form_i, f"death{wk}", None) is True or (
+            known_death and (death_date is None or expected is None or death_date <= expected))
+        method = getattr(form_i, f"encounter{wk}_method", None)
+        states[wk] = _classify(today, method or None, died or None, expected)
+        if states[wk] == "died":
+            break
+    return states
+
+
 def _compute_followup_boxes(db: Session):
     today = clinical_today()
-    # counts[box][state][site] -> int ; ltfu_reasons[box][site][reason] -> int
+    # counts[box][state][site] -> int. Form I has no reason-for-loss field, so
+    # the reason rows stay empty.
     boxes = {
         9: {s: {"died": 0, "assessed": 0, "ltfu": 0, "awaiting": 0} for s in ALL_SITES},
         10: {s: {"died": 0, "assessed": 0, "ltfu": 0, "awaiting": 0} for s in ALL_SITES},
@@ -538,38 +557,32 @@ def _compute_followup_boxes(db: Session):
     }
     ltfu_reasons = {9: {s: {} for s in ALL_SITES}, 10: {s: {} for s in ALL_SITES}, 11: {s: {} for s in ALL_SITES}}
 
+    # Latest row per baby, as site_summary._load.
+    form_i = {r.enrollment_id: r for r in db.query(StudyOutcomes).order_by(StudyOutcomes.id)}
+    form_h = {r.enrollment_id: r for r in db.query(NeonatalMorbidities).order_by(NeonatalMorbidities.id)}
+    death_days = {}
+    for eid, day in (db.query(MetabRenalVascEyeDayLog.enrollment_id, MetabRenalVascEyeDayLog.nicu_day)
+                     .filter(MetabRenalVascEyeDayLog.survived_the_day.is_(False))):
+        if day:
+            death_days[eid] = min(day, death_days.get(eid, day))
+
     for row in db.execute(FOLLOWUP_QUERY).mappings():
-        site = row["site_name"]
-        for box_map in (boxes, ltfu_reasons):
-            for box in box_map:
-                box_map[box].setdefault(site, {} if box_map is ltfu_reasons else {"died": 0, "assessed": 0, "ltfu": 0, "awaiting": 0})
+        site, eid = row["site_name"], row["enrollment_id"]
+        for box in boxes:
+            boxes[box].setdefault(site, {"died": 0, "assessed": 0, "ltfu": 0, "awaiting": 0})
+            ltfu_reasons[box].setdefault(site, {})
 
-        dob = row["date_of_birth"]
-        gw, gd = row["gestation_weeks"], row["gestation_days"]
-
-        exp36 = _expected_date(dob, gw, gd, 36)
-        state36 = _classify(today, row["assess_36_date"], row["death_before_36"], exp36)
-        boxes[9][site][state36] += 1
-        if state36 == "ltfu" and row["ltfu_reason_36"]:
-            ltfu_reasons[9][site][row["ltfu_reason_36"]] = ltfu_reasons[9][site].get(row["ltfu_reason_36"], 0) + 1
-
-        if state36 == "died":
-            continue  # not part of the 40w or 44w denominators
-
-        exp40 = _expected_date(dob, gw, gd, 40)
-        state40 = _classify(today, row["assess_40_date"], row["death_36_40"], exp40)
-        boxes[10][site][state40] += 1
-        if state40 == "ltfu" and row["ltfu_reason_40"]:
-            ltfu_reasons[10][site][row["ltfu_reason_40"]] = ltfu_reasons[10][site].get(row["ltfu_reason_40"], 0) + 1
-
-        if state40 == "died":
-            continue  # not part of the 44w denominator
-
-        exp44 = _expected_date(dob, gw, gd, 44)
-        state44 = _classify(today, row["assess_44_date"], row["death_40_44"], exp44)
-        boxes[11][site][state44] += 1
-        if state44 == "ltfu" and row["ltfu_reason_44"]:
-            ltfu_reasons[11][site][row["ltfu_reason_44"]] = ltfu_reasons[11][site].get(row["ltfu_reason_44"], 0) + 1
+        dob = _as_date(row["date_of_birth"])
+        nm = form_h.get(eid)
+        form_h_died = nm is not None and nm.outcome == "Died"
+        dates = [_as_date(nm.discharge_date)] if form_h_died and nm.discharge_date else []
+        if eid in death_days and dob:
+            dates.append(dob + timedelta(days=death_days[eid] - 1))
+        states = followup_states(dob, row["gestation_weeks"], row["gestation_days"], form_i.get(eid),
+                                 form_h_died or eid in death_days, min(dates) if dates else None, today)
+        for wk, box in ((36, 9), (40, 10), (44, 11)):
+            if wk in states:
+                boxes[box][site][states[wk]] += 1
 
     return boxes, ltfu_reasons
 
@@ -661,14 +674,45 @@ def _build_rows(ga_counts_by_site, never_checked_by_site, never_checked_reasons_
     # plus the separately-derived "Vigorous, no PPV needed" bucket (never
     # a text value in that column -- see NOT_RANDOMISED_REASON_QUERY).
     not_randomised_reasons = sorted({r for site in not_randomised_reasons_by_site.values() for r in site})
-    box7_sub_rows = [
+    delivered_sub_rows = [
         _row(None, reason, {s: not_randomised_reasons_by_site.get(s, {}).get(reason, 0) for s in ALL_SITES}, sites,
              source="Form B item 28 \u2014 \"Reason Not Randomized\" dropdown.")
         for reason in not_randomised_reasons
     ]
-    box7_sub_rows.append(_row(None, "Vigorous, no PPV needed", box7_vigorous, sites,
+    delivered_sub_rows.append(_row(None, "Vigorous, no PPV needed", box7_vigorous, sites,
         source="Form B \u2014 \"Ventilation required (PPV)\" answered No (vigorous at birth). "
                "Never appears in the Reason Not Randomized dropdown itself, so counted separately."))
+    box7_no_form_b = m("box7_no_form_b")
+    box7_delivered = {s: m("box7").get(s, 0) - box7_no_form_b.get(s, 0) for s in ALL_SITES}
+    box7_no_reason = {
+        s: box7_delivered[s] - box7_vigorous.get(s, 0)
+           - sum(not_randomised_reasons_by_site.get(s, {}).values())
+        for s in ALL_SITES
+    }
+    if _sum_sites(box7_no_reason, sites):
+        delivered_sub_rows.append(_row(None, "Reason not entered", box7_no_reason, sites,
+            source="Form B saved, not randomised, PPV not answered No, and no reason chosen."))
+    box7_sub_rows = [
+        _row(None, "No Form B yet (awaiting delivery, or Form B not entered)", box7_no_form_b, sites,
+             source="Consent Yes and no Form B. These women are still in the trial's flow, not lost from it."),
+        _row(None, "Form B saved, not randomised", box7_delivered, sites, sub_rows=delivered_sub_rows,
+             source="Consent Yes and a Form B with randomised not Yes. Counts babies."),
+    ]
+
+    def extra_babies(babies, mothers):
+        return {s: babies.get(s, 0) - mothers.get(s, 0) for s in ALL_SITES}
+
+    box7_extra = extra_babies(m("box7"), m("box7_mothers"))
+    if _sum_sites(box7_extra, sites):
+        box7_sub_rows.append(_row(None, "Of these, extra babies from twins / triplets", box7_extra, sites,
+                                  source="Babies counted here minus their mothers."))
+    box8_extra = extra_babies(m("box8"), m("box8_mothers"))
+    box8_sub_rows = [
+        _row(None, "Mothers", m("box8_mothers"), sites, source="Women with at least one randomised baby."),
+        _row(None, "Extra babies from twins / triplets", box8_extra, sites,
+             source="Randomised babies minus their mothers. Eligible counts mothers, so Refused + Consented not "
+                    "randomised + Randomised is more than Eligible by this number."),
+    ]
 
     rows = [
         _row(1, "Approached for screening", box1_total, sites,
@@ -742,34 +786,36 @@ def _build_rows(ga_counts_by_site, never_checked_by_site, never_checked_reasons_
                                  "Form A is ever opened."),
                  ]),
              ]),
-        _row(5, "Eligible", m("box5"), sites,
+        _row(5, "Eligible (mothers)", m("box5"), sites,
              source="Form A records with no A4 exclusion ticked and gestation confirmed "
                     "25+0\u201331+6 weeks."),
-        _row(6, "Refused consent", m("box6"), sites,
+        _row(6, "Refused consent (mothers)", m("box6"), sites,
              source="Eligible Form A records where consent was refused or never given, and no "
                     "Form B record exists at all.",
              sub_rows=box6_sub_rows or None),
-        _row(7, "Consented but not randomised", m("box7"), sites,
+        _row(7, "Consented, not randomised yet (babies; mothers until Form B)", m("box7"), sites,
              source="Form A records with consent = Yes, where Form B either doesn't exist yet or "
                     "has randomised \u2260 Yes.",
              sub_rows=box7_sub_rows or None),
-        _row(8, "Randomised", m("box8"), sites,
-             source="Form B records with \"Randomised\" answered Yes."),
+        _row(8, "Randomised (babies)", m("box8"), sites,
+             source="Form B records with \"Randomised\" answered Yes.",
+             sub_rows=box8_sub_rows),
     ]
 
     followup_labels = {9: "Status at 36 weeks PMA", 10: "Status at 40 weeks PMA", 11: "Status at 44 weeks PMA"}
     followup_source = (
         "Randomised (Form B) babies only. Expected date = date of birth + (target PMA − "
-        "gestation at birth). \"Died\"/\"Assessed\" come from Form I's own outcome/assessment-date "
-        "fields; \"Lost to follow-up\" = expected date has passed by more than {grace} days with no "
-        "assessment or death recorded; \"Awaiting\" = expected date not yet reached."
+        "gestation at birth). \"Died\" = Form I death at this checkpoint, or a death on Form H / Helper 5 "
+        "by then. \"Assessed\" = Form I method of encounter entered. \"Lost to follow-up\" = expected date "
+        "has passed by more than {grace} days with no assessment or death recorded; \"Awaiting\" = "
+        "expected date not yet reached."
     ).format(grace=GRACE_DAYS)
     state_labels = [
-        ("died", "Died", None, "Form I — death recorded before this PMA checkpoint."),
-        ("assessed", "Assessed", None, "Form I — assessment completed at this PMA checkpoint."),
+        ("died", "Died", None, "Form I death at this checkpoint, or Form H / Helper 5 death on or before it."),
+        ("assessed", "Assessed", None, "Form I — method of encounter entered for this PMA checkpoint."),
         ("ltfu", "Lost to follow-up", "ltfu",
          f"Expected assessment date passed by more than {GRACE_DAYS} days with neither an "
-         "assessment nor a death recorded in Form I."),
+         "assessment nor a death recorded."),
         ("awaiting", "Awaiting assessment", "awaiting",
          "Expected assessment date for this PMA checkpoint has not been reached yet."),
     ]
