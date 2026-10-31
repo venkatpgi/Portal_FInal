@@ -4,6 +4,8 @@ import logging
 import os
 from html import escape
 
+from sae_rules import event_title, is_fatal
+
 logger = logging.getLogger(__name__)
 
 
@@ -68,7 +70,7 @@ def build_sae_notification_html(record, site_display, severity_label, portal_url
         ("Site", site_display),
         ("Enrollment ID", getattr(record, "enrollment_id", None)),
         ("Report Type", getattr(record, "report_type", None)),
-        ("Diagnosis", getattr(record, "diagnosis", None)),
+        ("Diagnosis", event_title(getattr(record, "diagnosis", None), is_fatal(record))),
         ("Onset Date", getattr(record, "onset_datetime", None)),
         ("Severity", severity_label),
         ("Causality", getattr(record, "causality", None)),

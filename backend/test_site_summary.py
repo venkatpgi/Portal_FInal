@@ -33,7 +33,7 @@ def metab(day, **kw):
 def baby(**kw):
     b = {"enrollment_id": "01-0001", "site": "PGIMER", "dob": DOB, "ga_days": 28 * 7, "birth_weight": 1100,
          "end_date": None, "died": False, "candidates": [], "pending_usg": [], "ae_events": [], "sae_rows": [],
-         "has_sae_report": False, "resp_logs": [], "inf_logs": [], "metab_logs": [], "nec_stage": None,
+         "has_death_report": False, "resp_logs": [], "inf_logs": [], "metab_logs": [], "nec_stage": None,
          "rop": None, "scan_entries": [{"scanDate": (DOB + timedelta(days=d - 1)).isoformat()} for d in (5, 12)],
          "helper2_brain_flag": False, "study_outcomes": None, "form_h_complete": False,
          "form_i_complete": False, "tasks": []}
@@ -109,7 +109,7 @@ def test_w8_acute_event():
 def test_w9_death_without_sae_report():
     b = baby(died=True, end_date=date(2026, 11, 15))
     assert "W9" in codes(evaluate(b, TODAY, NOW, None), "watch")
-    assert "W9" not in codes(evaluate(dict(b, has_sae_report=True), TODAY, NOW, None), "watch")
+    assert "W9" not in codes(evaluate(dict(b, has_death_report=True), TODAY, NOW, None), "watch")
 
 
 def test_w10_sae_deadlines():

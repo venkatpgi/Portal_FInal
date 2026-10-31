@@ -1755,6 +1755,7 @@ class SAEReport(Base):
     death_details = Column(Text, nullable=True)           # 16.2
     other_relevant_info = Column(Text, nullable=True)     # 16.3
     sponsor_causality = Column(String, nullable=True)     # 20
+    death_from_event = Column(Boolean, nullable=True)     # fatal report: this SAE led to the death (sae_rules.py)
 
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow) 

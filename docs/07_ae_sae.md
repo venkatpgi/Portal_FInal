@@ -89,7 +89,25 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
   is > 24 h after onset), 16.2 cause of death (fatal only), 16.3 other relevant
   information, 20 sponsor causality.
 - **Fatal** = "Death" ticked under seriousness **or** outcome "Fatal"
-  (`sae_report._is_fatal`).
+  (`sae_rules.is_fatal`).
+- **One report per SAE, death included** (PI 2026-10-31, `sae_rules.py`). A fatal
+  SAE is one report: forms, letter and email show "<SAE>, Death", worked out on
+  display (the diagnosis stays as typed). A fatal report asks "Did this SAE lead
+  to the death?" (`death_from_event`). No is refused: the death goes on a
+  separate report. A death from an SAE already reported is a Follow-up or Final
+  of that SAE, still due within 24 hours of the death.
+- **Causality** (items V / 19 and 20, PI 2026-10-31): dull on Initial (server
+  drops new values, a report saved earlier keeps its own, the Word report
+  prints "To be provided in the final report"), optional on Follow-up, required
+  on Final (422). "Awaiting sponsor assessment" counts as filled.
+- **Draft narrative** (`sae_narrative.py`, `POST /sae-report/{id}/draft-narrative`):
+  fixed rules, no AI. Built on request from Form B, the daily logs and AE terms,
+  oldest first; missing items say "not recorded". Never reads FiO2, SpO2 or AE
+  evidence text (blinding) or names. Starts with a draft line to delete after
+  review; asks before replacing typed text.
+- **Investigator** (section X): the site PI's name from `sae_config` fills in on
+  a new report (`GET /sae-config/investigator/{id}`), editable. The date stays
+  blank: the name alone is not verification.
 
 ## 4. Documents
 - `GET /sae-report/{enrollment_id}/{report_id}/document?kind=report|covering_letter`

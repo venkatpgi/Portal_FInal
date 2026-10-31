@@ -835,6 +835,19 @@ def list_users(
     return db.query(User).order_by(User.site_name, User.role, User.username).all()
 
 
+@app.get("/sae-config/investigator/{enrollment_id}")
+def site_investigator(
+    enrollment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The site PI's name for Form Y section X (sae_config)."""
+    require_enrollment_access(enrollment_id, db, current_user)
+    import sae_config
+    scr = screening_for_enrollment(db, enrollment_id)
+    return {"name": sae_config.site_for(scr.site_name if scr else "").get("pi_name")}
+
+
 @app.get("/sae-config/pi-contacts", response_model=list[SitePiContactOut])
 def list_pi_contacts(
     current_user: User = Depends(get_current_user),
@@ -5799,6 +5812,13 @@ def _refuse_empty_sae_report(data: SAEReportCreate) -> None:
         )
 
 
+def _apply_sae_rules(payload: dict, old=None) -> None:
+    import sae_rules
+    refusal = sae_rules.apply_rules(payload, old)
+    if refusal:
+        raise HTTPException(status_code=422, detail=refusal)
+
+
 def _sae_payload(data: SAEReportCreate) -> dict:
     """Full dump filtered to model columns; normalize list/bool defaults."""
     allowed = set(SAEReport.__table__.columns.keys()) - {
@@ -5872,6 +5892,7 @@ def create_sae_report(
     require_enrollment_access(data.enrollment_id, db, current_user)
     _refuse_empty_sae_report(data)
     payload = _sae_payload(data)
+    _apply_sae_rules(payload)
     record = SAEReport(**payload)
     db.add(record)
     db.commit()
@@ -5927,6 +5948,7 @@ def update_sae_report(
     _refuse_empty_sae_report(data)
 
     payload = _sae_payload(data)
+    _apply_sae_rules(payload, record)
     for key, value in payload.items():
         if key == "enrollment_id":
             continue
@@ -5935,6 +5957,19 @@ def update_sae_report(
     db.commit()
     db.refresh(record)
     return record
+
+
+@app.post("/sae-report/{enrollment_id}/draft-narrative")
+def draft_sae_narrative(
+    enrollment_id: str,
+    data: SAEReportCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Rule-based draft of Form Y item VIII from the form as it stands; saves nothing."""
+    require_enrollment_access(enrollment_id, db, current_user)
+    import sae_narrative
+    return {"narrative": sae_narrative.build(db, enrollment_id, data.model_dump())}
 
 
 @app.get("/sae-report/{enrollment_id}", response_model=List[SAEReportOut])
@@ -6074,7 +6109,7 @@ def _assemble_sae_context(db, enrollment_id, record, current_user):
             "gender": (br.gender if br else None),
             "dob": dob,
             "age_text": None,
-            "weight_kg": f"{br.birth_weight} kg (birth weight)" if br and br.birth_weight else None,
+            "weight_kg": f"{br.birth_weight:g} g (birth weight)" if br and br.birth_weight else None,
             "gestation": gestation,
         },
         "concomitant": _concomitant_from_logs(db, enrollment_id, day1_date),
