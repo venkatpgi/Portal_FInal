@@ -35,3 +35,36 @@ export function deathDetailUpdates(prev, next) {
   });
   return updates;
 }
+
+const AGE_FIELDS = [
+  ["mortality_7d", "age_hrs"],
+  ["mortality_28d", "age_days"],
+  ["death36", "age_days"],
+  ["death40", "age_days"],
+  ["death44", "age_days"],
+  ["mortality_hospital", "age_days"],
+  ["mortality_after_discharge", "age_days"],
+];
+
+/** Age at death. Uses both times when both are known, otherwise the dates alone. */
+export function ageAtDeath(dob, tob, date, time, unit) {
+  if (!dob || !date) return "";
+  const useTimes = !!(tob && time);
+  const birth = new Date(`${String(dob).slice(0, 10)}T${useTimes ? String(tob).slice(0, 5) : "00:00"}:00`);
+  const death = new Date(`${String(date).slice(0, 10)}T${useTimes ? String(time).slice(0, 5) : "00:00"}:00`);
+  if (isNaN(birth) || isNaN(death)) return "";
+  const hours = (death - birth) / 3600000;
+  if (hours < 0) return "";
+  return unit === "age_hrs" ? Math.round(hours) : Math.floor(hours / 24);
+}
+
+/** The age fields that differ from what their dates and times give. */
+export function ageUpdates(form) {
+  const updates = {};
+  AGE_FIELDS.forEach(([prefix, unit]) => {
+    if (!form.dob || !form[`${prefix}_date`]) return;
+    const age = ageAtDeath(form.dob, form.tob, form[`${prefix}_date`], form[`${prefix}_time`], unit);
+    if (String(age) !== String(text(form[`${prefix}_${unit}`]))) updates[`${prefix}_${unit}`] = age;
+  });
+  return updates;
+}

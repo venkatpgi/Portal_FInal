@@ -89,7 +89,7 @@ Plus:
 
 ## Form I — Study outcomes (`study_outcomes`)
 
-**One death, one entry (PI 2026-10-31):** cause, date and time of death entered at any place carry to every other mortality place answered Yes (`utils/deathDetails.js`). A place changed by hand keeps its own text.
+**One death, one entry (PI 2026-10-31):** cause, date and time of death entered at any place carry to every other mortality place answered Yes (`utils/deathDetails.js`). A place changed by hand keeps its own text. Age at death uses date and time of birth and of death (hours rounded, days completed); if either time is missing, the dates alone.
 
 | Section | Source | Rule |
 |---|---|---|

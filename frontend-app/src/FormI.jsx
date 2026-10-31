@@ -15,7 +15,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
 import { fallbackCompletedByDesignation as getDesignation } from "./utils/completedByDesignation";
 import { resolveEffectiveGestation } from "./utils/gestation";
-import { deathDetailUpdates } from "./utils/deathDetails";
+import { ageUpdates, deathDetailUpdates } from "./utils/deathDetails";
 import {
   Wind, Skull, CalendarClock, CalendarCheck, CalendarRange, ClipboardList, Home, Clock,
 } from "lucide-react";
@@ -513,6 +513,7 @@ export default function FormI() {
     gestation_weeks: "",
     birth_weight: "",
     dob: "",
+    tob: "",
 
     // I.1 Resuscitation Outcomes
     ventilation_required: "",
@@ -682,6 +683,7 @@ export default function FormI() {
             : (screeningData?.gestation_weeks || existing?.gestation_weeks || ""),
         birth_weight: birthData?.birth_weight || existing?.birth_weight || "",
         dob: birthData?.date_of_birth || "",
+        tob: birthData?.time_of_birth || "",
         ...(existing.id ? {
           ventilation_required: boolToYesNo(existing.ventilation_required),
           switched_100_o2: boolToYesNo(existing.switched_100_o2),
@@ -1339,54 +1341,11 @@ export default function FormI() {
     if (Object.keys(updates).length) setFormData((p) => ({ ...p, ...updates }));
   }, [formData]);
 
-  /* ── Age-at-death auto-calc from DOB, mirrors the pattern already used
-         elsewhere in this form for each of the five death timepoints ── */
-  const calcAge = (dob, when, unit) => {
-    if (!dob || !when) return "";
-    const birth = new Date(dob);
-    const at = new Date(when);
-    if (isNaN(birth) || isNaN(at)) return "";
-    const diffMs = at.getTime() - birth.getTime();
-    if (diffMs < 0) return "";
-    return unit === "hrs"
-      ? Math.round(diffMs / (1000 * 60 * 60))
-      : Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  };
-
+  // Age at death from date and time of birth and of death (deathDetails.js).
   useEffect(() => {
-    if (!formData.dob || !formData.mortality_7d_date) return;
-    setFormData((p) => ({ ...p, mortality_7d_age_hrs: calcAge(p.dob, p.mortality_7d_date, "hrs") }));
-  }, [formData.mortality_7d_date, formData.dob]);
-
-  useEffect(() => {
-    if (!formData.dob || !formData.mortality_28d_date) return;
-    setFormData((p) => ({ ...p, mortality_28d_age_days: calcAge(p.dob, p.mortality_28d_date, "days") }));
-  }, [formData.mortality_28d_date, formData.dob]);
-
-  useEffect(() => {
-    if (!formData.dob || !formData.death36_date) return;
-    setFormData((p) => ({ ...p, death36_age_days: calcAge(p.dob, p.death36_date, "days") }));
-  }, [formData.death36_date, formData.dob]);
-
-  useEffect(() => {
-    if (!formData.dob || !formData.death40_date) return;
-    setFormData((p) => ({ ...p, death40_age_days: calcAge(p.dob, p.death40_date, "days") }));
-  }, [formData.death40_date, formData.dob]);
-
-  useEffect(() => {
-    if (!formData.dob || !formData.death44_date) return;
-    setFormData((p) => ({ ...p, death44_age_days: calcAge(p.dob, p.death44_date, "days") }));
-  }, [formData.death44_date, formData.dob]);
-
-  useEffect(() => {
-    if (!formData.dob || !formData.mortality_hospital_date) return;
-    setFormData((p) => ({ ...p, mortality_hospital_age_days: calcAge(p.dob, p.mortality_hospital_date, "days") }));
-  }, [formData.mortality_hospital_date, formData.dob]);
-
-  useEffect(() => {
-    if (!formData.dob || !formData.mortality_after_discharge_date) return;
-    setFormData((p) => ({ ...p, mortality_after_discharge_age_days: calcAge(p.dob, p.mortality_after_discharge_date, "days") }));
-  }, [formData.mortality_after_discharge_date, formData.dob]);
+    const updates = ageUpdates(formData);
+    if (Object.keys(updates).length) setFormData((p) => ({ ...p, ...updates }));
+  }, [formData]);
 
   /* ── Section summaries for collapsed accordion headers ── */
   const summary36 = () => {
