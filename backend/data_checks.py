@@ -160,10 +160,12 @@ def check_formb_split_baby(ctx):
     for r in ctx["formb"]:
         if r["screening_id"]:
             by_sid[r["screening_id"]].append(r)
-    return [finding(rows[0]["site_name"], "screening", sid, "One Form A has more than one Form B",
+    # Twins and triplets have one Form B per baby (babies.py): only two Form B
+    # for the same baby are a problem.
+    return [finding(rows[0]["site_name"], "screening", sid, "One Form A has two Form B for the same baby",
                     f"Screening {sid} has Form B rows {sorted(str(r['enrollment_id']) for r in rows)}.",
                     {"eids": sorted(str(r["enrollment_id"]) for r in rows)}, ctx["now"])
-            for sid, rows in by_sid.items() if len(rows) > 1]
+            for sid, rows in by_sid.items() if len({r.get("baby_number") or 1 for r in rows}) < len(rows)]
 
 
 def check_formb_not_eligible(ctx):
@@ -288,7 +290,7 @@ CHECKS = [
     Check("BIRTH_PRETERM_NO_FORM_A", "Log of All Births", "Preterm birth with no Form A and no reason not approached", check_birth_preterm_no_form_a),
     Check("BIRTH_POSSIBLE_MATCH", "Log of All Births", "Birth may belong to a Form A with a different CR", check_birth_possible_match, second_signoff=True),
     Check("FORMB_BAD_ENROLLMENT_ID", "Identity", "Form B enrollment ID incomplete or malformed", check_formb_bad_enrollment_id, second_signoff=True),
-    Check("FORMB_SPLIT_BABY", "Identity", "One Form A with more than one Form B", check_formb_split_baby, second_signoff=True),
+    Check("FORMB_SPLIT_BABY", "Identity", "One Form A with two Form B for the same baby", check_formb_split_baby, second_signoff=True),
     Check("FORMB_NO_FORM_A", "Identity", "Form B pointing to a Form A that does not exist", check_formb_no_form_a, second_signoff=True),
     Check("FORMA_DUPLICATE_ID", "Identity", "Same CR or hospital number on two Form A", check_formA_duplicate_identifier, second_signoff=True),
     Check("FORMA_POSSIBLE_SAME_WOMAN", "Identity", "Two Form A with nearly the same CR, matching name and GA", check_formA_possible_same_woman, second_signoff=True),
@@ -351,7 +353,7 @@ def _context(db, now: datetime, today: date) -> dict:
 
     refresh_birth_log_matches(db)
     formb = [dict(r) for r in db.execute(text("""
-        SELECT b.id, b.enrollment_id, b.screening_id, b.date_of_birth, b.randomised,
+        SELECT b.id, b.enrollment_id, b.screening_id, b.date_of_birth, b.randomised, b.baby_number,
                s.consent_given, s.screening_status, s.site_name
         FROM birth_resuscitation b LEFT JOIN screenings s ON s.screening_id = b.screening_id
     """)).mappings()]
