@@ -1,5 +1,6 @@
 import Sidebar from "../Sidebar";
 import DataQueryBanner from "./DataQueryBanner";
+import DeathReportBanner from "./DeathReportBanner";
 import "../layouts/FormLayout.css";
 
 export default function FormLayout({ children }) {
@@ -8,6 +9,7 @@ export default function FormLayout({ children }) {
       <Sidebar />
 
       <div className="form-layout-container">
+        <DeathReportBanner />
         <DataQueryBanner />
         {children}
       </div>

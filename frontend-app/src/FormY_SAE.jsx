@@ -661,6 +661,31 @@ export default function FormY_SAE() {
     }
   };
 
+  // A baby who died with no fatal report yet: a new report starts pre-filled.
+  // Nothing is saved until staff enter the diagnosis and save.
+  const deathPrefilled = useRef(false);
+  useEffect(() => {
+    const id = formData.enrollment_id;
+    if (!id || isSaved || formData._record_id || formData.report_type || deathPrefilled.current) return;
+    api
+      .get(`/enrollment/${encodeURIComponent(id)}/death-status`)
+      .then((res) => {
+        const s = res.data;
+        if (!s?.needs_report || deathPrefilled.current) return;
+        deathPrefilled.current = true;
+        setFormData((p) => (p._record_id || p.report_type ? p : {
+          ...p,
+          report_type: "Initial",
+          report_date: p.report_date || toDateOnlyValue(new Date()),
+          seriousness: ["Death"],
+          severity: "Grade 5 — Death",
+          outcome: "Fatal",
+          date_of_death: s.date || "",
+        }));
+      })
+      .catch(() => {});
+  }, [formData.enrollment_id, formData._record_id, formData.report_type, isSaved]);
+
   const prefillFromAe = (idx) => {
     const e = aeRows[Number(idx)];
     if (!e) return;
@@ -729,6 +754,7 @@ export default function FormY_SAE() {
   };
 
   const startNew = () => {
+    deathPrefilled.current = false;
     const id = formData.enrollment_id;
     setFormData({
       ...BLANK(id),
@@ -771,6 +797,7 @@ export default function FormY_SAE() {
       });
       markFormCompleted("form_y_sae");
       setIsSaved(true);
+      window.dispatchEvent(new Event("portal:death-recorded"));
       setSaveMessage("✅ SAE report saved");
       setTimeout(() => setSaveMessage(""), 3000);
       return true;

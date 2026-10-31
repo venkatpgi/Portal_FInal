@@ -5832,6 +5832,25 @@ def _apply_sae_rules(payload: dict, old=None) -> None:
         raise HTTPException(status_code=422, detail=refusal)
 
 
+def _add_to_sae_list(db: Session, record: SAEReport) -> None:
+    """An Initial report starts its row on the SAE list, for the 24-hour and
+    14-day deadlines (PI 2026-10-31). A failure must not lose the report."""
+    import sae_rules
+    from list_merge import with_row_ids
+    try:
+        row = sae_rules.list_row(record)
+        listing = db.query(SAEList).filter(SAEList.enrollment_id == record.enrollment_id).first()
+        if listing is None:
+            listing = SAEList(enrollment_id=record.enrollment_id, rows=[])
+            db.add(listing)
+        if not sae_rules.on_list(listing.rows, row):
+            listing.rows = with_row_ids([*(listing.rows or []), row])
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Could not add SAE list row for report %s", record.id)
+
+
 def _sae_payload(data: SAEReportCreate) -> dict:
     """Full dump filtered to model columns; normalize list/bool defaults."""
     allowed = set(SAEReport.__table__.columns.keys()) - {
@@ -5910,6 +5929,8 @@ def create_sae_report(
     db.add(record)
     db.commit()
     db.refresh(record)
+    if record.report_type == "Initial":
+        _add_to_sae_list(db, record)
 
     recipients = _sae_notification_recipients(db, record.site or "")
     if recipients:
@@ -7723,6 +7744,18 @@ def refuse_blank_helper_day(values: dict) -> None:
 
 END_OF_STAY_OUTCOMES = ("Died", "Discharged", "Back referred", "Discharged home on request",
                         "Left Against Medical Advice")
+
+
+@app.get("/enrollment/{enrollment_id}/death-status")
+def get_death_status(
+    enrollment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Has this baby died, and are the SAE report and AE row done (death_alert.py)."""
+    require_enrollment_access(enrollment_id, db, current_user)
+    import death_alert
+    return death_alert.status(db, enrollment_id)
 
 
 @app.post("/enrollment/{enrollment_id}/end-of-stay")

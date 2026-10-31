@@ -442,6 +442,12 @@ def run_checks(db, now: Optional[datetime] = None, today: Optional[date] = None,
             if key not in seen and q.status in OPEN_STATES:
                 q.status, q.resolved_at = "resolved", now
                 counts["resolved"] += 1
+    if not only:   # under the run lock, so two workers cannot both send
+        try:
+            from death_alert import send_alerts
+            counts["death_alerts"] = send_alerts(db)
+        except Exception:
+            logger.exception("death alerts failed")
     db.commit()
     counts["open_total"] = db.query(DataQuery).filter(DataQuery.status.in_(OPEN_STATES)).count()
     return dict(counts)

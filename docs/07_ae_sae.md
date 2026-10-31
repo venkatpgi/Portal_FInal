@@ -96,6 +96,7 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
   to the death?" (`death_from_event`). No is refused: the death goes on a
   separate report. A death from an SAE already reported is a Follow-up or Final
   of that SAE, still due within 24 hours of the death.
+- **After a death** (PI 2026-10-31, `death_alert.py`; every randomised baby's death is an SAE): the portal prepares, staff file. A death on Form H, Helper 5, Form I or the DMS button brings a banner on every form with the 24-hour deadline until a fatal Form Y with a diagnosis is saved; Form Y opens as a pre-filled Initial report (Death, Fatal, Grade 5, date of death); the AE form adds a draft "Death" grade 5 row unless a grade 5 or Death row exists (if an illness caused the death, raise that row and delete the draft). An email goes to the Site PI, Site Scientists, Project Scientist and Global PI about a minute after the save (`data_checks.run_checks`), with one reminder after 12 hours (hourly run). Training sends none. Saving an Initial report adds its row to the SAE list unless that event is listed.
 - **Causality** (items V / 19 and 20, PI 2026-10-31): dull on Initial (server
   drops new values, a report saved earlier keeps its own, the Word report
   prints "To be provided in the final report"), optional on Follow-up, required

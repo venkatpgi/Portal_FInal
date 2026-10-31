@@ -284,6 +284,7 @@ export default function AdverseEventsForm() {
     (r.linked_ae.description || r.linked_ae.definition_no || "") === (row.description || row.definition_no || "")
     && (r.linked_ae.start_date || "") === (dateOnly(row.start_date) || ""));
   const [isSaved, setIsSaved] = useState(false);
+  const [aeLoaded, setAeLoaded] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [assessors, setAssessors] = useState([]);
   const [siteName, setSiteName] = useState("");
@@ -299,6 +300,27 @@ export default function AdverseEventsForm() {
     setIsSaved(false);
     setFormData((p) => ({ ...p, [field]: value }));
   };
+
+  // A baby who died: a draft Death row, saved only if staff save it. If an
+  // illness caused the death, staff raise that row to grade 5 and delete this.
+  const [deathDraftAdded, setDeathDraftAdded] = useState(false);
+  useEffect(() => {
+    const eid = formData.enrollment_id;
+    if (!eid || !aeLoaded || deathDraftAdded) return;
+    api.get(`/enrollment/${encodeURIComponent(eid)}/death-status`)
+      .then((res) => {
+        if (!res.data?.needs_ae) return;
+        setDeathDraftAdded(true);
+        setIsSaved(false);
+        setFormData((p) => ({
+          ...p,
+          has_adverse_event: "Yes",
+          events: [...(p.events || []).filter((e) => e.description || e.definition_no),
+            { ...blankEvent(), description: "Death", grade: "5", start_date: res.data.date || "" }],
+        }));
+      })
+      .catch(() => {});
+  }, [formData.enrollment_id, aeLoaded, deathDraftAdded]);
 
   const setHasAE = (v) => {
     setIsSaved(false);
@@ -488,6 +510,7 @@ export default function AdverseEventsForm() {
     api
       .get(`/adverse-events/${encodeURIComponent(id)}`)
       .then((res) => {
+        setAeLoaded(true);
         // Backend returns null when no AE form has been saved yet
         if (!res.data || !res.data.enrollment_id) { baseEventsRef.current = []; return; }
         baseEventsRef.current = res.data.events || [];
@@ -504,7 +527,7 @@ export default function AdverseEventsForm() {
       })
       .catch((err) => {
         // 404 = never saved (older servers); treat as empty form
-        if (err?.response?.status === 404) return;
+        if (err?.response?.status === 404) { setAeLoaded(true); return; }
         console.error("Failed to load AE form", err);
       });
   }, [routeId, patientData, location.state]);
