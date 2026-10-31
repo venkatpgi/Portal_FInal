@@ -96,6 +96,7 @@ from routers import data_queries as data_queries_router
 from routers import dashboard as dashboard_router
 from routers import reports as reports_router
 from routers import site_summary as site_summary_router
+from routers import shift_report as shift_report_router
 from routers import auth as auth_router
 from baby_uid_duplicate import (
     find_baby_uid_conflict,
@@ -190,6 +191,7 @@ app.include_router(dashboard_router.router)
 app.include_router(data_queries_router.router)
 app.include_router(reports_router.router)
 app.include_router(site_summary_router.router)
+app.include_router(shift_report_router.router)
 
 
 def _backfill_row_ids() -> None:

@@ -158,6 +158,29 @@ and details hold ids, numbers and dates only.
   `SES_SENDER_EMAIL` (trial `.env` only; training never sends). It also
   lists the site summary's **urgent safety items** (W1, W3, W9, W10, below; IDs only).
 
+## Twice-daily report (PI 2026-10-31)
+
+`backend/shift_report.py`, web page `/shift-report`, tablet screen (`GET
+/shift-report`, `GET /shift-report/pdf`). Staff click **Generate report** and
+share the one-page PDF to the site's WhatsApp group, morning and evening;
+nothing is sent automatically (no WhatsApp Business API). Any staff member of
+a site, own site; Global PI and central scientists pick a site; PTS3 has no
+access. Each PDF is logged in the audit trail (table `shift_report`, action
+`EXPORT`).
+
+**Randomised** babies born since the trial start, still admitted or with the
+stay ended in the last 7 days. IDs only, never by arm; a nil report is
+produced. Three columns:
+
+- **Enrollment ID.**
+- **Area admitted:** Location on the latest Helper 5 day that has one, with
+  that day of life; "Not recorded" if none. After the stay ends: "Discharged
+  <date>" or "Died <date>" (end of stay as in the site summary: Form H, or
+  Helper 5 survived the day).
+- **Morbidities till date:** every AE term from the AE form and the AE
+  detectors, worst grade, plus severe Form F scans not yet in Form H. Items
+  not on the AE form are marked "auto-detected".
+
 ## Site summary (PI 2026-10-26)
 
 `backend/site_summary.py`, page `/site-summary` (`GET /site-summary`), email

@@ -2,14 +2,14 @@
 
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation, useParams } from "react-router-dom";
-import { Activity, ClipboardList, FileSpreadsheet, HeartPulse, Home, Hospital, Plus, Search, Users } from "lucide-react";
+import { Activity, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartPulse, Home, Hospital, Plus, Search, Users } from "lucide-react";
 
 import { FormProgressProvider } from "./context/FormProgressContext";
 import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PatientProvider } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
-import { canSeeAnalytics, canSeeDataQueries, canUseReports, isReadOnlyUser } from "./utils/roles";
+import { canSeeAnalytics, canSeeDataQueries, canUseReports, canUseShiftReport, isReadOnlyUser } from "./utils/roles";
 
 import ScreeningForm from "./ScreeningForm";
 import BirthResuscitation from "./BirthResuscitationForm";
@@ -42,6 +42,7 @@ import AuditTrail from "./AuditTrail";
 import DataQueries from "./DataQueries";
 import ReportBuilder from "./ReportBuilder";
 import SiteSummary from "./SiteSummary";
+import ShiftReport from "./ShiftReport";
 import DataQueriesNavLink from "./components/DataQueriesNavLink";
 import EditScreening from "./EditScreening";
 import Dashboard from "./Dashboard";
@@ -91,7 +92,8 @@ function AppContent() {
     location.pathname === "/audit-trail" ||
     location.pathname === "/data-queries" ||
     location.pathname === "/reports" ||
-    location.pathname === "/site-summary";
+    location.pathname === "/site-summary" ||
+    location.pathname === "/shift-report";
   const usesDashboardLayout = isDashboardPage || isWorkspaceDest;
 
   const isFormPage =
@@ -234,6 +236,14 @@ function AppContent() {
                   <HeartPulse size={16} /> <span>Site summary</span>
                 </NavLink>
               )}
+              {canUseShiftReport(user) && (
+                <NavLink
+                  to="/shift-report"
+                  className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
+                >
+                  <ClipboardCheck size={16} /> <span>Twice-daily report</span>
+                </NavLink>
+              )}
               {canSeeAnalytics(user) && (
                 <NavLink
                   to="/trial-monitoring"
@@ -285,6 +295,7 @@ function AppContent() {
                       <Route path="/data-queries" element={<ProtectedRoute><DataQueries /></ProtectedRoute>} />
                       <Route path="/reports" element={<ProtectedRoute><ReportBuilder /></ProtectedRoute>} />
                       <Route path="/site-summary" element={<ProtectedRoute><SiteSummary /></ProtectedRoute>} />
+                      <Route path="/shift-report" element={<ProtectedRoute><ShiftReport /></ProtectedRoute>} />
                       <Route path="/edit/:id" element={<ProtectedRoute><EditScreening /></ProtectedRoute>} />
                       <Route path="/form-a/:screeningId?" element={<ProtectedRoute><FormLayout currentForm="form_a"><ScreeningForm /></FormLayout></ProtectedRoute>} />
                       {SCREENING_ID_FORM_REDIRECTS.map(({ basePath, currentForm, label }) => (
