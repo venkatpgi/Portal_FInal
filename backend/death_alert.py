@@ -1,7 +1,7 @@
 """After a randomised baby's death (PI 2026-10-31).
 
 Every death is an SAE. Staff write the report; the portal prepares it and
-presses for it: Form Y and the AE form open pre-filled (drafts, nothing saved),
+presses for it: Form Y, the AE form and the SAE list open pre-filled (drafts, nothing saved),
 a banner shows the 24-hour deadline, and an email goes to the Site PI, Site
 Scientists, Project Scientist and Global PI, with a reminder 12 hours later if
 there is still no report. A death counts from Form H, Helper 5 or Form I,
@@ -18,7 +18,7 @@ import os
 from datetime import date, datetime, timedelta
 from html import escape
 
-from sae_rules import is_fatal
+from sae_rules import event_title, is_fatal, on_list
 from stay_end import stay_end
 
 logger = logging.getLogger(__name__)
@@ -64,9 +64,10 @@ def has_death_report(reports) -> bool:
 
 def status(db, enrollment_id: str) -> dict:
     """{died, date, time, due, needs_report, needs_ae}. Only randomised babies."""
-    from models import AdverseEvents, BirthResuscitation, SAEReport, StudyOutcomes
+    from models import AdverseEvents, BirthResuscitation, SAEList, SAEReport, StudyOutcomes
     br = db.query(BirthResuscitation).filter(BirthResuscitation.enrollment_id == enrollment_id).first()
-    none = {"died": False, "date": None, "time": None, "due": None, "needs_report": False, "needs_ae": False}
+    none = {"died": False, "date": None, "time": None, "due": None, "needs_report": False, "needs_ae": False,
+            "needs_list": False, "list_term": None}
     if not br or br.randomised is not True:
         return none
     end = stay_end(db, enrollment_id)
@@ -79,11 +80,15 @@ def status(db, enrollment_id: str) -> dict:
         return none
     ae = db.query(AdverseEvents).filter(AdverseEvents.enrollment_id == enrollment_id).first()
     reports = db.query(SAEReport).filter(SAEReport.enrollment_id == enrollment_id).all()
+    listing = db.query(SAEList).filter(SAEList.enrollment_id == enrollment_id).first()
+    fatal = [r for r in reports if (r.diagnosis or "").strip() and is_fatal(r)]
+    term = event_title(fatal[-1].diagnosis, True) if fatal else "Death"
     due = report_due(when, at)
     return {"died": True, "date": when.isoformat() if when else None, "time": at,
             "due": due.isoformat(timespec="minutes") if due else None,
             "needs_report": not has_death_report(reports),
-            "needs_ae": not grade_5_on_form(ae.events if ae else None)}
+            "needs_ae": not grade_5_on_form(ae.events if ae else None),
+            "needs_list": not on_list(listing.rows if listing else None, {"sae": term}), "list_term": term}
 
 
 def _email(eid: str, site: str, s: dict, reminder: bool) -> tuple[str, str]:

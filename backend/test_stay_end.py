@@ -61,3 +61,12 @@ def test_blank_helper_day():
     assert not is_blank_helper_day({"survived_the_day": False})
     assert not is_blank_helper_day({"ph_readings_json": '[{"id":"1","ph":"7.3"}]'})
     assert not is_blank_helper_day({"map_cpap": 8})
+
+
+def test_twins_are_not_a_split_baby():
+    from data_checks import check_formb_split_baby as check
+    ctx = {"now": None}
+    twins = [{"screening_id": "s", "site_name": "P", "enrollment_id": "1", "baby_number": 1},
+             {"screening_id": "s", "site_name": "P", "enrollment_id": "2", "baby_number": 2}]
+    assert check({**ctx, "formb": twins}) == []
+    assert len(check({**ctx, "formb": [twins[0], {**twins[1], "baby_number": None}]})) == 1

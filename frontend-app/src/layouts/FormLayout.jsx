@@ -3,6 +3,8 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import Header from '../components/Header';
+import DataQueryBanner from '../components/DataQueryBanner';
+import DeathReportBanner from '../components/DeathReportBanner';
 import './FormLayout.css';
 import '../styles/Theme.css';
 import { useAuth } from '../context/AuthContext';
@@ -47,6 +49,8 @@ const FormLayout = ({ children, currentForm, headerProps }) => {
           idBadge={headerProps?.idBadge}
         />
         <main className="form-layout-content">
+          <DeathReportBanner />
+          <DataQueryBanner />
           {children}
         </main>
       </div>

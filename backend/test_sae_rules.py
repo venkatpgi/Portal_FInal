@@ -3,7 +3,7 @@ from types import SimpleNamespace as NS
 
 import sae_config
 from sae_narrative import DRAFT_LINE, ae_terms_of, compose, course_events
-from sae_rules import apply_rules, event_title
+from sae_rules import add_to_list, apply_rules, event_title, filled_rows, on_list
 
 
 def report(**kw):
@@ -82,3 +82,12 @@ def test_nothing_from_after_today_and_no_oxygen_values():
     import sae_narrative
     code = open(sae_narrative.__file__).read().split('"""', 2)[2].lower()
     assert "fio2" not in code and "spo2" not in code and "evidence" not in code
+
+
+def test_sae_list_rows():
+    assert filled_rows([{"sae": None, "row_id": "a"}, {"sae": "X", "row_id": "b"}]) == [{"sae": "X", "row_id": "b"}]
+    assert on_list([{"sae": "Shock, Death"}], {"sae": "Shock"})
+    assert add_to_list([{"sae": "Death", "start_date": "d", "row_id": "a"}], {"sae": "Shock, Death"}) == [
+        {"sae": "Shock, Death", "start_date": "d", "row_id": "a"}]
+    assert add_to_list([{"sae": None, "row_id": "a"}], {"sae": "Sepsis"}) == [{"sae": "Sepsis"}]
+    assert len(add_to_list([{"sae": "NEC"}], {"sae": "Sepsis"})) == 2

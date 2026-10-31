@@ -263,6 +263,7 @@ export default function SeriousAdverseEventsList() {
     api
       .get(`/sae-list/${encodeURIComponent(id)}`)
       .then((res) => {
+        setListLoaded(true);
         if (!res.data || !res.data.enrollment_id) { baseRowsRef.current = []; return; }
         baseRowsRef.current = res.data.rows || [];
         const mapped = mapApiToForm(res.data);
@@ -271,10 +272,30 @@ export default function SeriousAdverseEventsList() {
         setIsSaved(true);
       })
       .catch((err) => {
-        if (err?.response?.status === 404) { baseRowsRef.current = []; return; }
+        if (err?.response?.status === 404) { baseRowsRef.current = []; setListLoaded(true); return; }
         console.error("Failed to load SAE list", err);
       });
   }, [routeId, patientData, location.state]);
+
+  // A baby who died: a draft row, saved only if staff save it.
+  const [listLoaded, setListLoaded] = useState(false);
+  const deathRowAdded = useRef(false);
+  useEffect(() => {
+    const eid = formData.enrollment_id;
+    if (!eid || !listLoaded || deathRowAdded.current) return;
+    api.get(`/enrollment/${encodeURIComponent(eid)}/death-status`)
+      .then((res) => {
+        if (!res.data?.needs_list || deathRowAdded.current) return;
+        deathRowAdded.current = true;
+        setIsSaved(false);
+        setFormData((p) => ({
+          ...p,
+          rows: [...(p.rows || []).filter((r) => r.sae || r.definition_no || r.start_date),
+            { ...blankRow(), sae: res.data.list_term, start_date: res.data.date || "" }],
+        }));
+      })
+      .catch(() => {});
+  }, [formData.enrollment_id, listLoaded]);
 
   useEffect(() => {
     const site = siteName || patientData?.site_name || patientData?.site || "";

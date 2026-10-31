@@ -33,7 +33,13 @@ export default function DeathReportBanner() {
   if (!status?.needs_report) return null;
   const onFormY = location.pathname.includes("/form-y-sae");
   return (
-    <div className="field-hint field-hint-warning" role="alert" style={{ margin: "0 0 12px" }}>
+    <div
+      role="alert"
+      style={{
+        margin: "0 0 12px", padding: "8px 12px", borderRadius: 8, fontSize: 13,
+        background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b",
+      }}
+    >
       <strong>SAE report due{status.due ? ` by ${status.due.replace("T", " ")}` : " within 24 hours"}.</strong>{" "}
       This baby died{status.date ? ` on ${status.date}` : ""}{status.time ? ` at ${status.time}` : ""}.{" "}
       {!onFormY && <Link to={`/form-y-sae/${eid}`}>Open Form Y</Link>}
