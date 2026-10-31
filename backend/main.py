@@ -81,7 +81,7 @@ from models import (
     CranialUSGRecord, SAEReport, AdverseEvents,
     SAEList, User, MRIBrainAssessment, BlenderStudySummary, ParticipantPII, BirthLogEntry, GACheckEntry
 )
-from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, PregnancyFollowUpUpdate, BirthResuscitationCreate,MetabRenalVascEyeDayCreate, MetabRenalVascEyeDaySubmit, MinimalMonitoringDayCreate, MinimalMonitoringDayOut, BirthResuscitationOut, MaternalDetailsCreate, MaternalDetailsOut, PostnatalDay1Create, PostnatalDay1Out,NICUAdmissionCreate,NICUAdmissionOut,NeonatalMorbiditiesCreate,NeonatalMorbiditiesOut,StudyOutcomesCreate, CranialUSGCreate, CranialUSGSubmit, StudyOutcomesOut,CranialUltrasoundCreate, CranialUltrasoundOut,ROPScreeningCreate, ROPScreeningOut,CompositeOutcomeCreate, CompositeOutcomeOut, ExternalHospitalAssessmentCreate, ExternalHospitalAssessmentOut, FiO2AUCLogCreate, FiO2AUCLogOut, RespCVNeuroLogCreate,RespCVNeuroDayCreate, RespCVNeuroDaySubmit, DischargeUpdate, RespCVNeuroLogOut,InfectGIHemaLogCreate, InfectGIHemaLogOut,MetabRenalVascEyeLogCreate,MetabRenalVascEyeLogOut,SAEReportCreate, SAEReportOut, AdverseEventsCreate, AdverseEventsOut ,SAEListCreate, SAEListOut, AdverseEventRow, SAEListRow, UserCreate, UserUpdate, UserOut, UserRosterOut, SitePiContactOut, LoginRequest, LoginResponse, RefreshTokenRequest, TokenRefreshResponse, RespiratoryLogCreate, RespiratoryLogBulkCreate, InfectGIHemaDayCreate, InfectGIHemaDaySubmit,  SteroidDataCreate, FirebaseScreeningImportCreate, MRIBrainCreate, MRIBrainSubmit, MRIBrainOut, BlenderSummaryCreate, BlenderSummarySubmit, BlenderSummaryOut, HelperFormRecordOut, HelperFormRecordsPage, BirthLogEntryCreate, BirthLogEntryOut, GACheckEntryCreate, GACheckEntryOut, GACheckLinkRequest
+from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, PregnancyFollowUpUpdate, BirthResuscitationCreate,MetabRenalVascEyeDayCreate, MetabRenalVascEyeDaySubmit, MinimalMonitoringDayCreate, MinimalMonitoringDayOut, BirthResuscitationOut, MaternalDetailsCreate, MaternalDetailsOut, PostnatalDay1Create, PostnatalDay1Out,NICUAdmissionCreate,NICUAdmissionOut,NeonatalMorbiditiesCreate,NeonatalMorbiditiesOut,StudyOutcomesCreate, CranialUSGCreate, CranialUSGSubmit, StudyOutcomesOut,CranialUltrasoundCreate, CranialUltrasoundOut,ROPScreeningCreate, ROPScreeningOut,CompositeOutcomeCreate, CompositeOutcomeOut, ExternalHospitalAssessmentCreate, ExternalHospitalAssessmentOut, FiO2AUCLogCreate, FiO2AUCLogOut, RespCVNeuroLogCreate,RespCVNeuroDayCreate, RespCVNeuroDaySubmit, DischargeUpdate, EndOfStayRecord, RespCVNeuroLogOut,InfectGIHemaLogCreate, InfectGIHemaLogOut,MetabRenalVascEyeLogCreate,MetabRenalVascEyeLogOut,SAEReportCreate, SAEReportOut, AdverseEventsCreate, AdverseEventsOut ,SAEListCreate, SAEListOut, AdverseEventRow, SAEListRow, UserCreate, UserUpdate, UserOut, UserRosterOut, SitePiContactOut, LoginRequest, LoginResponse, RefreshTokenRequest, TokenRefreshResponse, RespiratoryLogCreate, RespiratoryLogBulkCreate, InfectGIHemaDayCreate, InfectGIHemaDaySubmit,  SteroidDataCreate, FirebaseScreeningImportCreate, MRIBrainCreate, MRIBrainSubmit, MRIBrainOut, BlenderSummaryCreate, BlenderSummarySubmit, BlenderSummaryOut, HelperFormRecordOut, HelperFormRecordsPage, BirthLogEntryCreate, BirthLogEntryOut, GACheckEntryCreate, GACheckEntryOut, GACheckLinkRequest
 from pydantic import BaseModel
 from typing import Optional, List
 from deps import (
@@ -96,7 +96,7 @@ from routers import data_queries as data_queries_router
 from routers import dashboard as dashboard_router
 from routers import reports as reports_router
 from routers import site_summary as site_summary_router
-from stay_end import refuse_after_stay, stay_end
+from stay_end import entries_after_death, is_blank_helper_day, refuse_after_stay, stay_end
 from routers import shift_report as shift_report_router
 from routers import auth as auth_router
 from baby_uid_duplicate import (
@@ -2002,6 +2002,7 @@ def get_birth_resuscitation(
     end = stay_end(db, enrollment_id)
     record_dict["discharge_date"] = end["date"] if end else None
     record_dict["died"] = bool(end and end["died"])
+    record_dict["death_time"] = end["time"] if end else None
 
     return record_dict
 
@@ -7546,6 +7547,7 @@ def create_resp_cv_neuro_day(
         db.refresh(existing)
         return existing
 
+    refuse_blank_helper_day(data.model_dump())
     record = RespCVNeuroDayLog(**data.model_dump())
     db.add(record)
     db.commit()
@@ -7713,6 +7715,65 @@ def override_unlock_resp_cv_neuro_day(
 
 
 #  -  PATCH discharge  -
+def refuse_blank_helper_day(values: dict) -> None:
+    """No row for a day with nothing entered: it looks like a started day."""
+    if is_blank_helper_day(values):
+        raise HTTPException(status_code=422, detail="Nothing entered for this day yet.")
+
+
+END_OF_STAY_OUTCOMES = ("Died", "Discharged", "Back referred", "Discharged home on request",
+                        "Left Against Medical Advice")
+
+
+@app.post("/enrollment/{enrollment_id}/end-of-stay")
+def record_end_of_stay(
+    enrollment_id: str,
+    data: EndOfStayRecord,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The DMS's Record death / discharge (PI 2026-10-31): writes Form H's
+    outcome, date and time at once, so the logs close without waiting for
+    Helper 5. Any site staff; a wrong entry is corrected on Form H."""
+    require_enrollment_access(enrollment_id, db, current_user)
+    if data.outcome not in END_OF_STAY_OUTCOMES:
+        raise HTTPException(status_code=422, detail="Choose an outcome.")
+    try:
+        when = date.fromisoformat(data.date)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Enter the date.")
+    time_text = (data.time or "").strip()[:5]
+    if data.outcome == "Died" and not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", time_text):
+        raise HTTPException(status_code=422, detail="Enter the time of death.")
+    now = clinical_now()
+    if when > now.date() or (data.outcome == "Died" and f"{when}T{time_text}" > now.strftime("%Y-%m-%dT%H:%M")):
+        raise HTTPException(status_code=422, detail="This date and time is in the future.")
+    birth = db.query(BirthResuscitation).filter(BirthResuscitation.enrollment_id == enrollment_id).first()
+    if birth and birth.date_of_birth and when < birth.date_of_birth:
+        raise HTTPException(status_code=422, detail="This date is before the date of birth.")
+    form_h = (
+        db.query(NeonatalMorbidities)
+        .filter(NeonatalMorbidities.enrollment_id == enrollment_id)
+        .order_by(NeonatalMorbidities.id.desc())
+        .first()
+    )
+    if form_h and (form_h.outcome or form_h.discharge_date):
+        raise HTTPException(status_code=409, detail="Form H already has an outcome. Correct it on Form H.")
+    if not form_h:
+        form_h = NeonatalMorbidities(enrollment_id=enrollment_id)
+        db.add(form_h)
+    form_h.outcome = data.outcome
+    form_h.discharge_date = when
+    form_h.death_time = time_text if data.outcome == "Died" else None
+    db.flush()
+    record_audit(db, user_id=current_user.id, username=current_user.username, action="UPDATE",
+                 table_name="neonatal_morbidities", record_id=form_h.id, enrollment_id=enrollment_id,
+                 new_values={"outcome": data.outcome, "discharge_date": data.date,
+                             "death_time": form_h.death_time, "source": "end-of-stay"})
+    db.commit()
+    return {"outcome": data.outcome, "date": when.isoformat(), "time": form_h.death_time}
+
+
 @app.patch("/enrollment/{enrollment_id}/discharge")
 def discharge_enrollment(
     enrollment_id: str,
@@ -7732,20 +7793,23 @@ def discharge_enrollment(
             detail=f"Invalid discharge_date '{data.discharge_date}'; expected YYYY-MM-DD",
         )
 
-    # Update NeonatalMorbidities discharge_date if it exists
+    # Form H may not exist yet: without it the discharge used to be lost.
     morbidity = (
         db.query(NeonatalMorbidities)
         .filter(NeonatalMorbidities.enrollment_id == enrollment_id)
+        .order_by(NeonatalMorbidities.id.desc())
         .first()
     )
-    if morbidity:
-        try:
-            morbidity.discharge_date = parsed_discharge_date
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            logger.error("Failed to persist discharge_date for %s: %s", enrollment_id, e)
-            raise HTTPException(status_code=400, detail=f"Error saving discharge date: {str(e)}")
+    try:
+        if not morbidity:
+            morbidity = NeonatalMorbidities(enrollment_id=enrollment_id)
+            db.add(morbidity)
+        morbidity.discharge_date = parsed_discharge_date
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error("Failed to persist discharge_date for %s: %s", enrollment_id, e)
+        raise HTTPException(status_code=400, detail=f"Error saving discharge date: {str(e)}")
 
     # Also store on BirthResuscitation for date_of_birth reference
     # (frontend reads b.discharge_date from birth-resuscitation)
@@ -7979,6 +8043,7 @@ def create_infect_gi_hema_day(
         db.refresh(existing)
         return existing
 
+    refuse_blank_helper_day(data.model_dump())
     record = InfectGIHemaDayLog(**data.model_dump())
     db.add(record)
     db.commit()
@@ -8306,6 +8371,7 @@ def create_metab_renal_vasc_eye_day(
             db, existing.enrollment_id, existing.nicu_day, existing.rop_detected
         )
         db.commit(); db.refresh(existing); return existing
+    refuse_blank_helper_day(data.model_dump())
     record = MetabRenalVascEyeDayLog(**data.model_dump())
     db.add(record)
     db.flush()
@@ -8625,6 +8691,11 @@ def _upsert_minimal_monitoring_for_date(
         )
         .first()
     )
+    late = entries_after_death(stay_end(db, enrollment_id), record_date, payload.get("entries_json"),
+                               record.entries_json if record else None)
+    if late:
+        raise HTTPException(status_code=422, detail=f"A reading at {late[0]} is after the time of death. "
+                                                    "Correct its time or remove it.")
     if record:
         if "entries_json" in payload:
             payload["entries_json"] = merge_mml_entries_json(

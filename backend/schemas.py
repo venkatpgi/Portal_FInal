@@ -858,6 +858,7 @@ class BirthResuscitationOut(BirthResuscitationCreate):
     # Read-only: end of stay, discharge or death (stay_end.py), the helper pages' cut-off.
     discharge_date: Optional[date] = None
     died: bool = False
+    death_time: Optional[str] = None
     created_at: Optional[datetime]
     original_gestation_weeks: Optional[int] = None
     original_gestation_days: Optional[int] = None
@@ -2557,6 +2558,12 @@ class RespCVNeuroDaySummary(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class EndOfStayRecord(BaseModel):
+    outcome: str
+    date: str                   # "YYYY-MM-DD"
+    time: Optional[str] = None  # "HH:MM", required for a death
 
 
 class DischargeUpdate(BaseModel):
