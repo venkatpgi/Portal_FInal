@@ -4328,8 +4328,19 @@ def get_survival_check(
         .all()
     )
     death_days = sorted({l.nicu_day for l in logs if l.survived_the_day is False})
+    form_h = (
+        db.query(NeonatalMorbidities)
+        .filter(NeonatalMorbidities.enrollment_id == enrollment_id)
+        .order_by(NeonatalMorbidities.id.desc())
+        .first()
+    )
+    # For Form I's in-hospital mortality: "No" only once the stay has ended.
+    h = {
+        "form_h_died": bool(form_h and form_h.outcome == "Died"),
+        "stay_ended": bool(form_h and (form_h.outcome or form_h.discharge_date)),
+    }
     if not death_days:
-        return {"did_not_survive": False}
+        return {"did_not_survive": False, **h}
 
     nicu = (
         db.query(NICUAdmission)
@@ -4339,7 +4350,7 @@ def get_survival_check(
     day = min(death_days)
     date = (nicu.day1_date + timedelta(days=day - 1)).isoformat() if nicu and nicu.day1_date else None
 
-    return {"did_not_survive": True, "day": day, "date": date}
+    return {"did_not_survive": True, "day": day, "date": date, **h}
 
 
 @app.get("/neonatal-morbidities/post-resus-prefill/{enrollment_id}")
