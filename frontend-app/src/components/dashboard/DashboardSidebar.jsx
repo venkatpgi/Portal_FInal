@@ -13,10 +13,11 @@ import {
   ListChecks,
   FileSpreadsheet,
   HeartPulse,
+  ClipboardCheck,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { canViewAudit, canSeeAnalytics, canSeeDataQueries, canUseReports } from "../../utils/roles";
+import { canViewAudit, canSeeAnalytics, canSeeDataQueries, canUseReports, canUseShiftReport } from "../../utils/roles";
 import { formatSiteName } from "./siteLabels";
 
 const ITEMS = [
@@ -155,6 +156,15 @@ export default function DashboardSidebar({
             className={workspaceNavClass}
           >
             <HeartPulse size={14} aria-hidden="true" /> Site summary
+          </NavLink>
+        )}
+        {canUseShiftReport(user) && (
+          <NavLink
+            to="/shift-report"
+            onClick={onClose}
+            className={workspaceNavClass}
+          >
+            <ClipboardCheck size={14} aria-hidden="true" /> Twice-daily report
           </NavLink>
         )}
         {canViewAudit(user) && (

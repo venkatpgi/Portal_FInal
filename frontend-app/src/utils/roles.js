@@ -18,6 +18,11 @@ export function canUseReports(user) {
   return canSeeDataQueries(user);
 }
 
+/** Twice-daily report: all site staff and central reviewers; not PTS3 (no reports). */
+export function canUseShiftReport(user) {
+  return isCentralReviewer(user) || (!!user?.site_name && (user?.role || "").toLowerCase() !== "tech_support");
+}
+
 /** All-site query reviewer who gives the second sign-off. */
 export function isCentralReviewer(user) {
   return CENTRAL_REVIEWER_ROLES.has((user?.role || "").toLowerCase());

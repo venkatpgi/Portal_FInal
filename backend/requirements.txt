@@ -24,3 +24,6 @@ cryptography==50.0.0
 
 # 2026-08-29: SAE / IEC report generator (.docx) — pulls lxml + typing_extensions
 python-docx==1.2.0
+
+# 2026-10-31: twice-daily report PDF (shift_report.py)
+reportlab==5.1.0
