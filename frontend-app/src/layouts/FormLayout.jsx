@@ -5,6 +5,7 @@ import Sidebar from '../Sidebar';
 import Header from '../components/Header';
 import DataQueryBanner from '../components/DataQueryBanner';
 import DeathReportBanner from '../components/DeathReportBanner';
+import SaeDeadlineBanner from '../components/SaeDeadlineBanner';
 import './FormLayout.css';
 import '../styles/Theme.css';
 import { useAuth } from '../context/AuthContext';
@@ -50,6 +51,7 @@ const FormLayout = ({ children, currentForm, headerProps }) => {
         />
         <main className="form-layout-content">
           <DeathReportBanner />
+          <SaeDeadlineBanner />
           <DataQueryBanner />
           {children}
         </main>

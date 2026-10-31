@@ -3,7 +3,8 @@ from types import SimpleNamespace as NS
 
 import sae_config
 from sae_narrative import DRAFT_LINE, ae_terms_of, compose, course_events
-from sae_rules import add_to_list, apply_rules, event_title, filled_rows, on_list
+from sae_rules import (add_to_list, apply_rules, event_title, filled_rows, fourteen_day_items, mark_14_day, on_list,
+                       unreported_sae)
 
 
 def report(**kw):
@@ -91,3 +92,37 @@ def test_sae_list_rows():
         {"sae": "Shock, Death", "start_date": "d", "row_id": "a"}]
     assert add_to_list([{"sae": None, "row_id": "a"}], {"sae": "Sepsis"}) == [{"sae": "Sepsis"}]
     assert len(add_to_list([{"sae": "NEC"}], {"sae": "Sepsis"})) == 2
+
+
+def test_fourteen_day_warns_from_three_days_before():
+    row = {"sae": "Shock, Death", "start_date": "2026-10-30"}
+    assert fourteen_day_items([row], date(2026, 11, 9)) == []
+    assert fourteen_day_items([row], date(2026, 11, 10)) == [
+        {"sae": "Shock, Death", "due": date(2026, 11, 13), "overdue": False}]
+    assert fourteen_day_items([row], date(2026, 11, 14))[0]["overdue"] is True
+    assert fourteen_day_items([{**row, "notify_10d": "2026-11-12"}], date(2026, 11, 14)) == []
+    assert fourteen_day_items([{**row, "notify_initial": "2026-11-01"}], date(2026, 11, 10))
+
+
+def test_follow_up_or_final_fills_the_date():
+    rows = [{"sae": "Shock, Death", "start_date": "2026-10-30"}, {"sae": "NEC"}]
+    done = mark_14_day(rows, NS(report_type="Final", diagnosis="Shock", report_date="2026-11-10"))
+    assert done[0]["notify_10d"] == "2026-11-10" and "notify_10d" not in done[1]
+    assert mark_14_day(rows, NS(report_type="Initial", diagnosis="Shock", report_date="2026-11-10")) is None
+    assert mark_14_day(rows, NS(report_type="Final", diagnosis="Sepsis", report_date="2026-11-10")) is None
+    assert mark_14_day(done, NS(report_type="Final", diagnosis="Shock", report_date="2026-11-11")) is None
+
+
+def sae(dx, **kw):
+    return NS(**{**dict(diagnosis=dx, linked_ae=None, seriousness=[], outcome=None), **kw})
+
+
+def test_converted_yes_needs_a_report():
+    ev = [{"description": "Shock", "converted_to_sae": "Yes"},
+          {"description": "NEONATAL SINUS\nBRADYCARDIA", "converted_to_sae": "Yes"},
+          {"description": "Anemia", "converted_to_sae": "No"}]
+    assert unreported_sae(ev, [sae("Shock")]) == ["NEONATAL SINUS BRADYCARDIA"]
+    assert unreported_sae(ev[:1], []) == ["Shock"]
+    assert unreported_sae([ev[1]], [sae("Other", linked_ae={"description": "NEONATAL SINUS\nBRADYCARDIA"})]) == []
+    assert unreported_sae([{"description": "Death", "converted_to_sae": "Yes"}], [sae("Shock", outcome="Fatal")]) == []
+    assert unreported_sae(ev[:1], [sae("")]) == ["Shock"]

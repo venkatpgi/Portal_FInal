@@ -113,11 +113,11 @@ def test_w9_death_without_sae_report():
 
 
 def test_w10_sae_deadlines():
-    row = {"sae": "Death", "start_date": "2026-11-08", "notification_24h": "", "notify_initial": ""}
+    row = {"sae": "Death", "start_date": "2026-11-08", "notification_24h": "", "notify_10d": ""}
     r = evaluate(baby(sae_rows=[row]), TODAY, NOW, None)
     assert [t for c, t in r["watch"] if c == "W10"] == [
         "Death from 08 Nov: 24-hour notification not recorded", "Death: 14-day report due 22 Nov"]
-    done = dict(row, notification_24h="2026-11-08", notify_initial="2026-11-12")
+    done = dict(row, notification_24h="2026-11-08", notify_10d="2026-11-12")
     assert evaluate(baby(sae_rows=[done]), TODAY, NOW, None)["watch"] == []
 
 
@@ -173,3 +173,8 @@ def test_ae_form_term_by_key_code_or_name():
          "grade": "3"}
     r = evaluate(baby(ae_events=[ev], candidates=[c]), TODAY, NOW, None)
     assert r["watch"] == [] and "M9" not in codes(r, "missed")
+
+
+def test_converted_yes_without_a_report_is_flagged():
+    ev = {"description": "Bradycardia", "grade": "4", "start_date": "2026-11-10", "converted_to_sae": "Yes"}
+    assert "W11" in codes(evaluate(baby(ae_events=[ev]), TODAY, NOW, None), "watch")
