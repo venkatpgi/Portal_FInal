@@ -445,7 +445,7 @@ export default function SeriousAdverseEventsList() {
                       />
                     </div>
                     <div className="form-group">
-                      <label>2. 10 days</label>
+                      <label>2. 14 days</label>
                       <DateField
                         value={row.notify_10d}
                         onChange={(v) => updateRow(i, "notify_10d", v)}

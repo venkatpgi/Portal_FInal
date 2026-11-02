@@ -49,7 +49,7 @@ from infection_windows import _compute_infection_windows  # noqa: E402
 from nec_suggestion import stage_rank  # noqa: E402
 from ops_tasks import baby_tasks, iter_form_tasks  # noqa: E402
 from rop_form_g_linkage import compute_rop_review_alerts  # noqa: E402
-from sae_rules import is_fatal  # noqa: E402
+from sae_rules import fourteen_day_items, is_fatal, unreported_sae  # noqa: E402
 from trial_dates import trial_start  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -57,7 +57,7 @@ ALL_SITES = "ALL"
 REPORT_SITES = ["PGIMER", "GMCH", "GMCH-A", "AMC", "AFMC", "IOG"]
 AUDIT_TABLE = "site_summary"
 PORTAL_URL = "https://portaltrial.in/site-summary"
-URGENT_RULES = ("W1", "W3", "W9", "W10")
+URGENT_RULES = ("W1", "W3", "W9", "W10", "W11")
 
 RULES = {
     "W1": "Serious AE not yet reviewed for SAE",
@@ -70,6 +70,7 @@ RULES = {
     "W8": "Acute event",
     "W9": "Death without an SAE report",
     "W10": "SAE reporting deadline",
+    "W11": "Converted to SAE, no report",
     "M1": "Daily logs",
     "M2": "Cranial ultrasound",
     "M3": "Brain scan asked for by Helper 2",
@@ -274,12 +275,13 @@ def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> d
         what = r.get("sae") or "SAE"
         if not answered(r.get("notification_24h")) and now.date() > start:
             watch.append(("W10", f"{what} from {_fmt(start)}: 24-hour notification not recorded"))
-        if not answered(r.get("notify_initial")):
-            due = start + timedelta(days=14)
-            if today > due:
-                watch.append(("W10", f"{what}: 14-day report overdue (due {_fmt(due)})"))
-            elif today >= due - timedelta(days=3):
-                watch.append(("W10", f"{what}: 14-day report due {_fmt(due)}"))
+    for item in fourteen_day_items(b.get("sae_rows"), today):
+        watch.append(("W10", f"{item['sae']}: 14-day report {'overdue (due' if item['overdue'] else 'due'} "
+                             f"{_fmt(item['due'])}{')' if item['overdue'] else ''}"))
+
+    # W11 an AE answered Converted to SAE with no report (PI 2026-10-31)
+    for name in unreported_sae(events, b.get("sae_reports")):
+        watch.append(("W11", f"{name}: Converted to SAE is Yes, no SAE report"))
 
     # ---------------------------------------------------- active morbidities
     if not end:
@@ -430,6 +432,7 @@ def _load(db, sites: list[str], now: datetime) -> list[dict]:
             # an empty Form Y (no diagnosis) is not a report (01-B-001, PI 2026-10-26); a report
             # about another event does not record the death (PI 2026-10-31)
             "has_death_report": any(answered(r.diagnosis) and is_fatal(r) for r in q(SAEReport).all()),
+            "sae_reports": q(SAEReport).all(),
             "resp_logs": resp, "inf_logs": inf, "metab_logs": metab,
             "nec_stage": nm.nec_stage if nm else None,
             "rop": q(ROPScreening, ROPScreening.id.desc()).first(),

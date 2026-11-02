@@ -10,7 +10,10 @@ Death: one report per SAE. A fatal SAE is reported once, as "<SAE>, Death"
 already reported is a Follow-up or Final of that SAE. An unrelated death is a
 separate report, so a report marked fatal must be about the death.
 """
+from datetime import date, timedelta
 from types import SimpleNamespace
+
+from ae_terms import term_of
 
 CAUSALITY_FIELDS = ("causality", "sponsor_causality")
 CAUSALITY_PENDING = "To be provided in the final report"
@@ -60,6 +63,72 @@ def add_to_list(rows, row: dict) -> list:
         if _base(r.get("sae")) == "death":
             return [{**x, "sae": row["sae"]} if x is r else x for x in out]
     return [*out, row]
+
+
+DETAIL_REPORT_DAYS = 14
+WARN_DAYS = 3
+
+
+def _day(v):
+    try:
+        return date.fromisoformat(str(v)[:10]) if v else None
+    except ValueError:
+        return None
+
+
+def fourteen_day_items(rows, today: date) -> list[dict]:
+    """SAE list rows whose 14-day report is due within WARN_DAYS or overdue. The
+    report date is the list's "14 days" field (column notify_10d, once labelled
+    10 days)."""
+    out = []
+    for r in filled_rows(rows):
+        start = _day(r.get("start_date"))
+        if not start or str(r.get("notify_10d") or "").strip():
+            continue
+        due = start + timedelta(days=DETAIL_REPORT_DAYS)
+        if today >= due - timedelta(days=WARN_DAYS):
+            out.append({"sae": r.get("sae") or "SAE", "due": due, "overdue": today > due})
+    return out
+
+
+def mark_14_day(rows, record) -> list | None:
+    """A saved Follow-up or Final report fills its row's 14-day date. None if no change."""
+    if record.report_type not in ("Follow-up", "Final") or not _day(record.report_date):
+        return None
+    name = _base(record.diagnosis)
+    changed = False
+    out = []
+    for r in rows or []:
+        if isinstance(r, dict) and name and _base(r.get("sae")) == name and not str(r.get("notify_10d") or "").strip():
+            r = {**r, "notify_10d": str(record.report_date)[:10]}
+            changed = True
+        out.append(r)
+    return out if changed else None
+
+
+def unreported_sae(events, reports) -> list[str]:
+    """AE rows answered Converted to SAE = Yes with no Form Y report for them."""
+    def keys(x):
+        return {k for k in (term_of(x), _base(x.get("description"))) if k}
+
+    filed = set()
+    fatal = False
+    for r in reports or []:
+        if not (r.diagnosis or "").strip():
+            continue
+        fatal = fatal or is_fatal(r)
+        filed |= keys({"description": r.diagnosis})
+        if isinstance(r.linked_ae, dict):
+            filed |= keys(r.linked_ae)
+    out = []
+    for e in events or []:
+        if not isinstance(e, dict) or str(e.get("converted_to_sae") or "").strip() != "Yes":
+            continue
+        name = (e.get("description") or e.get("definition_no") or "AE").strip()
+        if keys(e) & filed or (fatal and "death" in name.lower()):
+            continue
+        out.append(" ".join(name.split()))
+    return out
 
 
 def apply_rules(payload: dict, old=None) -> str | None:

@@ -156,7 +156,7 @@ and details hold ids, numbers and dates only.
   sends one test copy (audit `EMAIL_TEST`, does not count). Query text holds
   IDs only, so the email carries no names, CR or phone numbers. Needs
   `SES_SENDER_EMAIL` (trial `.env` only; training never sends). It also
-  lists the site summary's **urgent safety items** (W1, W3, W9, W10, below; IDs only).
+  lists the site summary's **urgent safety items** (W1, W3, W9, W10, W11, below; IDs only).
 
 ## Twice-daily report (PI 2026-10-31)
 
@@ -215,7 +215,8 @@ https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
 | W7 Escalating support | invasive ventilation (intubated or SIMV/AC/PSV/HFOV) or inotropes started in the last 3 days (previous day logged without it) |
 | W8 Acute event | Helper 2 pneumothorax, pulmonary haemorrhage, shock, clinical / EEG seizure in the last 7 days |
 | W9 Death without SAE report | died (Form H outcome or Helper 5) and no Form Y report with a diagnosis that records the death (Death ticked or outcome Fatal; PI 2026-10-31) |
-| W10 SAE deadline | SAE list row: 24-h notification blank after the start day; detailed (initial) report blank within 3 days of, or past, start + 14 days |
+| W10 SAE deadline | SAE list row: 24-h notification blank after the start day; the "14 days" date blank within 3 days of, or past, start + 14 days |
+| W11 Converted to SAE, no report | AE row answered Converted to SAE = Yes with no Form Y for that term (urgent item) |
 | M1 / M7 / M8 | existing Dashboard tasks: daily logs ≥ 2 days missing, Form C missing, delivered without Form B |
 | M2 Cranial USG | a Form F schedule window (< 28 wk or < 1000 g: Day 1–3, 4–7, 10–14, 28, 36 and 40 wk PMA; else Day 4–7, 10–14, 28, 40 wk PMA) ended 2 days ago with no scan in it (± tolerance), skipping windows after the stay ended |
 | M3 | Helper 2 IVH / cPVL flag and no Form F scan |

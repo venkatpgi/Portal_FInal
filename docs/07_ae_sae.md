@@ -73,7 +73,11 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
 
 ## 3. SAE list (`sae_list`) and SAE report — Form Y (`sae_reports`)
 - SAE list: one row per SAE with 24-h / 14-day notification dates (India NDCT
-  Rules 2019 timeline).
+  Rules 2019 timeline). The field labelled "14 days" is column `notify_10d`
+  (labelled 10 days until PI 2026-10-31). A saved Follow-up or Final report
+  fills it. From 3 days before it is due a banner shows on every form, with the
+  W10 line in the daily email; an AE with Converted to SAE = Yes and no report
+  gives the same banner and W11 (`sae_rules.py`, `GET /enrollment/{id}/sae-alerts`).
 - Form Y: one record per report (Initial / Follow-up / Final). Severity uses
   the INC NAESS 5 grades (old 3-level values mapped on load).
 - **Form Y needs a diagnosis** to save (create or update, 422 otherwise;

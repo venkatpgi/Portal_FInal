@@ -5850,6 +5850,21 @@ def _add_to_sae_list(db: Session, record: SAEReport) -> None:
         logger.exception("Could not add SAE list row for report %s", record.id)
 
 
+def _mark_14_day_report(db: Session, record: SAEReport) -> None:
+    """A Follow-up or Final report fills its SAE list row's 14-day date. A
+    failure must not lose the report."""
+    import sae_rules
+    try:
+        listing = db.query(SAEList).filter(SAEList.enrollment_id == record.enrollment_id).first()
+        rows = sae_rules.mark_14_day(listing.rows, record) if listing else None
+        if rows is not None:
+            listing.rows = rows
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Could not fill the 14-day date for report %s", record.id)
+
+
 def _sae_payload(data: SAEReportCreate) -> dict:
     """Full dump filtered to model columns; normalize list/bool defaults."""
     allowed = set(SAEReport.__table__.columns.keys()) - {
@@ -5930,6 +5945,7 @@ def create_sae_report(
     db.refresh(record)
     if record.report_type == "Initial":
         _add_to_sae_list(db, record)
+    _mark_14_day_report(db, record)
 
     recipients = _sae_notification_recipients(db, record.site or "")
     if recipients:
@@ -5989,6 +6005,7 @@ def update_sae_report(
 
     db.commit()
     db.refresh(record)
+    _mark_14_day_report(db, record)
     return record
 
 
@@ -7757,6 +7774,23 @@ def get_death_status(
     require_enrollment_access(enrollment_id, db, current_user)
     import death_alert
     return death_alert.status(db, enrollment_id)
+
+
+@app.get("/enrollment/{enrollment_id}/sae-alerts")
+def get_sae_alerts(
+    enrollment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """What the form banner shows: 14-day reports due, and SAEs with no report."""
+    require_enrollment_access(enrollment_id, db, current_user)
+    import sae_rules
+    listing = db.query(SAEList).filter(SAEList.enrollment_id == enrollment_id).first()
+    ae = db.query(AdverseEvents).filter(AdverseEvents.enrollment_id == enrollment_id).first()
+    reports = db.query(SAEReport).filter(SAEReport.enrollment_id == enrollment_id).all()
+    due = sae_rules.fourteen_day_items(listing.rows if listing else None, clinical_now().date())
+    return {"fourteen_day": [{**d, "due": d["due"].isoformat()} for d in due],
+            "unreported": sae_rules.unreported_sae(ae.events if ae else None, reports)}
 
 
 @app.post("/enrollment/{enrollment_id}/end-of-stay")
