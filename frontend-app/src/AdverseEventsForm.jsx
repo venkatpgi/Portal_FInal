@@ -91,6 +91,9 @@ function mapApiToForm(row) {
         end_date: dateOnly(e?.end_date),
         severity_desc: e?.severity_desc || "",
         grade: e?.grade != null && e?.grade !== "" ? String(e.grade) : gradeFromText(e?.severity_desc),
+        // page only (not sent): the Grade box follows the severity text
+        grade_auto: (e?.grade == null || e?.grade === "" || String(e.grade) === gradeFromText(e?.severity_desc))
+          && !!gradeFromText(e?.severity_desc),
         converted_to_sae: e?.converted_to_sae || "",
         row_id: e?.row_id || "",
       }))
@@ -350,11 +353,12 @@ export default function AdverseEventsForm() {
       const events = [...(p.events || [])];
       const row = events[index];
       events[index] = { ...row, [field]: value };
-      // The Grade box follows the text while it is blank or still matches
-      // the old text; a grade picked by hand is kept.
-      if (field === "severity_desc" && gradeFromText(value)
-          && (!row.grade || row.grade === gradeFromText(row.severity_desc))) {
+      // The Grade box follows the text while it is blank or was filled from
+      // the text; a grade picked by hand is kept.
+      if (field === "grade") events[index].grade_auto = false;
+      if (field === "severity_desc" && (!row.grade || row.grade_auto)) {
         events[index].grade = gradeFromText(value);
+        events[index].grade_auto = !!gradeFromText(value);
       }
       return { ...p, events };
     });
