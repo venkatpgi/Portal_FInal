@@ -58,6 +58,12 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
   rows with nothing in them are dropped; a row with a grade, date or SAE
   answer but no event (description, or a definition other than "NA") is
   refused with its row number ("enter the event (term) or delete the row").
+- **Grade from the severity text (PI 2026-11-03, `main._fill_ae_grades`, web +
+  mobile + API):** a blank grade is taken from severity text that starts
+  "Grade N" ("Grade3:" too). The web form fills the Grade box as the text is
+  typed or pasted, and when a saved form opens; a grade picked by hand is
+  never changed. If the box and the text disagree, the form shows "Text says
+  Grade N" under the box.
 
 - **Two people saving the same AE form (PI 2026-10-29, `list_merge.py`):**
   every row has a hidden `row_id`; the page sends the rows as it loaded them

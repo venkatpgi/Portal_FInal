@@ -6208,6 +6208,21 @@ def download_sae_report_document(
     )
 
 
+def ae_grade_from_text(text):
+    """"Grade 2: Moderate ..." -> "2" (PI 2026-11-03: staff paste the INC scale
+    text and leave the Grade box blank; 22 of 79 trial rows)."""
+    m = re.match(r"\s*grade\s*([1-5])\b", str(text or ""), re.I)
+    return m.group(1) if m else None
+
+
+def _fill_ae_grades(rows) -> list:
+    """A blank grade is taken from severity text that starts "Grade N". Run
+    after the merge, so a row the page did not change is filled too."""
+    return [{**e, "grade": ae_grade_from_text(e.get("severity_desc"))}
+            if isinstance(e, dict) and not fc.answered(e.get("grade")) and ae_grade_from_text(e.get("severity_desc"))
+            else e for e in rows] if rows else rows
+
+
 def _clean_ae_events(events) -> list:
     """AE form rows (PI 2026-10-26): drop rows with nothing in them and refuse
     a row that has a grade, date or SAE answer but no event ("NA" alone is not
@@ -6293,6 +6308,7 @@ def create_adverse_events(
     payload["events"] = _merged_rows(
         db, "adverse_events", data.enrollment_id, base, existing.events if existing else [],
         payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
+    payload["events"] = _fill_ae_grades(payload["events"])
     if existing:
         for key, value in payload.items():
             if key == "enrollment_id":
@@ -6361,6 +6377,7 @@ def update_adverse_events(
     base = None if data.base_events is None else [r.model_dump() for r in data.base_events]
     payload["events"] = _merged_rows(db, "adverse_events", enrollment_id, base, record.events,
                                      payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
+    payload["events"] = _fill_ae_grades(payload["events"])
     for key, value in payload.items():
         setattr(record, key, value)
 
