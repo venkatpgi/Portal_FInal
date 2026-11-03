@@ -1550,7 +1550,7 @@ function EntryBlock({
   const draft = entries[draftIdx] || {};
   const showForm = editIdx >= 0 || allowNew || disabled;
   const editedAt = editIdx >= 0
-    ? [draft.date ? formatDateToDDMMYYYY(draft.date) : "", draft.time || draft.time_range || ""].filter(Boolean).join(" ")
+    ? [draft.date ? formatDateToDDMMYYYY(draft.date) : "", draft.time_range || draft.time || ""].filter(Boolean).join(" ")
     : "";
   /** Prior readings. The last row stays in the form; Save keeps it there. */
   const tableRows = entries
