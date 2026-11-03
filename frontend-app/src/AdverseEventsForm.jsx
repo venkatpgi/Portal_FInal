@@ -90,10 +90,11 @@ function mapApiToForm(row) {
         start_date: dateOnly(e?.start_date),
         end_date: dateOnly(e?.end_date),
         severity_desc: e?.severity_desc || "",
-        grade: e?.grade != null && e?.grade !== "" ? String(e.grade) : gradeFromText(e?.severity_desc),
-        // page only (not sent): the Grade box follows the severity text
-        grade_auto: (e?.grade == null || e?.grade === "" || String(e.grade) === gradeFromText(e?.severity_desc))
-          && !!gradeFromText(e?.severity_desc),
+        grade: e?.grade != null && e?.grade !== "" ? String(e.grade) : "",
+        // page only (not sent): the Grade box follows the severity text.
+        // A saved blank grade is not filled on opening (prospective, PI
+        // 2026-11-03); editing the text fills it.
+        grade_auto: e?.grade != null && e?.grade !== "" && String(e.grade) === gradeFromText(e?.severity_desc),
         converted_to_sae: e?.converted_to_sae || "",
         row_id: e?.row_id || "",
       }))

@@ -6215,12 +6215,17 @@ def ae_grade_from_text(text):
     return m.group(1) if m else None
 
 
-def _fill_ae_grades(rows) -> list:
-    """A blank grade is taken from severity text that starts "Grade N". Run
-    after the merge, so a row the page did not change is filled too."""
-    return [{**e, "grade": ae_grade_from_text(e.get("severity_desc"))}
-            if isinstance(e, dict) and not fc.answered(e.get("grade")) and ae_grade_from_text(e.get("severity_desc"))
-            else e for e in rows] if rows else rows
+def _fill_ae_grades(rows, before) -> list:
+    """A blank grade is taken from severity text that starts "Grade N", only
+    on a new row or one whose severity text this save changed (PI 2026-11-03:
+    prospective; grades left blank before are filled by the site by hand)."""
+    old = {e.get("row_id"): e.get("severity_desc") for e in before or [] if isinstance(e, dict) and e.get("row_id")}
+    def fill(e):
+        g = ae_grade_from_text(e.get("severity_desc"))
+        rid = e.get("row_id")
+        changed = not rid or rid not in old or old[rid] != e.get("severity_desc")
+        return {**e, "grade": g} if g and changed and not fc.answered(e.get("grade")) else e
+    return [fill(e) if isinstance(e, dict) else e for e in rows] if rows else rows
 
 
 def _clean_ae_events(events) -> list:
@@ -6308,7 +6313,7 @@ def create_adverse_events(
     payload["events"] = _merged_rows(
         db, "adverse_events", data.enrollment_id, base, existing.events if existing else [],
         payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
-    payload["events"] = _fill_ae_grades(payload["events"])
+    payload["events"] = _fill_ae_grades(payload["events"], existing.events if existing else [])
     if existing:
         for key, value in payload.items():
             if key == "enrollment_id":
@@ -6377,7 +6382,7 @@ def update_adverse_events(
     base = None if data.base_events is None else [r.model_dump() for r in data.base_events]
     payload["events"] = _merged_rows(db, "adverse_events", enrollment_id, base, record.events,
                                      payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
-    payload["events"] = _fill_ae_grades(payload["events"])
+    payload["events"] = _fill_ae_grades(payload["events"], record.events)
     for key, value in payload.items():
         setattr(record, key, value)
 
