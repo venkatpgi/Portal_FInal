@@ -12,7 +12,7 @@ import { useFormProgress } from './context/FormProgressContext';
 import { useActiveFormSessionRegistry } from './context/ActiveFormSessionContext';
 import { useAuth } from './context/AuthContext';
 import api from './api/axios';
-import { isUsableEnrollmentId } from './utils/enrollmentId';
+import { isUsableEnrollmentId, pageEnrollmentId, pageScreeningId } from './utils/enrollmentId';
 import { realCalendarDateYmd, NICU_DAY_GRACE_HOUR } from './utils/datetime';
 import './Sidebar.css';
 
@@ -117,7 +117,6 @@ const ROLE_LABELS = {
   superadmin:'Super Admin', global_scientist:'Global Scientist', admin:'Admin', pi:'Principal Investigator',
   scientist:'Scientist', nurse:'Research Nurse', deo:'Data Entry Operator', monitor:'Monitor',
 };
-const validId = value => value && value !== 'undefined' && value !== 'null' ? value : null;
 const consentAllowsEnrollment = value => value === 'Yes'; // "Trial run" retired 2026-10-18
 
 export default function Sidebar({ currentForm }) {
@@ -186,23 +185,28 @@ export default function Sidebar({ currentForm }) {
     syncIdFromUrl();
     return readStoredIds();
   };
+  // This tab's baby (utils/enrollmentId.js): the address first, so another
+  // tab's write to the shared ids never changes what this sidebar shows.
+  // Ignores typing stubs like "01-" left by Form B focus/autosave.
   const readStoredIds = () => ({
-    screeningId:  validId(localStorage.getItem('current_screening_id')),
-    // Ignore typing stubs like "01-" left by Form B focus/autosave.
-    enrollmentId: isUsableEnrollmentId(localStorage.getItem('current_enrollment_id'))
-      ? localStorage.getItem('current_enrollment_id')
-      : null,
+    screeningId:  pageScreeningId(),
+    enrollmentId: pageEnrollmentId(),
   });
   const [ids, setIds] = useState(readIds);
   const screeningId = ids.screeningId;
   const enrollmentId = ids.enrollmentId;
 
+  // Another tab's write (a storage event with a key) is only read, never
+  // answered with a write: writing this tab's baby back made two tabs on
+  // different babies flip the shared id without end (2026-11-03). Focusing
+  // this tab, or a same-tab nudge (no key), still claims the shared id.
   useEffect(() => {
-    const sync = () => setIds(readIds());
-    window.addEventListener('storage', sync);
-    window.addEventListener('focus', sync);
-    return () => { window.removeEventListener('storage', sync); window.removeEventListener('focus', sync); };
-  }, []);
+    const onStorage = (e) => setIds(e && e.key ? readStoredIds() : readIds());
+    const onFocus = () => setIds(readIds());
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', onFocus);
+    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener('focus', onFocus); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- readIds only reads storage and the URL
 
   // Route changes (e.g. View Entries → Form A) update localStorage in the same
   // tab; re-read IDs so progress fetch runs for the newly opened patient.
@@ -337,7 +341,7 @@ export default function Sidebar({ currentForm }) {
 
       /* no_ppv is per-enrollment. Confirm against THIS patient's birth row
          instead of keeping another baby's no_ppv lock forever. */
-      const eid = validId(localStorage.getItem('current_enrollment_id'))
+      const eid = pageEnrollmentId()
         || (d.enrollment_id && d.enrollment_id !== 'undefined' ? d.enrollment_id : null);
       const finishUnlock = () => {
         if (consentAllowsEnrollment(consent)) {
