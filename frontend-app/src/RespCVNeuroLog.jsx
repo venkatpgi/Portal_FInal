@@ -5,6 +5,7 @@ import api from "./api/axios";
 import { getMmlSheet } from "./utils/mmlSheetFetch";
 import { helperLastRequiredDay, isHelperLogComplete } from "./utils/formCompletion";
 import { toDateOnlyValue, formatIsoDateMedium, formatStampShort, nicuDayNumberFromDay1, nicuDayForCalendarYmd, calendarDateForNicuDay, helperDayStripLength, NICU_DAY_GRACE_HOUR } from "./utils/datetime";
+import DayOfLifeNote from "./components/helper/DayOfLifeNote";
 import "./styles/RespCVNeuro.css";
 import { usePatient } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
@@ -960,6 +961,7 @@ export default function RespCVNeuroLog() {
   const [totalDays, setTotalDays]       = useState(14);
   // Day 1 date — Form B date_of_birth only (read-only in UI).
   const [day1Date, setDay1Date] = useState("");
+  const [birthTime, setBirthTime] = useState("");
   const [completedDays, setCompletedDays] = useState([]);
   const [dayStatuses, setDayStatuses]     = useState({}); // { [day]: STATUS.* }
   const [dayMeta, setDayMeta]             = useState({}); // { [day]: { pct, savedAt } }
@@ -1507,6 +1509,7 @@ export default function RespCVNeuroLog() {
         const b = res?.data || {};
         if (b.date_of_birth) {
           setDay1Date(normalizeHelperDob(b.date_of_birth));
+          setBirthTime(b.time_of_birth ? String(b.time_of_birth).slice(0, 5) : "");
         }
 
         // Gestation — start with Form B, then check postnatal-day1 for NBS correction
@@ -2629,6 +2632,7 @@ export default function RespCVNeuroLog() {
                 </span>
               )}
             </h2>
+            <DayOfLifeNote dob={day1Date} tob={birthTime} day={activeDay} />
             <div className="rcn-summary-meta">
               <Clock size={13} />
               <span>
