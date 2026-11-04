@@ -85,7 +85,7 @@ export default function SiteSummary() {
   useEffect(() => { if (allowed) load(); }, [allowed, site]);
 
   const showSite = data?.scope === "ALL";
-  const babies = data?.babies || [];
+  const babies = useMemo(() => data?.babies || [], [data]);
   const watch = useMemo(() => babies.flatMap(b => b.watch.map(w => ({ ...w, site: b.site, enrollment_id: b.enrollment_id, name: b.name }))), [babies]);
   const advisory = useMemo(() => babies.flatMap(b => (b.advisory || []).map(a => ({ ...a, site: b.site, enrollment_id: b.enrollment_id, name: b.name }))), [babies]);
   const missed = useMemo(() => [
