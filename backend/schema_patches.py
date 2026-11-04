@@ -1355,3 +1355,12 @@ SAE_REPORT_DEATH_LINK_PATCHES = [
 DMS_NOT_REQUIRED_PATCHES = [
     "ALTER TABLE minimal_monitoring_day_logs ADD COLUMN IF NOT EXISTS not_required_blocks JSON",
 ]
+
+FORM_D_TRANSFER_OUT_PATCHES = [
+    "ALTER TABLE postnatal_day1 ADD COLUMN IF NOT EXISTS transferred_out_day1 BOOLEAN",
+    "ALTER TABLE postnatal_day1 ADD COLUMN IF NOT EXISTS transferred_out_location VARCHAR",
+]
+
+FORM_E_AREA_OF_ADMISSION_PATCHES = [
+    "ALTER TABLE nicu_admission ADD COLUMN IF NOT EXISTS area_of_admission VARCHAR",
+]

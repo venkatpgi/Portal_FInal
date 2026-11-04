@@ -1109,7 +1109,7 @@ export default function Fio2AUCForm() {
       <div className="form-navigation">
         <button type="button" className="btn btn-secondary btn-outline"
           onClick={handlePrevious}>
-          <ArrowLeft size={15} /> NICU Admission
+          <ArrowLeft size={15} /> Admission
         </button>
         <button type="button" className="btn btn-save btn-outline-blue"
           onClick={handleSubmit}>

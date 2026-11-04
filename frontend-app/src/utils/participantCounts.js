@@ -8,6 +8,7 @@ export const SCREENING_TILES = [
   { key: "not_eligible",    label: "Not eligible",    tone: "muted"   },
   { key: "screen_failures", label: "Screen failures", tone: "danger"  },
   { key: "pending",         label: "Pending",         tone: "warning" },
+  { key: "drafts",          label: "Drafts",          tone: "warning" },
   { key: "consented",       label: "Consented",       tone: "teal"    },
 ];
 

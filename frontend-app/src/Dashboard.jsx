@@ -39,7 +39,7 @@ import "./Dashboard.css";
 
 const TILE_ICON = {
   screened: Users, eligible: UserCheck, not_eligible: XCircle, screen_failures: Ban,
-  pending: Clock, consented: FileText, awaiting_delivery: Hourglass, delivered: Baby,
+  pending: Clock, drafts: ClipboardList, consented: FileText, awaiting_delivery: Hourglass, delivered: Baby,
   needed_ppv: Activity, randomised: Shuffle, not_randomised: AlertTriangle, no_ppv: CheckCircle2,
 };
 
@@ -368,9 +368,9 @@ export default function Dashboard() {
           )}
           <TrialContextBanner enrolled={enrolled} target={target} pct={pct} />
 
-          {/* Same tiles and counts as View Entries (backend participant_counts.py) */}
+          {/* Same tiles as View Entries except Drafts — those belong on All Participants. */}
           {[
-            ["Screening (Form A)", SCREENING_TILES],
+            ["Screening (Form A)", SCREENING_TILES.filter(t => t.key !== "drafts")],
             ["Delivery & randomisation (Form B)", RANDOMISATION_TILES],
           ].map(([title, tiles]) => (
             <section key={title} aria-label={title} className="space-y-2">
