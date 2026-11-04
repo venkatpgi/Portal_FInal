@@ -67,6 +67,15 @@ function mmlGiAEntryHasData(entry) {
   });
 }
 
+/** A recorded feed volume in ml, or null. Number(null) and Number("") are 0:
+ *  a day with no DMS sheet (the server answers with every field null) read
+ *  as "fed 0 ml" and filled NPO No / feeds Yes / 0 on Helper 4 (PI 2026-11-04). */
+function feedMl(v) {
+  if (v === null || v === undefined || String(v).trim() === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Per-reading 5.4.A volumes for a Helper NICU calendar day (ml). */
 function parseGiAFeedVolumeValues(payload, recordDate = null) {
   if (!payload) return [];
@@ -93,15 +102,15 @@ function parseGiAFeedVolumeValues(payload, recordDate = null) {
       // and still carry the old field directly.
       const isNewShape = e?.status !== undefined;
       if (isNewShape && e.status !== "EF") continue;
-      const n = Number(isNewShape ? e.volume_ml : e?.cumulative_feed_volume);
-      if (!Number.isFinite(n)) continue;
+      const n = feedMl(isNewShape ? e.volume_ml : e?.cumulative_feed_volume);
+      if (n == null) continue;
       values.push(n);
     }
     return values;
   }
   if (entries == null) {
-    const n = Number(payload.cumulative_feed_volume);
-    if (Number.isFinite(n)) values.push(n);
+    const n = feedMl(payload.cumulative_feed_volume);
+    if (n != null) values.push(n);
   }
   return values;
 }
