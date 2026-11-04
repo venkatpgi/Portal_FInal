@@ -5,6 +5,7 @@ import api from "./api/axios";
 import { getMmlSheet } from "./utils/mmlSheetFetch";
 import { helperLastRequiredDay, isHelperLogComplete } from "./utils/formCompletion";
 import { toDateOnlyValue, formatIsoDateMedium, formatStampShort, NICU_DAY_GRACE_HOUR, nicuDayNumberFromDay1, helperDayStripLength } from "./utils/datetime";
+import DayOfLifeNote from "./components/helper/DayOfLifeNote";
 import "./styles/RespCVNeuro.css";
 import "./styles/MinimalMonitoring.css";
 import { usePatient } from "./context/PatientContext";
@@ -704,6 +705,7 @@ export default function MetabRenalVascEyeLog() {
   const [totalDays, setTotalDays]         = useState(31);
   // Day 1 date — Form B date_of_birth only (read-only in UI).
   const [day1Date, setDay1Date] = useState("");
+  const [birthTime, setBirthTime] = useState("");
   const [completedDays, setCompletedDays] = useState([]);
   const [dayStatuses, setDayStatuses]     = useState({});
   const [dayMeta, setDayMeta]             = useState({});
@@ -1256,6 +1258,7 @@ export default function MetabRenalVascEyeLog() {
         const b = res?.data || {};
         if (b.date_of_birth) {
           setDay1Date(normalizeHelperDob(b.date_of_birth));
+          setBirthTime(b.time_of_birth ? String(b.time_of_birth).slice(0, 5) : "");
         }
 
         // Load gestation with NBS correction check (same logic as FiO2 form)
@@ -2169,6 +2172,7 @@ export default function MetabRenalVascEyeLog() {
                 </span>
               )}
             </h2>
+            <DayOfLifeNote dob={day1Date} tob={birthTime} day={activeDay} />
             <div className="rcn-summary-meta">
               <Clock size={13}/>
               <span>{isSaved?"Completed":"Not yet started"}</span>

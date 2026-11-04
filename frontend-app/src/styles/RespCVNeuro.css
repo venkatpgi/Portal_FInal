@@ -2799,3 +2799,10 @@
     grid-template-columns: 1fr;
   }
 }
+/* Helper day header: day of life from date + time of birth (PI 2026-11-03) */
+.rcn-dol-note {
+  margin: 4px 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #065F46;
+}

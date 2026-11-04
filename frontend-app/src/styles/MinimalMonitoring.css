@@ -1286,3 +1286,46 @@
 .mml-end-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 10px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
 .mml-end-form p { flex-basis: 100%; margin: 0; font-size: 13px; }
 .mml-end-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+
+/* DMS Edit and earlier-sheet corrections, day of life (PI 2026-11-03) */
+.mml-history-td-action { white-space: nowrap; }
+.mml-history-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  margin-right: 6px;
+  border-radius: 7px;
+  border: 1px solid #BFDBFE;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mml-history-edit-btn[aria-pressed="true"] { background: #1D4ED8; color: #fff; border-color: #1D4ED8; }
+.mml-history-row--editing td { background: #EFF6FF; }
+.mml-entry--editing { border-color: #3B82F6; box-shadow: 0 0 0 2px #BFDBFE; }
+.mml-correction-hint,
+.mml-correction-note {
+  margin: 6px 0 10px;
+  font-size: 12.5px;
+  color: #475569;
+}
+.mml-correction-banner { border-color: #93C5FD; background: #EFF6FF; color: #1E3A8A; margin-top: 8px; }
+.mml-dol-line {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #065F46;
+}
+.mml-dol-divider td {
+  background: #ECFDF5;
+  color: #065F46;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  padding: 4px 8px;
+  border-top: 2px solid #34D399;
+}

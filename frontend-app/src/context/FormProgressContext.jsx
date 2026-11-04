@@ -3,7 +3,7 @@
 // Never keep a previous enrolment's ticks (core OR helpers) after opening another.
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import api from "../api/axios";
-import { isUsableEnrollmentId } from "../utils/enrollmentId";
+import { isUsableEnrollmentId, pageEnrollmentId, pageScreeningId, urlEnrollmentId } from "../utils/enrollmentId";
 
 const FormProgressContext = createContext();
 
@@ -18,9 +18,6 @@ const SERVER_TICKED = [
   "adverse_events", "sae_list", "form_y_sae",
   "vs6_1", "fio2_auc", "infect_gi_hema", "metab_renal_vasc_eye",
 ];
-
-const validId = (value) =>
-  value && value !== "undefined" && value !== "null" ? value : null;
 
 function progressStorageKey(enrollmentId, screeningId) {
   if (enrollmentId) return `completedForms_${enrollmentId}`;
@@ -49,9 +46,8 @@ export function FormProgressProvider({ children }) {
   const fetchProgressRef = useRef(null);
 
   const loadFromStorage = useCallback(() => {
-    const rawEid = localStorage.getItem("current_enrollment_id");
-    const enrollmentId = isUsableEnrollmentId(rawEid) ? String(rawEid).trim() : null;
-    const screeningId = validId(localStorage.getItem("current_screening_id"));
+    const enrollmentId = pageEnrollmentId();
+    const screeningId = pageScreeningId();
     const key = progressStorageKey(enrollmentId, screeningId);
 
     setActiveKey(key);
@@ -100,16 +96,18 @@ export function FormProgressProvider({ children }) {
   }, [loadFromStorage]);
 
   useEffect(() => {
+    // A same-tab nudge (dispatchEvent(new Event("storage"))) has no key. A
+    // real storage event is another tab's write: follow it only when this
+    // tab's address names no baby, and never for its progress cache, or two
+    // tabs refetch and rewrite each other without end (2026-11-03).
     const onStorage = (e) => {
-      if (!e.key || e.key === "current_enrollment_id" || e.key === "current_screening_id") {
+      if (!e.key) {
         loadFromStorage();
         return;
       }
-      const rawEid = localStorage.getItem("current_enrollment_id");
-      const eid = isUsableEnrollmentId(rawEid) ? String(rawEid).trim() : null;
-      const sid = validId(localStorage.getItem("current_screening_id"));
-      const key = progressStorageKey(eid, sid);
-      if (key && e.key === key) loadFromStorage();
+      if ((e.key === "current_enrollment_id" || e.key === "current_screening_id") && !urlEnrollmentId()) {
+        loadFromStorage();
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -122,9 +120,8 @@ export function FormProgressProvider({ children }) {
       return;
     }
     // Never write ticks onto a key that no longer matches the session patient.
-    const rawEid = localStorage.getItem("current_enrollment_id");
-    const enrollmentId = isUsableEnrollmentId(rawEid) ? String(rawEid).trim() : null;
-    const screeningId = validId(localStorage.getItem("current_screening_id"));
+    const enrollmentId = pageEnrollmentId();
+    const screeningId = pageScreeningId();
     const expected = progressStorageKey(enrollmentId, screeningId);
     if (!expected || expected !== activeKey) return;
     localStorage.setItem(activeKey, JSON.stringify(completedForms));
@@ -141,9 +138,8 @@ export function FormProgressProvider({ children }) {
     setCompletedForms((prev) => {
       if (prev.includes(formId)) return prev;
       const updated = [...prev, formId];
-      const rawEid = localStorage.getItem("current_enrollment_id");
-      const enrollmentId = isUsableEnrollmentId(rawEid) ? String(rawEid).trim() : null;
-      const screeningId = validId(localStorage.getItem("current_screening_id"));
+      const enrollmentId = pageEnrollmentId();
+      const screeningId = pageScreeningId();
       const key = progressStorageKey(enrollmentId, screeningId);
       if (key) {
         localStorage.setItem(key, JSON.stringify(updated));
@@ -167,9 +163,8 @@ export function FormProgressProvider({ children }) {
     setCompletedForms((prev) => {
       if (!prev.includes(formId)) return prev;
       const updated = prev.filter((f) => f !== formId);
-      const rawEid = localStorage.getItem("current_enrollment_id");
-      const enrollmentId = isUsableEnrollmentId(rawEid) ? String(rawEid).trim() : null;
-      const screeningId = validId(localStorage.getItem("current_screening_id"));
+      const enrollmentId = pageEnrollmentId();
+      const screeningId = pageScreeningId();
       const key = progressStorageKey(enrollmentId, screeningId);
       if (key) {
         localStorage.setItem(key, JSON.stringify(updated));
@@ -181,8 +176,8 @@ export function FormProgressProvider({ children }) {
   }, [markFormUnlocked]);
 
   const resetProgress = useCallback(() => {
-    const enrollmentId = validId(localStorage.getItem("current_enrollment_id"));
-    const screeningId = validId(localStorage.getItem("current_screening_id"));
+    const enrollmentId = pageEnrollmentId();
+    const screeningId = pageScreeningId();
     const key = progressStorageKey(enrollmentId, screeningId);
     if (key) localStorage.removeItem(key);
 
@@ -202,8 +197,7 @@ export function FormProgressProvider({ children }) {
     try {
       const res = await api.get(`/enrollment-status/${enrollmentId}`);
       if (seq !== fetchSeq.current) return;
-      const rawCurrent = localStorage.getItem("current_enrollment_id");
-      const currentEid = isUsableEnrollmentId(rawCurrent) ? String(rawCurrent).trim() : null;
+      const currentEid = pageEnrollmentId();
       if (currentEid && currentEid !== enrollmentId) return;
 
       const data = res.data;

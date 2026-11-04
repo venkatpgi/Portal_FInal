@@ -10,7 +10,8 @@ helpers (and, separately, Form H — chapter 04).
 |---|---|---|
 | NICU day | Day 1 = date of birth; Day N = DOB + (N − 1) | `mml_resp_a_autofill.calendar_date_for_nicu_day_from_birth` |
 | Working day | before **08:00 IST** = previous day | `clinical_time.py`, `form_completion.nicu_day_today`, frontend `nicuDayNumberFromDay1` |
-| DMS sheet date | today; or **yesterday until 08:00** (the date picker offers only these) | `main._mml_sheet_date`, `_validate_mml_manual_on_date` (400 for any other date) |
+| DMS sheet date | new readings: today; or **yesterday until 08:00**. Earlier sheets, from the date of birth to the end of stay, open for **corrections only** (edit or remove a saved reading; a save that adds one is refused, 422) until any of that day's Helper 2 / 4 / 5 days is locked (then view only, 403; an active Override & Unlock reopens it) (PI 2026-11-03) | `main._mml_sheet_date`, `dms_sheets.py` (`GET /minimal-monitoring/{id}/sheet-dates`: open / correction / closed + reason) |
+| Day of life | from Form B date **and time** of birth: birth to < 24 h = Day 1 of life. Display only: the DMS shows it under the sheet date with a divider row in the hourly tables where it changes; Helpers 2, 4, 5 show it under "Day N" for that 08:00-to-08:00 day (Day 1 from birth). Helper day numbers and DMS dates are unchanged (PI 2026-11-03) | `utils/dayOfLife.js`, `components/helper/DayOfLifeNote.jsx` |
 | Helper "today" | the working day; future days are not editable; past days lock | helper pages (`useNicuWorkingDay`) |
 | End-of-stay lock | DMS and Helpers 2, 4, 5 take **nothing after the end of stay**: the earliest of the Form H discharge date and the first Helper 5 "did not survive" day (PI 2026-10-31). That day itself stays open. Enforced on the server (422), so an old tablet app cannot get round it; helper pages and the DMS go read-only. `GET /birth-resuscitation/{id}` returns the end as `discharge_date`, plus `died`. Form H outcome Died with no date locks nothing | `stay_end.py`, `get_birth_resuscitation`, helper `setDischargeDay`, DMS `stayClosed` |
 
@@ -140,9 +141,11 @@ Helpers 2 and 5 are scored **after** the DMS overlay (§3a), so a day can reach
   last — age < 14 d: > 2% either way; age ≥ 14 d: any loss, or gain ≥ 2%
   (`MinimalMonitoringLog.jsx weightChangeWarning`).
 
+**DMS Edit (PI 2026-11-03).** Each saved reading in a block's Readings table has **Edit**: it opens in the form above ("Editing reading of …", **Done editing**) and saves automatically; the audit trail keeps the old value. The hourly tables (vitals, glucose, feeds, weight) were already editable in place. On an earlier sheet the blank "new reading" form, **Log another reading** and "tap to add" on empty slots are hidden. A sheet remembered from an earlier visit reopens only if it still takes new readings.
+
 ## 6. Locking, override, concurrent edits
 - **Lock** = `PATCH …/{day}/submit` → `submission_status = submitted`.
-  Past days are also read-only. Locked days reject edits (403) unless an
+  A past day stays editable ("Past day — still editable") until it is locked. Locked days reject edits (403) unless an
   override is active.
 - **Override & Unlock** (superadmin only, `main._override_unlock_day`):
   reason ≥ 5 chars, 1–24 h window, recorded on the row

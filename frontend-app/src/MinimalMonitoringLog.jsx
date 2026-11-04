@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft, ChevronDown, ChevronRight, Plus, Save, Trash2, CheckCircle2,
+  ArrowLeft, ChevronDown, ChevronRight, Plus, Save, Trash2, CheckCircle2, Pencil,
   Heart, Wind, Beaker, Utensils, Brain, Droplet, Clock, Info, Scale,
 } from "lucide-react";
 import api from "./api/axios";
@@ -27,6 +27,7 @@ import {
   markMmlRespDirtyForHelper,
 } from "./utils/helperSession";
 import { getMapCpapMode, validateMapCpap } from "./utils/mapCpapMode";
+import { birthMoment, dayOfLifeSpan, dayOfLifeSwitchOn, describeDayOfLife } from "./utils/dayOfLife";
 import "./styles/RespCVNeuro.css";
 import "./styles/MinimalMonitoring.css";
 
@@ -1137,6 +1138,26 @@ function buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes) {
   return rows;
 }
 
+/** Divider row where the day of life changes on this sheet (PI 2026-11-03):
+ *  placed before the first row timed at or after the switch. */
+function withDolDivider(rows, dolSwitch) {
+  if (!dolSwitch) return rows;
+  const at = hhmmToMinutes(dolSwitch.time);
+  const pos = rows.findIndex(r => (hhmmToMinutes(r.entry ? r.entry.time : r.slot) ?? 0) >= at);
+  const divider = { kind: "dol", time: dolSwitch.time, day: dolSwitch.day };
+  const out = [...rows];
+  out.splice(pos < 0 ? out.length : pos, 0, divider);
+  return out;
+}
+
+function DolDividerRow({ row, colSpan }) {
+  return (
+    <tr className="mml-flowsheet-row mml-dol-divider">
+      <td colSpan={colSpan}>Day {row.day} of life begins {formatTimeAmPm(row.time)}</td>
+    </tr>
+  );
+}
+
 /** Day totals — NPO/EF hours only ever come from EXPLICITLY marked rows.
  *  A blank/missing slot contributes to neither pool: unlogged is not
  *  evidence of fasting, matching the same never-invent-data-for-gaps rule
@@ -1168,14 +1189,14 @@ function computeGiSummary(entries, frequencyHours) {
 
 function GiFeedFlowsheet({
   entries, frequencyHours, onChangeFrequency, onChangeField, onAdd, onRemove,
-  disabled, sheetDate, errors,
+  disabled, sheetDate, errors, allowAdd = true, dolSwitch = null,
 }) {
   const isToday = sheetDate === realCalendarDateYmd();
   const nowMinutes = (() => {
     const d = new Date();
     return d.getHours() * 60 + d.getMinutes();
   })();
-  const rows = buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes);
+  const rows = withDolDivider(buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes), dolSwitch);
   const summary = computeGiSummary(entries, frequencyHours);
   const timeMax = mmlMaxAllowedTimeForSheetDate(sheetDate);
 
@@ -1208,6 +1229,7 @@ function GiFeedFlowsheet({
           </thead>
           <tbody>
             {rows.map((row, i) => {
+              if (row.kind === "dol") return <DolDividerRow key={`dol-${i}`} row={row} colSpan={6} />;
               if (row.kind === "upcoming") {
                 return (
                   <tr key={`up-${row.slot}-${i}`} className="mml-flowsheet-row mml-flowsheet-row--upcoming">
@@ -1220,11 +1242,11 @@ function GiFeedFlowsheet({
               if (row.kind === "missing") {
                 return (
                   <tr key={`miss-${row.slot}-${i}`}
-                    className={`mml-flowsheet-row mml-flowsheet-row--missing${disabled ? "" : " mml-flowsheet-row--clickable"}`}
-                    onClick={() => !disabled && onAdd(row.slot)}>
+                    className={`mml-flowsheet-row mml-flowsheet-row--missing${disabled || !allowAdd ? "" : " mml-flowsheet-row--clickable"}`}
+                    onClick={() => !disabled && allowAdd && onAdd(row.slot)}>
                     <td className="mml-flowsheet-slot">{formatTimeAmPm(row.slot)}</td>
                     <td colSpan={4} className="mml-flowsheet-placeholder-label">
-                      {disabled ? "Not logged" : "Not logged — tap to add"}
+                      {disabled || !allowAdd ? "Not logged" : "Not logged — tap to add"}
                     </td>
                     <td />
                   </tr>
@@ -1389,13 +1411,14 @@ function computeMinMaxSummary(entries, columns) {
 function ScheduledFlowsheet({
   blockKey, columns, entries, frequencyHours, onChangeFrequency, onChangeField, onAdd, onRemove,
   disabled, sheetDate, errors, frequencyOptions = HOURLY_FREQUENCY_OPTIONS,
+  allowAdd = true, dolSwitch = null,
 }) {
   const isToday = sheetDate === realCalendarDateYmd();
   const nowMinutes = (() => {
     const d = new Date();
     return d.getHours() * 60 + d.getMinutes();
   })();
-  const rows = buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes);
+  const rows = withDolDivider(buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes), dolSwitch);
   const summary = computeMinMaxSummary(entries, columns);
   const timeMax = mmlMaxAllowedTimeForSheetDate(sheetDate);
 
@@ -1428,6 +1451,7 @@ function ScheduledFlowsheet({
           </thead>
           <tbody>
             {rows.map((row, i) => {
+              if (row.kind === "dol") return <DolDividerRow key={`dol-${i}`} row={row} colSpan={columns.length + 3} />;
               if (row.kind === "upcoming") {
                 return (
                   <tr key={`up-${row.slot}-${i}`} className="mml-flowsheet-row mml-flowsheet-row--upcoming">
@@ -1440,11 +1464,11 @@ function ScheduledFlowsheet({
               if (row.kind === "missing") {
                 return (
                   <tr key={`miss-${row.slot}-${i}`}
-                    className={`mml-flowsheet-row mml-flowsheet-row--missing${disabled ? "" : " mml-flowsheet-row--clickable"}`}
-                    onClick={() => !disabled && onAdd(row.slot)}>
+                    className={`mml-flowsheet-row mml-flowsheet-row--missing${disabled || !allowAdd ? "" : " mml-flowsheet-row--clickable"}`}
+                    onClick={() => !disabled && allowAdd && onAdd(row.slot)}>
                     <td className="mml-flowsheet-slot">{formatTimeAmPm(row.slot)}</td>
                     <td colSpan={columns.length + 1} className="mml-flowsheet-placeholder-label">
-                      {disabled ? "Not logged" : "Not logged — tap to add"}
+                      {disabled || !allowAdd ? "Not logged" : "Not logged — tap to add"}
                     </td>
                     <td />
                   </tr>
@@ -1508,7 +1532,7 @@ function ScheduledFlowsheet({
 
 function EntryBlock({
   blockKey, code, subsectionTitle, entries, onChangeEntry, onAdd, onRemove, disabled, blankFactory, children, fixedDate,
-  errors = {},
+  errors = {}, allowNew = true,
 }) {
   const fieldErr = (idx, key) => errors[`${blockKey}.${idx}.${key}`];
   const rowHasErr = (idx) =>
@@ -1516,12 +1540,22 @@ function EntryBlock({
     || fieldErr(idx, "time")
     || fieldErr(idx, "time_range")
     || tableFieldsForBlock(blockKey).some(f => fieldErr(idx, f.key));
-  const draftIdx = entries.length - 1;
+  // Edit (PI 2026-11-03): a saved reading from the table opens in the form
+  // above, by id (rows from another nurse are prepended, so indexes move).
+  // An earlier sheet (allowNew false) shows the form only while editing.
+  const [editId, setEditId] = useState(null);
+  const editIdx = editId && !disabled ? entries.findIndex(e => e.id === editId) : -1;
+  const lastIdx = entries.length - 1;
+  const draftIdx = editIdx >= 0 ? editIdx : lastIdx;
   const draft = entries[draftIdx] || {};
+  const showForm = editIdx >= 0 || allowNew || disabled;
+  const editedAt = editIdx >= 0
+    ? [draft.date ? formatDateToDDMMYYYY(draft.date) : "", draft.time_range || draft.time || ""].filter(Boolean).join(" ")
+    : "";
   /** Prior readings. The last row stays in the form; Save keeps it there. */
   const tableRows = entries
     .map((entry, idx) => ({ entry, idx, isDraft: false }))
-    .filter(({ entry, idx }) => hasEntryData(entry) && idx !== draftIdx);
+    .filter(({ entry, idx }) => hasEntryData(entry) && (idx !== lastIdx || !showForm || editIdx >= 0));
   const fieldsMeta = tableFieldsForBlock(blockKey);
   /** 5.2.A uses time range in the form; other blocks use stamp time here + in the table. */
   const hideStampTime = blockKey === "resp_a";
@@ -1541,10 +1575,19 @@ function EntryBlock({
         </div>
       )}
 
-      <div className="mml-entry mml-entry--draft">
+      {!showForm && (
+        <p className="mml-correction-hint">
+          Earlier sheet: tap <strong>Edit</strong> on a reading below to correct it. New readings go on today's sheet.
+        </p>
+      )}
+      {showForm && (
+      <div className={`mml-entry mml-entry--draft${editIdx >= 0 ? " mml-entry--editing" : ""}`}>
         <div className="mml-entry-head">
           <div className="mml-entry-meta">
-            <span className="mml-draft-badge">{hasEntryData(draft) ? "Current reading" : "New reading"}</span>
+            <span className="mml-draft-badge">
+              {editIdx >= 0 ? `Editing reading${editedAt ? ` of ${editedAt}` : ""}`
+                : hasEntryData(draft) ? "Current reading" : "New reading"}
+            </span>
             <label className="mml-meta-field">
               <span className="mml-meta-label">
                 <span>Date</span>
@@ -1596,7 +1639,11 @@ function EntryBlock({
               </label>
             )}
           </div>
-          {!disabled && hasEntryData(draft) && (
+          {editIdx >= 0 ? (
+            <button type="button" className="mml-add-btn" onClick={() => setEditId(null)}>
+              <CheckCircle2 size={14} /> Done editing
+            </button>
+          ) : !disabled && allowNew && hasEntryData(draft) && (
             <button type="button" className="mml-add-btn"
               onClick={() => onAdd(blankFactory ? blankFactory() : freshEntry({}, fixedDate))}>
               <Plus size={14} /> Log another reading
@@ -1604,7 +1651,11 @@ function EntryBlock({
           )}
         </div>
         <div className="rcn-grid-3">{children(draft, draftIdx)}</div>
+        {editIdx >= 0 && (
+          <p className="mml-correction-note">Changes save automatically. The old value is kept in the audit trail.</p>
+        )}
       </div>
+      )}
 
       <div className="mml-coverage-section">
         <h4 className="mml-history-title">Coverage today</h4>
@@ -1632,6 +1683,7 @@ function EntryBlock({
                     key={entry.id || idx}
                     className={[
                       isDraft ? "mml-history-row--draft" : "",
+                      idx === editIdx ? "mml-history-row--editing" : "",
                       rowHasErr(idx) ? "mml-history-row--error" : "",
                     ].filter(Boolean).join(" ") || undefined}
                   >
@@ -1651,8 +1703,16 @@ function EntryBlock({
                     })}
                     {!disabled && !isDraft && (
                       <td className="mml-history-td-action">
+                        {entry.id && (
+                          <button type="button" className="mml-history-edit-btn"
+                            title={idx === editIdx ? "Being edited above" : "Edit this reading"}
+                            aria-pressed={idx === editIdx}
+                            onClick={() => setEditId(idx === editIdx ? null : entry.id)}>
+                            <Pencil size={13} /> Edit
+                          </button>
+                        )}
                         <button type="button" className="mml-history-remove-btn" title="Remove this reading"
-                          onClick={() => onRemove(idx)}>
+                          onClick={() => { if (idx === editIdx) setEditId(null); onRemove(idx); }}>
                           <Trash2 size={13} />
                         </button>
                       </td>
@@ -1766,6 +1826,10 @@ export default function MinimalMonitoringLog() {
   const [notRequiredBlocks, setNotRequiredBlocks] = useState([]);
   const [patientInfo, setPatientInfo] = useState({ enrollmentId, motherName: "", babyUid: "", gestation: "" });
   const [dobYmd, setDobYmd] = useState("");
+  const [tobHm, setTobHm] = useState("");
+  // Sheet dates from the server (dms_sheets.py): open = new readings,
+  // correction = edit / remove only, closed = view only (Helper day locked).
+  const [sheetDates, setSheetDates] = useState(null);
   // Yesterday's last DMS weight, for the day-on-day weight change warning.
   const [prevDayWeightG, setPrevDayWeightG] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1833,13 +1897,25 @@ export default function MinimalMonitoringLog() {
       const res = await api.post(`/enrollment/${enrollmentId}/end-of-stay`, endForm);
       setStayEnd({ date: res.data.date, died: res.data.outcome === "Died", time: res.data.time || "" });
       setShowEndForm(false);
+      loadSheetDates();
       window.dispatchEvent(new Event("portal:death-recorded"));
     } catch (err) {
       const d = err?.response?.data?.detail;
       setEndError(typeof d === "string" ? d : "Could not save. Please try again.");
     }
   };
-  const isEditable = !stayClosed;
+  const sheetInfo = (sheetDates || []).find(d => d.date === sheetDate) || null;
+  const sheetMode = sheetInfo?.mode || "open";
+  const allowNew = sheetMode === "open";
+  const isEditable = !stayClosed && sheetMode !== "closed";
+  // Day of life from date + time of birth (utils/dayOfLife.js), display only.
+  const birth = useMemo(() => birthMoment(dobYmd, tobHm), [dobYmd, tobHm]);
+  const dolSwitch = useMemo(() => dayOfLifeSwitchOn(birth, sheetDate), [birth, sheetDate]);
+  const sheetDol = useMemo(() => {
+    if (!birth || !sheetDate) return null;
+    const from = new Date(`${sheetDate}T00:00:00`);
+    return dayOfLifeSpan(birth, from, new Date(from.getTime() + 86400000));
+  }, [birth, sheetDate]);
   const notRequiredNow = useMemo(
     () => activeNotRequired(entries, notRequiredBlocks),
     [entries, notRequiredBlocks],
@@ -1964,6 +2040,7 @@ export default function MinimalMonitoringLog() {
         const birth = await api.get(`/birth-resuscitation/${enrollmentId}`);
         const b = birth?.data || {};
         setDobYmd(b.date_of_birth ? String(b.date_of_birth).slice(0, 10) : "");
+        setTobHm(b.time_of_birth ? String(b.time_of_birth).slice(0, 5) : "");
         setStayEnd(b.discharge_date
           ? { date: String(b.discharge_date).slice(0, 10), died: !!b.died, time: b.death_time || "" } : null);
         setPatientInfo(prev => ({
@@ -2003,7 +2080,22 @@ export default function MinimalMonitoringLog() {
     return () => { cancelled = true; };
   }, [enrollmentId, sheetDate]);
 
-  const sheetDateOptions = useMemo(() => mmlDropdownDateOptions(), []);
+  const loadSheetDates = async () => {
+    let list = null;
+    try {
+      const res = await api.get(`/minimal-monitoring/${enrollmentId}/sheet-dates`);
+      list = res?.data?.dates;
+    } catch (_) {}
+    if (!Array.isArray(list) || !list.length) {
+      list = mmlDropdownDateOptions().reverse().map(o => ({ date: o.value, mode: "open", reason: null }));
+    }
+    setSheetDates(list);
+    return list;
+  };
+  const sheetDateOptions = (sheetDates || []).map(d => ({
+    value: d.date,
+    label: `${formatDateToDDMMYYYY(d.date)}${d.mode === "correction" ? " · corrections only" : d.mode === "closed" ? " · view only" : ""}`,
+  }));
 
   const loadSheetForDate = async (ymd) => {
     if (!enrollmentId || !ymd) return;
@@ -2054,13 +2146,22 @@ export default function MinimalMonitoringLog() {
   };
 
   useEffect(() => {
-    if (!enrollmentId) return;
-    const opts = mmlDropdownDateOptions();
-    let ymd = readRememberedMmlSheetDate(enrollmentId);
-    if (!ymd || !opts.some(o => o.value === ymd)) {
-      ymd = mmlDefaultSheetDate();
-    }
-    loadSheetForDate(ymd);
+    if (!enrollmentId) return undefined;
+    let cancelled = false;
+    (async () => {
+      const list = await loadSheetDates();
+      if (cancelled) return;
+      // Reopen a remembered sheet only if it still takes new readings: an
+      // earlier sheet opened for a correction should not greet the next shift.
+      const open = list.filter(d => d.mode === "open");
+      let ymd = readRememberedMmlSheetDate(enrollmentId);
+      if (!open.some(d => d.date === ymd)) {
+        const def = mmlDefaultSheetDate();
+        ymd = (open.find(d => d.date === def) || open[0] || list.find(d => d.mode !== "closed") || list[0]).date;
+      }
+      loadSheetForDate(ymd);
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enrollmentId]);
 
@@ -2219,7 +2320,9 @@ export default function MinimalMonitoringLog() {
       // with nothing mandatory. The sidebar shows a "Today: logged / not yet
       // logged" note instead, refreshed by the portal-mml-saved event below.
       if (!silent) {
-        setMessage(`Sheet saved (${formatDateToDDMMYYYY(sheetDate)}). This reading stays on the form — use Log another reading to start a new one.`);
+        setMessage(allowNew
+          ? `Sheet saved (${formatDateToDDMMYYYY(sheetDate)}). This reading stays on the form — use Log another reading to start a new one.`
+          : `Sheet saved (${formatDateToDDMMYYYY(sheetDate)}).`);
         setTimeout(() => setMessage(""), 5000);
       }
       markMmlRespDirtyForHelper(enrollmentId, savedDate);
@@ -2329,12 +2432,14 @@ export default function MinimalMonitoringLog() {
             onRemove={id => removeFlowsheetEntry("cv_a", id)}
             disabled={!isEditable}
             sheetDate={sheetDate}
+            allowAdd={allowNew}
+            dolSwitch={dolSwitch}
             errors={errors}
           />
         );
       case "cv_b":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="cv_b" code="5.1.B" entries={entries.cv_b} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="cv_b" code="5.1.B" entries={entries.cv_b} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("cv_b", i, k, v)}
             onAdd={blank => addEntry("cv_b", blank)} onRemove={i => removeEntry("cv_b", i)}
@@ -2353,7 +2458,7 @@ export default function MinimalMonitoringLog() {
         );
       case "cv_c":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="cv_c" code="5.1.C" entries={entries.cv_c} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="cv_c" code="5.1.C" entries={entries.cv_c} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("cv_c", i, k, v)}
             onAdd={blank => addEntry("cv_c", blank)} onRemove={i => removeEntry("cv_c", i)}
@@ -2379,7 +2484,7 @@ export default function MinimalMonitoringLog() {
         );
       case "cv_d":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="cv_d" code="5.1.D" entries={entries.cv_d} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="cv_d" code="5.1.D" entries={entries.cv_d} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("cv_d", i, k, v)}
             onAdd={blank => addEntry("cv_d", blank)} onRemove={i => removeEntry("cv_d", i)}
@@ -2400,7 +2505,7 @@ export default function MinimalMonitoringLog() {
         );
       case "resp_a":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="resp_a" code="5.2.A" entries={entries.resp_a} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="resp_a" code="5.2.A" entries={entries.resp_a} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("resp_a", i, k, v)}
             onAdd={blank => addEntry("resp_a", blank)} onRemove={i => removeEntry("resp_a", i)}
@@ -2454,7 +2559,7 @@ export default function MinimalMonitoringLog() {
         );
       case "resp_b":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="resp_b" code="5.2.B" entries={entries.resp_b} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="resp_b" code="5.2.B" entries={entries.resp_b} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("resp_b", i, k, v)}
             onAdd={blank => addEntry("resp_b", blank)} onRemove={i => removeEntry("resp_b", i)}
@@ -2479,7 +2584,7 @@ export default function MinimalMonitoringLog() {
         );
       case "resp_c":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="resp_c" code="5.2.C" entries={entries.resp_c} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="resp_c" code="5.2.C" entries={entries.resp_c} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("resp_c", i, k, v)}
             onAdd={blank => addEntry("resp_c", blank)} onRemove={i => removeEntry("resp_c", i)}
@@ -2507,7 +2612,7 @@ export default function MinimalMonitoringLog() {
         );
       case "resp_d":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="resp_d" code="5.2.D" entries={entries.resp_d} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="resp_d" code="5.2.D" entries={entries.resp_d} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("resp_d", i, k, v)}
             onAdd={blank => addEntry("resp_d", blank)} onRemove={i => removeEntry("resp_d", i)}
@@ -2549,12 +2654,14 @@ export default function MinimalMonitoringLog() {
             onRemove={id => removeFlowsheetEntry("met_a", id)}
             disabled={!isEditable}
             sheetDate={sheetDate}
+            allowAdd={allowNew}
+            dolSwitch={dolSwitch}
             errors={errors}
           />
         );
       case "met_b":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="met_b" code="5.3.B" entries={entries.met_b} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="met_b" code="5.3.B" entries={entries.met_b} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("met_b", i, k, v)}
             onAdd={blank => addEntry("met_b", blank)} onRemove={i => removeEntry("met_b", i)}
@@ -2588,12 +2695,14 @@ export default function MinimalMonitoringLog() {
             onRemove={id => removeFlowsheetEntry("gi_a", id)}
             disabled={!isEditable}
             sheetDate={sheetDate}
+            allowAdd={allowNew}
+            dolSwitch={dolSwitch}
             errors={errors}
           />
         );
       case "gi_b":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="gi_b" code="5.4.B" entries={entries.gi_b} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="gi_b" code="5.4.B" entries={entries.gi_b} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("gi_b", i, k, v)}
             onAdd={blank => addEntry("gi_b", blank)} onRemove={i => removeEntry("gi_b", i)}
@@ -2611,6 +2720,7 @@ export default function MinimalMonitoringLog() {
         return (
           <>
             <EntryBlock
+              allowNew={allowNew}
               fixedDate={sheetDate || ""}
               blockKey="neuro_a"
               subsectionTitle="Ventriculomegaly"
@@ -2641,6 +2751,7 @@ export default function MinimalMonitoringLog() {
               )}
             </EntryBlock>
             <EntryBlock
+              allowNew={allowNew}
               fixedDate={sheetDate || ""}
               blockKey="neuro_b"
               subsectionTitle="Doppler"
@@ -2673,7 +2784,7 @@ export default function MinimalMonitoringLog() {
         );
       case "heme_a":
         return (
-          <EntryBlock fixedDate={sheetDate || ""} blockKey="heme_a" code="5.6.A" entries={entries.heme_a} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="heme_a" code="5.6.A" entries={entries.heme_a} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("heme_a", i, k, v)}
             onAdd={blank => addEntry("heme_a", blank)} onRemove={i => removeEntry("heme_a", i)}
@@ -2721,6 +2832,8 @@ export default function MinimalMonitoringLog() {
             onRemove={id => removeFlowsheetEntry("growth_a", id)}
             disabled={!isEditable}
             sheetDate={sheetDate}
+            allowAdd={allowNew}
+            dolSwitch={dolSwitch}
             errors={errors}
           />
           {weightWarn && (
@@ -2793,8 +2906,9 @@ export default function MinimalMonitoringLog() {
             )}
             <div className="mml-sheet-header-row">
               <p className="mml-sheet-note">
-                Sheet date — before {MML_DROPDOWN_CUTOFF_HOUR}:00 you can choose yesterday or today;
-                from {MML_DROPDOWN_CUTOFF_HOUR}:00 onward only today. Every section uses this date.
+                New readings go on today's sheet (yesterday's too until {MML_DROPDOWN_CUTOFF_HOUR}:00).
+                An earlier sheet opens for corrections until that day's Helper 2, 4 or 5 is locked.
+                Every section uses this date.
               </p>
               {sheetDateOptions.length > 1 ? (
                 <label className="mml-sheet-date-label">
@@ -2816,6 +2930,28 @@ export default function MinimalMonitoringLog() {
                 </p>
               )}
             </div>
+            {sheetDate && dobYmd && (
+              <p className="mml-dol-line">
+                {birth ? `Age on this sheet: ${describeDayOfLife(sheetDol)}`
+                  : "Day of life: time of birth not entered in Form B."}
+              </p>
+            )}
+            {sheetMode === "correction" && (
+              <div className="rcn-status-banner mml-correction-banner">
+                <div className="rcn-status-banner-text">
+                  <strong>Correcting the sheet of {formatDateToDDMMYYYY(sheetDate)}</strong>
+                  <span>Edit or remove saved readings. New readings go on today's sheet.</span>
+                </div>
+              </div>
+            )}
+            {sheetMode === "closed" && sheetInfo?.reason && (
+              <div className="rcn-status-banner rcn-status-banner--discharged">
+                <div className="rcn-status-banner-text">
+                  <strong>View only</strong>
+                  <span>{sheetInfo.reason}</span>
+                </div>
+              </div>
+            )}
           </div>
           <div className="rcn-patient-cards">
             <MetricCard label="Enrolment ID" value={patientInfo.enrollmentId} tone="blue" />

@@ -97,6 +97,7 @@ from routers import dashboard as dashboard_router
 from routers import reports as reports_router
 from routers import site_summary as site_summary_router
 from stay_end import entries_after_death, is_blank_helper_day, refuse_after_stay, stay_end
+import dms_sheets
 from routers import shift_report as shift_report_router
 from routers import auth as auth_router
 from baby_uid_duplicate import (
@@ -8551,30 +8552,8 @@ MINIMAL_MONITORING_FIELDS = [
 # helper-form RCN/IGH/MRVE constants — do not drift this back to 8.
 MML_LATE_GRACE_HOUR = NICU_DAY_GRACE_HOUR
 
-# Manual Minimal Monitoring sheet date dropdown only (PUT .../on/{date}).
-# Unrelated to NICU_DAY_GRACE_HOUR / MML_LATE_GRACE_HOUR used by /today.
-MML_DROPDOWN_CUTOFF_HOUR = 8
-
-
-def _validate_mml_manual_on_date(on_date: str) -> None:
-    """Server-side guard for nurse-selected MML sheet dates."""
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", on_date or ""):
-        raise HTTPException(status_code=400, detail="on_date must be YYYY-MM-DD")
-    try:
-        on = datetime.strptime(on_date, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="on_date must be YYYY-MM-DD")
-    now = clinical_now()
-    today = now.date()
-    yesterday = today - timedelta(days=1)
-    if on == today:
-        return
-    if on == yesterday and now.hour < MML_DROPDOWN_CUTOFF_HOUR:
-        return
-    raise HTTPException(
-        status_code=400,
-        detail="Invalid minimal monitoring sheet date for current time",
-    )
+# Manual Minimal Monitoring sheet dates (PUT .../on/{date}) are checked in
+# dms_sheets.py (its CUTOFF_HOUR = 8). Unrelated to MML_LATE_GRACE_HOUR used by /today.
 
 
 def _mml_sheet_date(boundary_hour: int = MML_LATE_GRACE_HOUR) -> str:
@@ -8696,6 +8675,18 @@ def get_minimal_monitoring_latest_weight_kg(
     return {"weight_kg": best_value, "date": best_key[0] if best_key else None}
 
 
+@app.get("/minimal-monitoring/{enrollment_id}/sheet-dates")
+def get_minimal_monitoring_sheet_dates(
+    enrollment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """DMS date list: open (new readings), correction (edit / remove only) or
+    closed, with the reason (dms_sheets.py)."""
+    require_enrollment_access(enrollment_id, db, current_user)
+    return {"dates": dms_sheets.sheet_dates(db, enrollment_id, clinical_now())}
+
+
 @app.get("/minimal-monitoring/{enrollment_id}/on/{on_date}", response_model=MinimalMonitoringDayOut)
 def get_minimal_monitoring_on_date(
     enrollment_id: str,
@@ -8735,8 +8726,10 @@ def _upsert_minimal_monitoring_for_date(
     record_date: str,
     data: MinimalMonitoringDayCreate,
     db: Session,
+    corrections_only: bool = False,
 ) -> MinimalMonitoringDayLog:
-    """Upsert one calendar-date scratchpad row (shared by /today and /on/{date})."""
+    """Upsert one calendar-date scratchpad row (shared by /today and /on/{date}).
+    corrections_only: an earlier sheet, where a save may not add readings."""
     refuse_after_stay(db, enrollment_id, on_date=record_date)
     payload = data.model_dump(exclude_unset=True)
     deleted_entry_ids = payload.pop("deleted_entry_ids", None)
@@ -8764,6 +8757,12 @@ def _upsert_minimal_monitoring_for_date(
     if late:
         raise HTTPException(status_code=422, detail=f"A reading at {late[0]} is after the time of death. "
                                                     "Correct its time or remove it.")
+    if corrections_only and "entries_json" in payload:
+        added = dms_sheets.new_readings(record.entries_json if record else None, payload["entries_json"])
+        if added:
+            raise HTTPException(status_code=422, detail=(
+                "An earlier sheet takes corrections only: edit or remove a saved reading. "
+                "Enter a new reading on today's sheet."))
     if record:
         if "entries_json" in payload:
             payload["entries_json"] = merge_mml_entries_json(
@@ -8815,10 +8814,14 @@ def upsert_minimal_monitoring_on_date(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upsert the nurse-selected calendar sheet (DMS date dropdown)."""
+    """Upsert the nurse-selected calendar sheet (DMS date dropdown). Earlier
+    sheets take corrections only (dms_sheets.py)."""
     require_enrollment_access(enrollment_id, db, current_user)
-    _validate_mml_manual_on_date(on_date)
-    return _upsert_minimal_monitoring_for_date(enrollment_id, on_date, data, db)
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", on_date or ""):
+        raise HTTPException(status_code=400, detail="on_date must be YYYY-MM-DD")
+    mode = dms_sheets.check_sheet(db, enrollment_id, on_date, clinical_now())
+    return _upsert_minimal_monitoring_for_date(enrollment_id, on_date, data, db,
+                                               corrections_only=mode == "correction")
 # ============================================================================
 # FORM H  -  CRANIAL USG ENDPOINTS
 # Add these to main.py

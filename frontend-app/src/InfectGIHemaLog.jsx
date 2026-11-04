@@ -5,6 +5,7 @@ import api from "./api/axios";
 import { getMmlSheet } from "./utils/mmlSheetFetch";
 import { helperLastRequiredDay, isHelperLogComplete } from "./utils/formCompletion";
 import { toDateOnlyValue, formatIsoDateMedium, formatStampShort, nicuDayNumberFromDay1, calendarDateForNicuDay, NICU_DAY_GRACE_HOUR, helperDayStripLength } from "./utils/datetime";
+import DayOfLifeNote from "./components/helper/DayOfLifeNote";
 // ✅ Reuses RespCVNeuro.css — same design system, same class names
 import "./styles/RespCVNeuro.css";
 // Repeatable-entry list styling (mml-*) — same component the Metabolic
@@ -828,6 +829,7 @@ export default function InfectGIHemaLog() {
   const [totalDays, setTotalDays]         = useState(14);
   // Day 1 date — Form B date_of_birth only (read-only in UI).
   const [day1Date, setDay1Date] = useState("");
+  const [birthTime, setBirthTime] = useState("");
   const [completedDays, setCompletedDays] = useState([]);
   const [dayStatuses, setDayStatuses]     = useState({});
   const [dayMeta, setDayMeta]             = useState({});
@@ -1370,6 +1372,7 @@ export default function InfectGIHemaLog() {
         const b = res?.data || {};
         if (b.date_of_birth) {
           setDay1Date(normalizeHelperDob(b.date_of_birth));
+          setBirthTime(b.time_of_birth ? String(b.time_of_birth).slice(0, 5) : "");
         }
         if (b.birth_weight != null && b.birth_weight !== "") {
           setBirthWeightGrams(Number(b.birth_weight));
@@ -2195,6 +2198,7 @@ export default function InfectGIHemaLog() {
                 </span>
               )}
             </h2>
+            <DayOfLifeNote dob={day1Date} tob={birthTime} day={activeDay} />
             <div className="rcn-summary-meta">
               <Clock size={13} />
               <span>{isSaved ? "Completed" : "Not yet started"}</span>
