@@ -2334,10 +2334,13 @@ def update_postnatal_day1(
         record = PostnatalDay1(**payload)
         db.add(record)
     else:
-        # Update existing record
+        # Update existing record. Only the fields the client sent: the tablet
+        # does not send fields it has no screen for (e.g. transferred_out_*,
+        # PI 2026-11-04), and a full dump would blank them. The web form sends
+        # every field, so clearing one still saves null.
         payload = split_and_store_pii(
             db,
-            data.model_dump(),
+            data.model_dump(exclude_unset=True),
             POSTNATAL_PII_FIELDS,
             enrollment_id=enrollment_id,
             site_name=site_for_enrollment(db, enrollment_id),
