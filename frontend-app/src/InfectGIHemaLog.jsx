@@ -1056,6 +1056,14 @@ export default function InfectGIHemaLog() {
     // longer forces the record read-only on its own — only isSubmitted
     // (i.e. a nurse/site user explicitly clicked Lock and confirmed) does.
 
+  // DMS values filled into a saved, unlocked day while it is in view mode are
+  // saved quietly (PI 2026-11-04). Before view mode (86b5ded) the autofill
+  // opened edit mode and autosave stored them; without this the screen
+  // showed DMS values the stored day did not have.
+  const dmsChangedRef = useRef(false);
+  const [dmsSaveTick, setDmsSaveTick] = useState(0);
+  const noteDmsChange = () => { dmsChangedRef.current = true; setDmsSaveTick(n => n + 1); };
+
   const applyFeedVolumeFromMml = async (recordDate = activeDayDate) => {
     if (!enrollmentId || !recordDate) return;
     if (isFutureActiveDay) return;
@@ -1096,6 +1104,7 @@ export default function InfectGIHemaLog() {
             setFeedVolumeAutofilled(true);
           }
           if (!hasNpoOrEnteralPatch) return p;
+          dmsChangedRef.current = true;
           return { ...p, ...npoPatch, ...enteralPatch };
         }
         if (vol != null) {
@@ -1104,11 +1113,13 @@ export default function InfectGIHemaLog() {
           lastFeedVolumeAutoRef.current = { date: recordDate, value: undefined };
         }
         setFeedVolumeAutofilled(sync.autofilled);
+        dmsChangedRef.current = true;
         return {
           ...p, ...npoPatch, ...enteralPatch,
           cumulative_feed_volume: sync.nextValue === "" ? null : sync.nextValue,
         };
       });
+      setDmsSaveTick(n => n + 1);
     } catch (_) { /* DMS optional */ }
   };
 
@@ -1129,8 +1140,10 @@ export default function InfectGIHemaLog() {
         if (p.npo === true) return p;
         if ((p.feed_type || []).length) return p;
         setFeedTypeAutofilled(true);
+        dmsChangedRef.current = true;
         return { ...p, feed_type: types };
       });
+      setDmsSaveTick(n => n + 1);
     } catch (_) { /* DMS optional */ }
   };
 
@@ -1198,8 +1211,10 @@ export default function InfectGIHemaLog() {
           lastFeedVolumeCalcAutoRef.current = { date: recordDate, value: undefined };
         }
         setFeedVolumeCalcAutofilled(sync.autofilled);
+        dmsChangedRef.current = true;
         return { ...p, feed_volume: sync.nextValue === "" ? null : sync.nextValue };
       });
+      setDmsSaveTick(n => n + 1);
     } catch (_) { /* DMS weight optional */ }
   };
 
@@ -1237,6 +1252,7 @@ export default function InfectGIHemaLog() {
           setHemaData(p => ({ ...p, ...updates }));
         }
         setHemaTransfusionAutofilled(afNext);
+        noteDmsChange();
       }
     } catch (_) { /* DMS optional */ }
   };
@@ -1726,6 +1742,13 @@ export default function InfectGIHemaLog() {
       return false;
     }
   };
+
+  useEffect(() => {
+    if (!dmsChangedRef.current) return;
+    dmsChangedRef.current = false;
+    if (!isSaved || isEditing) return;   // new day / edit mode: saved as before
+    handleSave({ force: true, silent: true });
+  }, [dmsSaveTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchActiveDay = async (d) => {
     if (d === activeDay) return;

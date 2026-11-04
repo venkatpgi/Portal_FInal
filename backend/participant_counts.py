@@ -125,7 +125,10 @@ def members(items):
     for r, status, stage, b in items:
         for k in tile_keys(status, r.consent_given, stage, b):
             m[k].append(r.screening_id)
-        if getattr(b, "first", True) is not False and is_form_a_draft(r):
+        # Drafts = unfinished screenings only (PI 2026-11-04): a Form A whose
+        # baby already has a Form B is past screening, even if Form A was
+        # never finally saved (its own tick / data queries cover that).
+        if b is None and is_form_a_draft(r):
             m["drafts"].append(r.screening_id)
     return m
 

@@ -167,3 +167,13 @@ AMCC 1C LR nursery, KMC nursery = AMCC 5C); other sites see the area alone
 until they send theirs. Earlier labels (Step-down/Nursery, KMC-N, AMCC-…)
 are shown as the matching area and saved that way on the next save; any
 other saved value (e.g. "Other") stays as an extra button.
+
+## Saved Helper days open in view mode (Harsh 86b5ded; PI 2026-11-04)
+
+A saved Helper 2 / 4 / 5 day that is not locked opens in view mode with
+"Edit Day N"; a locked day with a live Override & Unlock opens in edit mode.
+DMS values that fill in on their own (Helper 2 fluid bolus and blood gases;
+Helper 4 NPO / feeds / feed type / volumes / transfusions; Helper 5 glucose)
+are saved quietly when they change on such a day, so the stored day matches
+the screen. Locked days are never changed. A day without DMS feed readings
+is not filled (a blank DMS volume is no reading, not 0 ml).

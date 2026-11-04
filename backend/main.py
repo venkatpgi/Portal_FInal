@@ -1071,7 +1071,10 @@ def get_screening_stats(
     excluded = sum(1 for r in rows
                    if r.screening_status in ("Not Eligible", "Screen Failure"))
     from participant_counts import is_form_a_draft
-    drafts = sum(1 for r in rows if is_form_a_draft(r))
+    # Unfinished screenings only (PI 2026-11-04): no Form B yet.
+    with_form_b = {sid for (sid,) in db.query(BirthResuscitation.screening_id)
+                   .filter(BirthResuscitation.screening_id.in_([r.screening_id for r in rows]))} if rows else set()
+    drafts = sum(1 for r in rows if is_form_a_draft(r) and r.screening_id not in with_form_b)
     return {
         "total": len(rows),
         "enrolled": enrolled,

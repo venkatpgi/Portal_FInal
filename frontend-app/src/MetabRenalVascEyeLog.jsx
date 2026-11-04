@@ -1180,6 +1180,14 @@ export default function MetabRenalVascEyeLog() {
   const metabDataRef = useRef(metabData);
   metabDataRef.current = metabData;
 
+  // DMS values filled into a saved, unlocked day while it is in view mode are
+  // saved quietly (PI 2026-11-04). Before view mode (86b5ded) the autofill
+  // opened edit mode and autosave stored them; without this the screen
+  // showed DMS values the stored day did not have.
+  const dmsChangedRef = useRef(false);
+  const [dmsSaveTick, setDmsSaveTick] = useState(0);
+  const noteDmsChange = () => { dmsChangedRef.current = true; setDmsSaveTick(n => n + 1); };
+
   const applyGlucoseAutofill = async ({ force = false, seed = null } = {}) => {
     const viewedDate = activeDayDate;
     if (!enrollmentId || !viewedDate) return false;
@@ -1231,6 +1239,7 @@ export default function MetabRenalVascEyeLog() {
       if (activeDayDateRef.current !== viewedDate) return false;
       setMetabData(next);
       setGlucoseAutofilled(afNext);
+      noteDmsChange();
       return true;
     } catch (_) {
       return false;
@@ -1694,6 +1703,13 @@ export default function MetabRenalVascEyeLog() {
       return false;
     }
   };
+
+  useEffect(() => {
+    if (!dmsChangedRef.current) return;
+    dmsChangedRef.current = false;
+    if (!isSaved || isEditing) return;   // new day / edit mode: saved as before
+    handleSave({ force: true, silent: true });
+  }, [dmsSaveTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchActiveDay = async (d) => {
     if (d === activeDay) return;

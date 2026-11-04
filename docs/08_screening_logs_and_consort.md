@@ -219,6 +219,7 @@ non-deleted Form A at the sites in scope (DRAFT / blank-site shells left out).
 | Screened | every Form A |
 | Eligible / Not eligible / Screen failures / Pending | `compute_screening_status` (these four add up to Screened) |
 | Consented | `consent_given` = Yes |
+| Drafts (View Entries only) | Form A never saved with the final Save (Save for Later / autosave; `is_complete` written) **and no Form B yet** (PI 2026-11-04: unfinished screenings only). Rows from before `is_complete` was sent are left out. Mobile `GET /screenings/stats` `drafts` uses the same rule |
 | Awaiting delivery | Stage Consented awaiting delivery, Discharged home undelivered or Readmitted awaiting delivery |
 | Delivered (Form B) | a Form B row exists (any mother status) |
 | Needed PPV | Form B PPV required = Yes, or randomised = Yes |
