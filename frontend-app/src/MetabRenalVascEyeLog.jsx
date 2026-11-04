@@ -20,7 +20,7 @@ import { mmlSyncGlucoseFieldFromMml } from "./utils/mmlHelperSync";
 import { rememberActiveDay, HELPER_SESSION_KEY_METAB_RENAL_VASC_EYE } from "./utils/helperSession";
 import { apiDetailMessage, expectedUpdatedAtConfig, isStaleWrite, STALE_WRITE_MESSAGE } from "./utils/staleWrite";
 import { BLANK_HELPER_DAY_CLIENT_MESSAGE, isBlankHelperDay, isBlankHelperDayRefusal } from "./utils/blankHelperDay";
-import { helperLocationOptions, normalizeHelperLocations } from "./utils/helperLocation";
+import { helperLocationOptions, locationLabel, normalizeHelperLocations } from "./utils/helperLocation";
 import { helperDayDisplayStatus, helperDaySaveStatus } from "./utils/helperDayStatus";
 import { useDefaultToWorkingNicuDay, useNicuWorkingDay } from "./hooks/useNicuWorkingDay";
 import {
@@ -577,7 +577,7 @@ const listToString = v => Array.isArray(v) ? v.join(",") : (v || "");
 const stringToList = v => Array.isArray(v) ? v : String(v || "").split(",").map(s => s.trim()).filter(Boolean);
 
 /* Multi-select pills (Dyselectrolytemia type) */
-function PillMulti({ options, value=[], onChange, disabled }) {
+function PillMulti({ options, value=[], onChange, disabled, labelOf = (o) => o }) {
   const toggle = (opt) => {
     if (disabled) return;
     const next = value.includes(opt) ? value.filter(v => v !== opt) : [...value, opt];
@@ -589,7 +589,7 @@ function PillMulti({ options, value=[], onChange, disabled }) {
         <button key={opt} type="button"
           className={`rcn-pill${value.includes(opt) ? " rcn-pill--on" : ""}`}
           onClick={() => toggle(opt)} disabled={disabled}>
-          {opt}
+          {labelOf(opt)}
         </button>
       ))}
     </div>
@@ -1465,7 +1465,7 @@ export default function MetabRenalVascEyeLog() {
             rop_treatment:     d.rop_treatment     ?? null,
           });
           setTailData({
-            location:          normalizeHelperLocations(stringToList(d.location), { enrollmentId }),
+            location:          normalizeHelperLocations(stringToList(d.location)),
             survived_the_day:  d.survived_the_day  ?? null,
           });
           const st = d.submission_status || STATUS.DRAFT;
@@ -2600,11 +2600,8 @@ export default function MetabRenalVascEyeLog() {
             <SectionCard iconEmoji="📍" title="4.6 Location"
               answered={ans(tailData.location) ? 1 : 0} total={1} defaultOpen={true}>
               <PillMulti
-                options={helperLocationOptions({
-                  enrollmentId,
-                  site: patientData?.site_name || patientData?.site,
-                  selected: tailData.location,
-                })}
+                options={helperLocationOptions({ selected: tailData.location })}
+                labelOf={opt => locationLabel(opt, { enrollmentId, site: patientData?.site_name || patientData?.site })}
                 value={tailData.location || []}
                 onChange={v => setTail("location", v)}
                 disabled={!isFieldEditable}
