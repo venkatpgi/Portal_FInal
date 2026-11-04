@@ -30,8 +30,15 @@ export function useNicuWorkingDay(day1Date) {
  * Default helper tab = grace-shifted working day on open. When the working day
  * advances (e.g. after 8:00), follow it only if the nurse was still on the
  * previous working day — not when reviewing an older day.
+ * lastAllowedDay: death/discharge NICU day — do not open a later tab (422).
  */
-export function useDefaultToWorkingNicuDay(todayNicuDay, enrollmentId, activeDay, setActiveDay) {
+export function useDefaultToWorkingNicuDay(
+  todayNicuDay,
+  enrollmentId,
+  activeDay,
+  setActiveDay,
+  lastAllowedDay = null,
+) {
   const enrollmentRef = useRef(null);
   const prevWorkingRef = useRef(null);
 
@@ -43,14 +50,23 @@ export function useDefaultToWorkingNicuDay(todayNicuDay, enrollmentId, activeDay
       prevWorkingRef.current = null;
     }
 
+    const target =
+      lastAllowedDay != null ? Math.min(todayNicuDay, lastAllowedDay) : todayNicuDay;
+
+    if (lastAllowedDay != null && activeDay > lastAllowedDay) {
+      setActiveDay(lastAllowedDay);
+      prevWorkingRef.current = todayNicuDay;
+      return;
+    }
+
     const prevWorking = prevWorkingRef.current;
     const shouldDefault =
       prevWorking === null ||
       (activeDay === prevWorking && todayNicuDay !== prevWorking);
 
     if (shouldDefault) {
-      setActiveDay(todayNicuDay);
+      setActiveDay(target);
     }
     prevWorkingRef.current = todayNicuDay;
-  }, [todayNicuDay, enrollmentId, activeDay, setActiveDay]);
+  }, [todayNicuDay, enrollmentId, activeDay, setActiveDay, lastAllowedDay]);
 }

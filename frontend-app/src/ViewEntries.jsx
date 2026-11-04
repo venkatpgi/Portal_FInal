@@ -26,7 +26,7 @@ const FORM_LABELS = [
   { key: "form_b",              short: "B",   label: "Birth & Resus"     },
   { key: "form_c",              short: "C",   label: "Maternal Details"  },
   { key: "form_d",              short: "D",   label: "Postnatal Day 1"   },
-  { key: "form_e",              short: "E",   label: "NICU Admission"    },
+  { key: "form_e",              short: "E",   label: "Admission"         },
   { key: "form_f",              short: "F",   label: "Cranial USG"       },
   { key: "form_g",              short: "G",   label: "ROP Screening"     },
   { key: "form_h",              short: "H",   label: "Morbidities"       },
@@ -182,7 +182,8 @@ function entriesBySite(entries) {
 const TONE_COLOR = { primary: "blue", success: "green", muted: "purple", danger: "red", warning: "amber", teal: "teal" };
 const TILE_ICON = {
   screened: <Users size={20}/>, eligible: <CheckCircle2 size={20}/>, not_eligible: <XCircle size={20}/>,
-  screen_failures: <Ban size={20}/>, pending: <Clock size={20}/>, consented: <FileText size={20}/>,
+  screen_failures: <Ban size={20}/>, pending: <Clock size={20}/>, drafts: <ClipboardList size={20}/>,
+  consented: <FileText size={20}/>,
   awaiting_delivery: <Hourglass size={20}/>, delivered: <Baby size={20}/>, needed_ppv: <Activity size={20}/>,
   randomised: <Shuffle size={20}/>, not_randomised: <AlertTriangle size={20}/>, no_ppv: <CheckCircle2 size={20}/>,
 };
@@ -278,6 +279,7 @@ function KpiRecordsModal({
   onClose,
   onOpenParticipant,
   onOpenSae,
+  openLabel = "View",
 }) {
   const [q, setQ] = useState("");
 
@@ -480,7 +482,7 @@ function KpiRecordsModal({
                           className="kpi-modal-open"
                           onClick={e => { e.stopPropagation(); onOpenParticipant(row); }}
                         >
-                          View
+                          {openLabel}
                         </button>
                       </td>
                     </tr>
@@ -1199,6 +1201,7 @@ export default function ViewEntries() {
         enrollData={enrollData}
         stageByScreening={stageByScreening}
         onClose={() => setKpiModal(null)}
+        openLabel={kpiModal.key === "drafts" ? "Open draft" : "View"}
         onOpenParticipant={(entry) => {
           setKpiModal(null);
           handleEdit(entry);

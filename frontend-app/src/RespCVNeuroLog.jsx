@@ -24,7 +24,8 @@ import {
   clearMmlRespDirtyForHelper,
   HELPER_SESSION_KEY_VS6_1,
 } from "./utils/helperSession";
-import { expectedUpdatedAtConfig, isStaleWrite, STALE_WRITE_MESSAGE } from "./utils/staleWrite";
+import { apiDetailMessage, expectedUpdatedAtConfig, isStaleWrite, STALE_WRITE_MESSAGE } from "./utils/staleWrite";
+import { BLANK_HELPER_DAY_CLIENT_MESSAGE, isBlankHelperDay, isBlankHelperDayRefusal } from "./utils/blankHelperDay";
 import { helperDayDisplayStatus, helperDaySaveStatus } from "./utils/helperDayStatus";
 import { useDefaultToWorkingNicuDay, useNicuWorkingDay } from "./hooks/useNicuWorkingDay";
 import { getMapCpapMode, validateMapCpap } from "./utils/mapCpapMode";
@@ -1152,6 +1153,7 @@ export default function RespCVNeuroLog() {
   activeDayDateRef.current = activeDayDate;
 
   const isFutureActiveDay = todayNicuDay != null && activeDay > todayNicuDay;
+  const isAfterStay = dischargeDay != null && activeDay > dischargeDay;
   // Informational only now — locking is manual (see the Lock button below),
   // so a past calendar date no longer forces a day read-only by itself.
   const isPastActiveDay   = todayNicuDay != null && activeDay < todayNicuDay;
@@ -1159,7 +1161,7 @@ export default function RespCVNeuroLog() {
   const isOverrideActiveDay =
     overrideUntil != null && new Date() < parseUtcTimestamp(overrideUntil);
 
-  useDefaultToWorkingNicuDay(todayNicuDay, enrollmentId, activeDay, setActiveDay);
+  useDefaultToWorkingNicuDay(todayNicuDay, enrollmentId, activeDay, setActiveDay, dischargeDay);
 
   /** When opening Helper 2 after DMS, land on the NICU day that matches the last DMS sheet date. */
   useEffect(() => {
@@ -1186,7 +1188,8 @@ export default function RespCVNeuroLog() {
     !!day1Date &&
     (!isSubmitted || isOverrideActiveDay) &&
     (!isSaved || isEditing) &&
-    !isFutureActiveDay;
+    !isFutureActiveDay &&
+    !isAfterStay;
     // NOTE: locking is now manual only (via the explicit "Lock" button +
     // confirmation modal below), so a past day's calendar date passing no
     // longer forces the record read-only on its own — only isSubmitted
@@ -1209,7 +1212,6 @@ export default function RespCVNeuroLog() {
       if (bolusSync.changed) {
         setCvData((p) => ({ ...p, fluid_bolus_given: bolusSync.next }));
         setBolusAutofilled(bolusSync.autofilled);
-        setIsEditing(true);
       } else if (bolusSync.autofilled) {
         setBolusAutofilled(true);
       }
@@ -1491,7 +1493,6 @@ export default function RespCVNeuroLog() {
 
       if (anyBgChanged) {
         setBloodGasAutofilled(afNext);
-        setIsEditing(true);
       }
     } catch (err) {
       console.warn("DMS autofill (Helper 2)", err);
@@ -1535,16 +1536,9 @@ export default function RespCVNeuroLog() {
         const ga = gestWeeks != null
           ? `${gestWeeks}+${gestDays} wks` : "";
 
-        // Calculate discharge day if discharged (only for discharge cutoff)
-        let dischDay = null;
-        if (b.discharge_date && b.date_of_birth) {
-          const admitDate = new Date(b.date_of_birth);
-          const dd = new Date(b.discharge_date);
-          dischDay = Math.max(1, Math.floor((dd - admitDate) / 86400000) + 1);
-          setDischargeDay(dischDay);
-        }
-
         const dob = normalizeHelperDob(b.date_of_birth);
+        const dischDay = nicuDayForCalendarYmd(dob, b.discharge_date);
+        if (dischDay != null) setDischargeDay(dischDay);
         timelineDisch = dischDay;
         timelineDob = dob;
 
@@ -1741,7 +1735,9 @@ export default function RespCVNeuroLog() {
           setOverrideUntil(d.override_unlocked_until || null);
           loadedUpdatedAtRef.current = d.updated_at || null;
           setIsSaved(true);
-          setIsEditing(st !== STATUS.SUBMITTED || overrideStillActive);
+          // Saved unlocked days open in view mode so Edit is available
+          // until Lock. Only a live override should auto-enter edit.
+          setIsEditing(st === STATUS.SUBMITTED && overrideStillActive);
           if (!completedDays.includes(activeDay))
             setCompletedDays(prev => [...prev, activeDay]);
         } else {
@@ -2033,24 +2029,27 @@ export default function RespCVNeuroLog() {
   const setNeuro  = (k, v) => isFieldEditable && setNeuroData(p => ({ ...p, [k]: v }));
 
   /* ── Save (Nurse) ── */
-  const handleSave = async ({ force = false } = {}) => {
-    if (!enrollmentId) return false;
+  const handleSave = async ({ force = false, silent = false } = {}) => {
+    if (!enrollmentId) return silent;
     // Day 1 Date is mandatory before anything can be saved — checked here
     // independently of `force` so the Submit path (which force-saves) can't
     // bypass it either.
     if (!day1Date) {
-      setMessage("⚠️ Day 1 Date is missing — record Date of Birth in Form B first");
+      if (!silent) setMessage("⚠️ Day 1 Date is missing — record Date of Birth in Form B first");
       return false;
     }
-    // force: re-save while viewing a saved draft (Submit path) without requiring Edit.
-    if (!force && !isFieldEditable) return false;
-    if (isSubmitted && !isOverrideActiveDay) return false;
-    if (isFutureActiveDay) return false;
-    if (!force && completionPct === 0 && !isSaved) {
-      setMessage("⚠️ Nothing entered for this day yet — add data before saving.");
-      setTimeout(() => setMessage(""), 3000);
+    if (isAfterStay) {
+      if (!silent) {
+        const what = patientInfo.status === "Died" ? "died" : "left the hospital";
+        setMessage(`This baby ${what} on Day ${dischargeDay}: no entries after that day.`);
+      }
       return false;
     }
+    // Silent autosave stays in edit mode only. Explicit Save / Save for Later
+    // must still work from view mode so Draft stays available before Lock.
+    if (!force && !isFieldEditable && silent) return silent;
+    if (isSubmitted && !isOverrideActiveDay) return silent;
+    if (isFutureActiveDay) return silent;
     const now = new Date().toISOString();
     const payload = {
       enrollment_id:       enrollmentId,
@@ -2080,6 +2079,16 @@ export default function RespCVNeuroLog() {
       saved_at:            now,
       saved_by:            user?.name || "Nurse",
     };
+    // completionPct can be > 0 on a untouched day because gated fields
+    // (e.g. #17 extub failure) count as answered when hidden. Do not POST
+    // a blank create — opening/switching days must stay quiet.
+    if (!force && !isSaved && isBlankHelperDay(payload)) {
+      if (!silent) {
+        setMessage(BLANK_HELPER_DAY_CLIENT_MESSAGE);
+        setTimeout(() => setMessage(""), 3000);
+      }
+      return silent;
+    }
     try {
       let res;
       const staleCfg = expectedUpdatedAtConfig(loadedUpdatedAtRef.current);
@@ -2091,7 +2100,7 @@ export default function RespCVNeuroLog() {
       // Sidebar tick: see the dayMeta effect (all days to yesterday at 100%).
       loadedUpdatedAtRef.current = res?.data?.updated_at || loadedUpdatedAtRef.current;
       setIsSaved(true);
-      setIsEditing(true);
+      if (!silent) setIsEditing(false);
       setSavedAt(now);
       setSavedBy(user?.name || user?.username || "Nurse");
       // "complete" is a client-only display state (100% answered, not yet
@@ -2105,9 +2114,11 @@ export default function RespCVNeuroLog() {
       setDayMeta(prev => ({ ...prev, [activeDay]: { pct: completionPct, savedAt: now } }));
       if (!completedDays.includes(activeDay))
         setCompletedDays(prev => [...prev, activeDay]);
-      setMessage("✅ Day " + activeDay + " saved successfully");
-      setShowSaveSuccess(true);
-      setTimeout(() => setMessage(""), 3000);
+      if (!silent) {
+        setMessage("✅ Day " + activeDay + " saved successfully");
+        setShowSaveSuccess(true);
+        setTimeout(() => setMessage(""), 3000);
+      }
       return true;
     } catch (err) {
       console.error(err?.response?.data || err);
@@ -2116,28 +2127,36 @@ export default function RespCVNeuroLog() {
         setDayReloadNonce(n => n + 1);
         return false;
       }
-      setMessage("❌ Error saving — please try again");
+      if (isBlankHelperDayRefusal(err)) {
+        if (!silent) {
+          setMessage(BLANK_HELPER_DAY_CLIENT_MESSAGE);
+          setTimeout(() => setMessage(""), 3000);
+        }
+        return silent;
+      }
+      if (!silent) setMessage("❌ " + apiDetailMessage(err));
       return false;
     }
   };
 
   const switchActiveDay = async (d) => {
     if (d === activeDay) return;
-    if (isFieldEditable && completionPct > 0) {
+    if (isFieldEditable) {
       try {
-        const ok = await handleSave();
+        const ok = await handleSave({ silent: true });
         if (ok === false) return;
       } catch (err) {
         console.error("Save before day change failed:", err);
         return;
       }
     }
+    setMessage("");
     setActiveDay(d);
   };
 
   const handlePrevious = async () => {
-    if (isFieldEditable && completionPct > 0) {
-      try { await handleSave(); } catch (err) { console.error("Save before back failed:", err); }
+    if (isFieldEditable) {
+      try { await handleSave({ silent: true }); } catch (err) { console.error("Save before back failed:", err); }
     }
     navigate(`/fio2-auc/${enrollmentId}`);
   };
@@ -2146,8 +2165,7 @@ export default function RespCVNeuroLog() {
     // A navigation-triggered flush must not create a phantom blank draft —
     // that silently marks the day non-empty and locks Day 1 Date before the
     // user has entered anything. Only auto-save when something real exists.
-    if (completionPct === 0) return Promise.resolve(true);
-    return handleSave();
+    return handleSave({ silent: true });
   });
 
   /* ── Submit ── */
@@ -2190,8 +2208,8 @@ export default function RespCVNeuroLog() {
   const handleNext = async () => {
     // Same phantom-blank-draft guard as handlePrevious — clicking Next on
     // an untouched day must not silently POST an empty record.
-    if (isFieldEditable && completionPct > 0) {
-      try { await handleSave(); } catch (err) { console.error("Save before next failed:", err); }
+    if (isFieldEditable) {
+      try { await handleSave({ silent: true }); } catch (err) { console.error("Save before next failed:", err); }
     }
     navigate(`/infect-gi-hema-log/${enrollmentId}`);
   };
@@ -2461,9 +2479,9 @@ export default function RespCVNeuroLog() {
                       `rcn-day--${st}`,
                     ].filter(Boolean).join(" ")}
                     onClick={() => !isLocked && switchActiveDay(d)}
-                    disabled={isFuture}
+                    disabled={isFuture || isDischarge}
                     title={
-                      isDischarge ? `Day ${d} — Patient discharged`
+                      isDischarge ? (patientInfo.status === "Died" ? `Day ${d} — Baby died` : `Day ${d} — Patient discharged`)
                       : isFuture   ? `Day ${d} — not available yet (unlocks on its calendar date)`
                       : isMissed   ? `Day ${d} — no data was ever entered (missed)`
                       : `Day ${d} · ${cfg.label}${meta.pct ? ` · ${meta.pct}%` : ""}`
@@ -2514,9 +2532,9 @@ export default function RespCVNeuroLog() {
                 className="rcn-day-add"
                 onClick={async () => {
                   const next = totalDays + 1;
-                  if (isFieldEditable && completionPct > 0) {
+                  if (isFieldEditable) {
                     try {
-                      const ok = await handleSave();
+                      const ok = await handleSave({ silent: true });
                       if (ok === false) return;
                     } catch (err) {
                       console.error("Save before add day failed:", err);
@@ -3637,8 +3655,8 @@ export default function RespCVNeuroLog() {
           </button>
         )}
 
-        {/* Edit button — enable editing of saved draft */}
-        {isSaved && !isEditing && !isSubmitted && (
+        {/* Edit button — enable editing of saved draft before Lock */}
+        {isSaved && !isEditing && !isSubmitted && !isAfterStay && !isFutureActiveDay && (
           <button
             type="button"
             className="btn btn-edit btn-outline-blue"
@@ -3689,20 +3707,25 @@ export default function RespCVNeuroLog() {
           <div className="rcn-locked-badge" title="Data can only be entered on the day's own calendar date">
             <Lock size={13} /> Day {activeDay} Not Available Yet
           </div>
-        ) : canSubmit ? (
-          <button
-            type="button"
-            className="btn btn-lock-day"
-            onClick={() => setShowModal(true)}
-            title="Lock this day — you won't be able to edit it after confirming"
-          >
-            <Lock size={15} /> Lock Day {activeDay}
-          </button>
         ) : (
-          <button type="button" className="btn btn-draft"
-            onClick={handleSave}>
-            <Save size={15} /> Save for Later
-          </button>
+          <>
+            {!isAfterStay && (
+              <button type="button" className="btn btn-draft"
+                onClick={handleSave}>
+                <Save size={15} /> Save for Later
+              </button>
+            )}
+            {canSubmit && (
+              <button
+                type="button"
+                className="btn btn-lock-day"
+                onClick={() => setShowModal(true)}
+                title="Lock this day — you won't be able to edit it after confirming"
+              >
+                <Lock size={15} /> Lock Day {activeDay}
+              </button>
+            )}
+          </>
         )}
 
 

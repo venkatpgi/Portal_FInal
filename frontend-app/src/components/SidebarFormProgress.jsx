@@ -9,7 +9,7 @@ const FORMS = [
   { key: "form_b", label: "Form B – Birth & Resuscitation" },
   { key: "form_c", label: "Form C – Maternal Details" },
   { key: "form_d", label: "Form D – Postnatal Day 1" },
-  { key: "form_e", label: "Form E – NICU Admission" },
+  { key: "form_e", label: "Form E – Admission" },
   { key: "form_f", label: "Form F – Cranial USG" },
   { key: "form_g", label: "Form G – ROP Screening" },
   { key: "form_h", label: "Form H – Morbidities" },

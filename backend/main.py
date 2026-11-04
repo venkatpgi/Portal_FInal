@@ -1070,11 +1070,14 @@ def get_screening_stats(
     enrolled = sum(1 for r in rows if r.screening_status == "Eligible")
     excluded = sum(1 for r in rows
                    if r.screening_status in ("Not Eligible", "Screen Failure"))
+    from participant_counts import is_form_a_draft
+    drafts = sum(1 for r in rows if is_form_a_draft(r))
     return {
         "total": len(rows),
         "enrolled": enrolled,
         "excluded": excluded,
         "pending": len(rows) - enrolled - excluded,
+        "drafts": drafts,
     }
 
 @app.get("/screenings/stages")

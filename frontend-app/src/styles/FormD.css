@@ -150,3 +150,35 @@
 .ga-weeks-days-row .form-group {
   margin-bottom: 0;
 }
+
+.fd-location-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fd-location-pill {
+  padding: 7px 16px;
+  border-radius: 100px;
+  border: 1.5px solid #E2E8F0;
+  background: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.13s;
+}
+.fd-location-pill:hover:not(:disabled) {
+  border-color: #0F4C81;
+  color: #0F4C81;
+  background: #EFF6FF;
+}
+.fd-location-pill--on {
+  background: #0F4C81;
+  border-color: #0F4C81;
+  color: #fff;
+}
+.fd-location-pill:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
