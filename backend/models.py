@@ -528,6 +528,8 @@ class PostnatalDay1(Base):
     caffeine_maint_frequency = Column(String, nullable=True)
     intubation_after_resus = Column(Boolean, nullable=True)
     immediate_kmc = Column(Boolean, nullable=True)
+    transferred_out_day1 = Column(Boolean, nullable=True)
+    transferred_out_location = Column(String, nullable=True)
 
     # COMPLETION
     completed_by = Column(String, nullable=True)
@@ -548,6 +550,7 @@ class NICUAdmission(Base):
     admission_datetime = Column(DateTime)
     age_at_admission_hours = Column(Float)
     age_at_admission_minutes = Column(Integer)  # total whole minutes (hours remain floored)
+    area_of_admission = Column(String, nullable=True)
 
     temp_dr = Column(Float)
     temp_skin = Column(Float)

@@ -50,7 +50,7 @@ const SECTIONS = [
       { id: 'form_b', label: 'Form B', sub: 'Birth & Resuscitation', path: '/form-b', Icon: Baby           },
       { id: 'form_c', label: 'Form C', sub: 'Maternal Details',      path: '/form-c', Icon: UserRoundCheck },
       { id: 'form_d', label: 'Form D', sub: 'Day 1 Postnatal Life',  path: '/form-d', Icon: CalendarDays   },
-      { id: 'form_e', label: 'Form E', sub: 'NICU Admission',        path: '/form-e', Icon: Hospital       },
+      { id: 'form_e', label: 'Form E', sub: 'Admission',              path: '/form-e', Icon: Hospital       },
     ],
   },
   {

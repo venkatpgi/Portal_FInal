@@ -13,6 +13,7 @@ import OfflineBanner from "./components/OfflineBanner";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { toDateOnlyValue, parseDateOnly, toDateTimeLocalValue } from "./utils/datetime";
 import { designationForCompletedBy } from "./utils/completedByDesignation";
+import { helperLocationOptions, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import {
   ArrowLeft, ArrowRight, Save, Home,
@@ -523,6 +524,7 @@ export default function FormE() {
     baby_uid: "", annual_number: "", baby_name: "", date_of_birth: "",
     time_of_birth: "",
     admission_datetime: "", age_at_admission_hours: "", age_at_admission_minutes: "",
+    area_of_admission: "", site_name: "",
     temp_dr: "",
     temp_skin: "", temp_axillary: "",
     mode_of_transport: "", mode_of_transport_other: "",
@@ -551,6 +553,7 @@ export default function FormE() {
     admission_datetime: formData.admission_datetime || null,
     age_at_admission_hours: num(formData.age_at_admission_hours),
     age_at_admission_minutes: num(formData.age_at_admission_minutes),
+    area_of_admission: formData.area_of_admission || null,
     temp_skin: num(formData.temp_skin),
     temp_axillary: num(formData.temp_axillary),
     temp_dr: num(formData.temp_dr),
@@ -658,7 +661,12 @@ export default function FormE() {
           } catch (_) {}
         }
         if (screeningId) setPdfScreeningId(screeningId);
+        let siteName = "";
         if (screeningId) {
+          try {
+            const siteRes = await api.get(`/screenings/by-screening-id/${screeningId}`);
+            siteName = siteRes.data?.site_name || "";
+          } catch (_) {}
           try {
             const piiRes = await api.get(`/pii/screening/${screeningId}`);
             const pii = piiRes.data || {};
@@ -684,6 +692,7 @@ export default function FormE() {
           return {
           ...prev,
           enrollment_id: enrollmentId,
+          site_name: siteName || prev.site_name || "",
           baby_uid: b?.baby_uid || prev.baby_uid || "",
           baby_name: motherName ? `Baby of ${motherName}` : (b?.baby_name || prev.baby_name || ""),
           annual_number: b?.annual_number || prev.annual_number || "",
@@ -753,6 +762,10 @@ export default function FormE() {
           admission_datetime: admission,
           age_at_admission_hours: computed.hours !== "" ? computed.hours : storedHours,
           age_at_admission_minutes: computed.minutes !== "" ? computed.minutes : storedMinutes,
+          area_of_admission: normalizeHelperLocation(e.area_of_admission, {
+            enrollmentId,
+            site: prev.site_name,
+          }),
 
           temp_dr:       e.temp_dr       != null ? String(e.temp_dr)       : "",
           temp_skin:     e.temp_skin     != null ? String(e.temp_skin)     : "",
@@ -858,7 +871,7 @@ export default function FormE() {
     if (name === "adverse_event_other")
       if (formData.adverse_event_type?.includes("Other") && !value) errorMsg = "Specify adverse event";
       else if (value && !/^[A-Za-z\s]+$/.test(value)) errorMsg = "Only letters are allowed";
-    const requiredFields = ["admission_datetime","temp_dr","temp_skin","additional_heating",
+    const requiredFields = ["admission_datetime","area_of_admission","temp_dr","temp_skin","additional_heating",
       "mode_of_transport","transport_adverse_event","transport_mode_resp","nicu_mode_resp","completed_by"];
     if (requiredFields.includes(name) && !value) errorMsg = "This field is required";
     if (name === "transport_cpap" && value && (Number(value) < 2 || Number(value) > 12)) errorMsg = "Range: 2–12";
@@ -928,6 +941,7 @@ export default function FormE() {
         }
       }
     }
+    if (!formData.area_of_admission) v.area_of_admission = "This field is required";
     if (!formData.temp_dr) v.temp_dr = "This field is required";
     if (!formData.temp_skin) v.temp_skin = "This field is required";
     if (!formData.mode_of_transport) v.mode_of_transport = "This field is required";
@@ -988,6 +1002,7 @@ export default function FormE() {
       admission_datetime: formData.admission_datetime || null,
       age_at_admission_hours: num(formData.age_at_admission_hours),
       age_at_admission_minutes: num(formData.age_at_admission_minutes),
+      area_of_admission: formData.area_of_admission || null,
       temp_skin: num(formData.temp_skin),
       temp_axillary: num(formData.temp_axillary),
       temp_dr: num(formData.temp_dr),
@@ -1120,7 +1135,7 @@ export default function FormE() {
             <div className="form-header-action-row">
               <div className="form-header-title-area">
                 <div className="form-breadcrumb"><Home size={12} /> FORM E</div>
-                <h2 className="form-main-title">NICU Admission</h2>
+                <h2 className="form-main-title">Admission</h2>
                 <p className="form-main-subtitle">Fill only if enrolled subject required NICU admission</p>
               </div>
               <div className="form-header-meta-area">
@@ -1162,10 +1177,10 @@ export default function FormE() {
               </div>
             </div>
 
-            {/* ═══ CARD 2 — NICU ADMISSION DETAILS ═══ */}
+            {/* ═══ CARD 2 — ADMISSION DETAILS ═══ */}
             <div className="form-section card-section">
               <div className="form-section-header">
-                <div className="section-title-left"><Truck size={18} className="section-header-icon" /><h3>E2 · NICU Admission Details</h3></div>
+                <div className="section-title-left"><Truck size={18} className="section-header-icon" /><h3>E2 · Admission Details</h3></div>
               </div>
               <div className="form-section-body">
                 <div className="form-grid-2">
@@ -1258,13 +1273,35 @@ export default function FormE() {
                     )}
                   </div>
                 </div>
+                <div className="form-group" style={{ marginTop: 16 }}>
+                  <label>5. Area of Admission <span className="required">*</span></label>
+                  <div className="rx-horizontal-group" style={{ flexWrap:"wrap" }}>
+                    {helperLocationOptions({
+                      enrollmentId: formData.enrollment_id,
+                      site: formData.site_name,
+                      selected: formData.area_of_admission
+                        ? [formData.area_of_admission]
+                        : [],
+                    }).map(opt => (
+                      <button key={opt} type="button"
+                        className={`rx-horizontal-btn${formData.area_of_admission === opt ? " active" : ""}`}
+                        onClick={() => {
+                          if (!isFieldEditable) return;
+                          setFormData(prev => ({ ...prev, area_of_admission: opt }));
+                          setErrors(prev => ({ ...prev, area_of_admission: "" }));
+                        }}
+                        disabled={!isFieldEditable}>{opt}</button>
+                    ))}
+                  </div>
+                  <FieldErr msg={errors.area_of_admission} />
+                </div>
               </div>
             </div>
 
             {/* ═══ CARD 3 — TEMPERATURE & TRANSPORT ═══ */}
             <div className="form-section card-section">
               <div className="form-section-header">
-                <div className="section-title-left"><Thermometer size={18} className="section-header-icon" /><h3>E3 · NICU Transport Details</h3></div>
+                <div className="section-title-left"><Thermometer size={18} className="section-header-icon" /><h3>E3 · Transport Details</h3></div>
               </div>
               <div className="form-section-body">
 
@@ -1275,7 +1312,7 @@ export default function FormE() {
                   {/* Row 1: Temperature in DR (prior to transport) */}
                   <div className="form-group" style={{ marginBottom: 14 }}>
                     <label>
-                      5. Temperature in DR{" "}
+                      6. Temperature in DR{" "}
                       <span className="required">*</span>{" "}
                       <span style={{ fontSize:11, color:"#64748b", fontWeight:600 }}>
                         (prior to transport)
@@ -1289,18 +1326,18 @@ export default function FormE() {
 
                   {/* Row 2: Temperature at admission into NICU */}
                   <div style={{ fontSize:12, fontWeight:600, color:"#475569", marginBottom:10 }}>
-                    6. Temperature at admission into NICU:
+                    7. Temperature at admission into NICU:
                   </div>
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>6a. Skin <span className="required">*</span></label>
+                      <label>7a. Skin <span className="required">*</span></label>
                       <UnitInput name="temp_skin" value={formData.temp_skin} unit="°C"
                         readOnly={!isFieldEditable} error={!!errors.temp_skin}
                         placeholder="30–40" onChange={handleChange} />
                       <FieldErr msg={errors.temp_skin} />
                     </div>
                     <div className="form-group">
-                      <label>6b. Axillary</label>
+                      <label>7b. Axillary</label>
                       <UnitInput name="temp_axillary" value={formData.temp_axillary} unit="°C"
                         readOnly={!isFieldEditable} error={!!errors.temp_axillary}
                         placeholder="30–40" onChange={handleChange} />
@@ -1313,7 +1350,7 @@ export default function FormE() {
                 <div className="obstetric-subcard">
                   <div className="obstetric-subcard__title">Transport</div>
                   <div className="form-group">
-                    <label>7. Mode of transport <span className="required">*</span></label>
+                    <label>8. Mode of transport <span className="required">*</span></label>
                     <div className="rx-horizontal-group" style={{ flexWrap:"wrap" }}>
                       {KNOWN_MODE_OF_TRANSPORT.map(opt => (
                         <button key={opt} type="button"

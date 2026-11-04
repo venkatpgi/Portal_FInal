@@ -7,8 +7,13 @@ def b(ppv, rand):
     return NS(required_resuscitation=ppv, randomised=rand)
 
 
-def row(sid, consent="Yes"):
-    return NS(screening_id=sid, consent_given=consent)
+def row(sid, consent="Yes", explicitly_saved=True, is_complete=True):
+    return NS(
+        screening_id=sid,
+        consent_given=consent,
+        explicitly_saved=explicitly_saved,
+        is_complete=is_complete,
+    )
 
 
 ITEMS = [
@@ -44,3 +49,15 @@ def test_members_match_counts():
     m = members(ITEMS)
     assert set(m) == set(COUNT_KEYS)
     assert m["randomised"] == ["01-0001"]
+    assert m["drafts"] == []
+
+
+def test_drafts_tile_only_save_for_later_rows():
+    items = [
+        (row("01-d1", explicitly_saved=False, is_complete=False), "Pending", "consent_pending", None),
+        (row("01-d2", explicitly_saved=False, is_complete=True), "Eligible", "awaiting_delivery", None),
+        (row("01-old", explicitly_saved=False, is_complete=None), "Eligible", "awaiting_delivery", None),
+        (row("01-saved", explicitly_saved=True, is_complete=True), "Eligible", "awaiting_delivery", None),
+    ]
+    m = members(items)
+    assert m["drafts"] == ["01-d1", "01-d2"]

@@ -3,7 +3,7 @@ export const FORMS_CONFIG = [
   { key: "form_b", label: "Form B – Birth & Resuscitation", route: "/form-b" },
   { key: "form_c", label: "Form C – Maternal Details", route: "/form-c" },
   { key: "form_d", label: "Form D – Postnatal Day 1", route: "/form-d" },
-  { key: "form_e", label: "Form E – NICU Admission", route: "/form-e" },
+  { key: "form_e", label: "Form E – Admission", route: "/form-e" },
   { key: "form_f", label: "Form F – Cranial USG", route: "/form-f" },
   { key: "form_g", label: "Form G – ROP Screening", route: "/form-g" },
   { key: "form_h", label: "Form H – Morbidities", route: "/form-h" },

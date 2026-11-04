@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "./api/axios";
 import { getMmlSheet } from "./utils/mmlSheetFetch";
 import { helperLastRequiredDay, isHelperLogComplete } from "./utils/formCompletion";
-import { toDateOnlyValue, formatIsoDateMedium, formatStampShort, nicuDayNumberFromDay1, calendarDateForNicuDay, NICU_DAY_GRACE_HOUR, helperDayStripLength } from "./utils/datetime";
+import { toDateOnlyValue, formatIsoDateMedium, formatStampShort, nicuDayNumberFromDay1, nicuDayForCalendarYmd, calendarDateForNicuDay, NICU_DAY_GRACE_HOUR, helperDayStripLength } from "./utils/datetime";
 import DayOfLifeNote from "./components/helper/DayOfLifeNote";
 // ✅ Reuses RespCVNeuro.css — same design system, same class names
 import "./styles/RespCVNeuro.css";
@@ -25,7 +25,8 @@ import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext
 import { normalizeHelperDob } from "./hooks/useHelperDobSyncDay1";
 import { mmlSyncAggregateFieldFromMml } from "./utils/mmlHelperSync";
 import { rememberActiveDay, HELPER_SESSION_KEY_INFECT_GI_HEMA } from "./utils/helperSession";
-import { expectedUpdatedAtConfig, isStaleWrite, STALE_WRITE_MESSAGE } from "./utils/staleWrite";
+import { apiDetailMessage, expectedUpdatedAtConfig, isStaleWrite, STALE_WRITE_MESSAGE } from "./utils/staleWrite";
+import { BLANK_HELPER_DAY_CLIENT_MESSAGE, isBlankHelperDay, isBlankHelperDayRefusal } from "./utils/blankHelperDay";
 import { helperDayDisplayStatus, helperDaySaveStatus } from "./utils/helperDayStatus";
 import { useDefaultToWorkingNicuDay, useNicuWorkingDay } from "./hooks/useNicuWorkingDay";
 import {
@@ -993,6 +994,7 @@ export default function InfectGIHemaLog() {
   }, [dayMeta, todayNicuDay, dischargeDay]);
 
   const isFutureActiveDay = todayNicuDay != null && activeDay > todayNicuDay;
+  const isAfterStay = dischargeDay != null && activeDay > dischargeDay;
   // Informational only now — locking is manual (see the Lock button below),
   // so a past calendar date no longer forces a day read-only by itself.
   const isPastActiveDay   = todayNicuDay != null && activeDay < todayNicuDay;
@@ -1031,7 +1033,7 @@ export default function InfectGIHemaLog() {
   const isOverrideActiveDay =
     overrideUntil != null && new Date() < parseUtcTimestamp(overrideUntil);
 
-  useDefaultToWorkingNicuDay(todayNicuDay, enrollmentId, activeDay, setActiveDay);
+  useDefaultToWorkingNicuDay(todayNicuDay, enrollmentId, activeDay, setActiveDay, dischargeDay);
 
   useEffect(() => {
     if (!enrollmentId || activeDay == null) return;
@@ -1047,7 +1049,8 @@ export default function InfectGIHemaLog() {
     !!day1Date &&
     (!isSubmitted || isOverrideActiveDay) &&
     (!isSaved || isEditing) &&
-    !isFutureActiveDay;
+    !isFutureActiveDay &&
+    !isAfterStay;
     // NOTE: locking is now manual only (via the explicit "Lock" button +
     // confirmation modal below), so a past day's calendar date passing no
     // longer forces the record read-only on its own — only isSubmitted
@@ -1093,7 +1096,6 @@ export default function InfectGIHemaLog() {
             setFeedVolumeAutofilled(true);
           }
           if (!hasNpoOrEnteralPatch) return p;
-          setIsEditing(true);
           return { ...p, ...npoPatch, ...enteralPatch };
         }
         if (vol != null) {
@@ -1102,7 +1104,6 @@ export default function InfectGIHemaLog() {
           lastFeedVolumeAutoRef.current = { date: recordDate, value: undefined };
         }
         setFeedVolumeAutofilled(sync.autofilled);
-        setIsEditing(true);
         return {
           ...p, ...npoPatch, ...enteralPatch,
           cumulative_feed_volume: sync.nextValue === "" ? null : sync.nextValue,
@@ -1128,7 +1129,6 @@ export default function InfectGIHemaLog() {
         if (p.npo === true) return p;
         if ((p.feed_type || []).length) return p;
         setFeedTypeAutofilled(true);
-        setIsEditing(true);
         return { ...p, feed_type: types };
       });
     } catch (_) { /* DMS optional */ }
@@ -1198,7 +1198,6 @@ export default function InfectGIHemaLog() {
           lastFeedVolumeCalcAutoRef.current = { date: recordDate, value: undefined };
         }
         setFeedVolumeCalcAutofilled(sync.autofilled);
-        setIsEditing(true);
         return { ...p, feed_volume: sync.nextValue === "" ? null : sync.nextValue };
       });
     } catch (_) { /* DMS weight optional */ }
@@ -1238,7 +1237,6 @@ export default function InfectGIHemaLog() {
           setHemaData(p => ({ ...p, ...updates }));
         }
         setHemaTransfusionAutofilled(afNext);
-        setIsEditing(true);
       }
     } catch (_) { /* DMS optional */ }
   };
@@ -1413,17 +1411,10 @@ export default function InfectGIHemaLog() {
 
         const ga = formatGestation(gestWeeks, gestDays);
 
-        // Calculate discharge day if discharged (only for discharge cutoff)
-        let dischDay = null;
-        if (b.discharge_date && b.date_of_birth) {
-          const admitDate = new Date(b.date_of_birth);
-          const dd = new Date(b.discharge_date);
-          dischDay = Math.max(1, Math.floor((dd - admitDate) / 86400000) + 1);
-          setDischargeDay(dischDay);
-        }
-        timelineDisch = dischDay;
-
         const dob = normalizeHelperDob(b.date_of_birth);
+        const dischDay = nicuDayForCalendarYmd(dob, b.discharge_date);
+        if (dischDay != null) setDischargeDay(dischDay);
+        timelineDisch = dischDay;
         timelineDob = dob;
 
         setPatientInfo(prev => ({
@@ -1567,7 +1558,7 @@ export default function InfectGIHemaLog() {
           setIsSaved(true);
           const overrideStillActive =
             !!d.override_unlocked_until && parseUtcTimestamp(d.override_unlocked_until) > new Date();
-          setIsEditing(st !== STATUS.SUBMITTED || overrideStillActive);
+          setIsEditing(st === STATUS.SUBMITTED && overrideStillActive);
           if (!completedDays.includes(activeDay))
             setCompletedDays(prev => [...prev, activeDay]);
         } else {
@@ -1670,22 +1661,33 @@ export default function InfectGIHemaLog() {
   };
 
   /* ── Save ── */
-  const handleSave = async ({ force = false } = {}) => {
-    if (!enrollmentId) return;
+  const handleSave = async ({ force = false, silent = false } = {}) => {
+    if (!enrollmentId) return silent;
     if (!day1Date) {
-      setMessage("⚠️ Day 1 Date is missing — record Date of Birth in Form B first");
-      return;
+      if (!silent) setMessage("⚠️ Day 1 Date is missing — record Date of Birth in Form B first");
+      return false;
     }
-    // force: re-save while viewing a saved draft (Submit path) without
-    // requiring Edit — same pattern as Helper Form 1 (RespCVNeuroLog).
-    if (!force && !isFieldEditable) return; // future / locked-past / submitted (without override) — nothing to save
-    if (!force && completionPct === 0 && !isSaved) {
-      setMessage("⚠️ Nothing entered for this day yet — add data before saving.");
-      setTimeout(() => setMessage(""), 3000);
-      return;
+    if (isAfterStay) {
+      if (!silent) {
+        const what = patientInfo.status === "Died" ? "died" : "left the hospital";
+        setMessage(`This baby ${what} on Day ${dischargeDay}: no entries after that day.`);
+      }
+      return false;
     }
+    // Silent autosave stays in edit mode only. Explicit Save / Save for Later
+    // must still work from view mode so Draft stays available before Lock.
+    if (!force && !isFieldEditable && silent) return silent;
+    if (isSubmitted && !isOverrideActiveDay) return silent;
+    if (isFutureActiveDay) return silent;
     const now = new Date().toISOString();
     const payload = { ...getPayload(), saved_at: now };
+    if (!force && !isSaved && isBlankHelperDay(payload)) {
+      if (!silent) {
+        setMessage(BLANK_HELPER_DAY_CLIENT_MESSAGE);
+        setTimeout(() => setMessage(""), 3000);
+      }
+      return silent;
+    }
     try {
       const staleCfg = expectedUpdatedAtConfig(loadedUpdatedAtRef.current);
       const res = isSaved
@@ -1694,16 +1696,18 @@ export default function InfectGIHemaLog() {
       // Sidebar tick: see the dayMeta effect (all days to yesterday at 100%).
       loadedUpdatedAtRef.current = res?.data?.updated_at || loadedUpdatedAtRef.current;
       setIsSaved(true);
-      setIsEditing(true);
+      if (!silent) setIsEditing(false);
       setSavedAt(now); setSavedBy(user?.name || user?.username || "Nurse");
       const newSt = completionPct === 100 ? STATUS.COMPLETE : STATUS.DRAFT;
       setDayStatuses(prev => ({ ...prev, [activeDay]: newSt }));
       setDayMeta(prev => ({ ...prev, [activeDay]: { pct: completionPct, savedAt: now } }));
       if (!completedDays.includes(activeDay))
         setCompletedDays(prev => [...prev, activeDay]);
-      setMessage("✅ Day " + activeDay + " saved successfully");
-      setShowSaveSuccess(true);
-      setTimeout(() => setMessage(""), 3000);
+      if (!silent) {
+        setMessage("✅ Day " + activeDay + " saved successfully");
+        setShowSaveSuccess(true);
+        setTimeout(() => setMessage(""), 3000);
+      }
       return true;
     } catch (err) {
       if (isStaleWrite(err)) {
@@ -1711,28 +1715,36 @@ export default function InfectGIHemaLog() {
         setDayReloadNonce(n => n + 1);
         return false;
       }
-      setMessage("❌ Error saving — please try again");
+      if (isBlankHelperDayRefusal(err)) {
+        if (!silent) {
+          setMessage(BLANK_HELPER_DAY_CLIENT_MESSAGE);
+          setTimeout(() => setMessage(""), 3000);
+        }
+        return silent;
+      }
+      if (!silent) setMessage("❌ " + apiDetailMessage(err));
       return false;
     }
   };
 
   const switchActiveDay = async (d) => {
     if (d === activeDay) return;
-    if (isFieldEditable && completionPct > 0) {
+    if (isFieldEditable) {
       try {
-        const ok = await handleSave();
+        const ok = await handleSave({ silent: true });
         if (ok === false) return;
       } catch (err) {
         console.error("Save before day change failed:", err);
         return;
       }
     }
+    setMessage("");
     setActiveDay(d);
   };
 
   const handlePrevious = async () => {
-    if (isFieldEditable && completionPct > 0) {
-      try { await handleSave(); } catch (err) { console.error("Save before back failed:", err); }
+    if (isFieldEditable) {
+      try { await handleSave({ silent: true }); } catch (err) { console.error("Save before back failed:", err); }
     }
     navigate(`/vs6-1/${enrollmentId}`);
   };
@@ -1741,8 +1753,7 @@ export default function InfectGIHemaLog() {
     // A navigation-triggered flush must not create a phantom blank draft —
     // that silently marks the day non-empty and locks Day 1 Date before the
     // user has entered anything. Only auto-save when something real exists.
-    if (completionPct === 0) return Promise.resolve(true);
-    return handleSave();
+    return handleSave({ silent: true });
   });
 
   /* ── Submit ── */
@@ -1783,8 +1794,8 @@ export default function InfectGIHemaLog() {
   const handleNext = async () => {
     // Same phantom-blank-draft guard as handlePrevious — clicking Next on
     // an untouched day must not silently POST an empty record.
-    if (isFieldEditable && completionPct > 0) {
-      try { await handleSave(); } catch (err) { console.error("Save before next failed:", err); }
+    if (isFieldEditable) {
+      try { await handleSave({ silent: true }); } catch (err) { console.error("Save before next failed:", err); }
     }
     navigate(`/metab-renal-vasc-eye-log/${enrollmentId}`);
   };
@@ -2037,9 +2048,9 @@ export default function InfectGIHemaLog() {
                       `rcn-day--${st}`,
                     ].filter(Boolean).join(" ")}
                     onClick={() => !isLocked && switchActiveDay(d)}
-                    disabled={isFuture}
+                    disabled={isFuture || isDischarge}
                     title={
-                      isDischarge ? `Day ${d} — Patient discharged`
+                      isDischarge ? (patientInfo.status === "Died" ? `Day ${d} — Baby died` : `Day ${d} — Patient discharged`)
                       : isFuture   ? `Day ${d} — not available yet (unlocks on its calendar date)`
                       : isMissed   ? `Day ${d} — no data was ever entered (missed)`
                       : `Day ${d} · ${cfg.label}${meta.pct ? ` · ${meta.pct}%` : ""}`
@@ -2090,9 +2101,10 @@ export default function InfectGIHemaLog() {
                 className="rcn-day-add"
                 onClick={async () => {
                   const next = totalDays + 1;
-                  if (isFieldEditable && completionPct > 0) {
+                  if (isFieldEditable) {
                     try {
-                      await handleSave();
+                      const ok = await handleSave({ silent: true });
+                      if (ok === false) return;
                     } catch (err) {
                       console.error("Save before add day failed:", err);
                       return;
@@ -2855,8 +2867,8 @@ export default function InfectGIHemaLog() {
           </button>
         )}
 
-        {/* Edit button — enable editing of saved draft */}
-        {isSaved && !isEditing && !isSubmitted && (
+        {/* Edit button — enable editing of saved draft before Lock */}
+        {isSaved && !isEditing && !isSubmitted && !isAfterStay && !isFutureActiveDay && (
           <button
             type="button"
             className="btn btn-edit btn-outline-blue"
@@ -2907,20 +2919,25 @@ export default function InfectGIHemaLog() {
           <div className="rcn-locked-badge" title="Data can only be entered on the day's own calendar date">
             <Lock size={13} /> Day {activeDay} Not Available Yet
           </div>
-        ) : canSubmit ? (
-          <button
-            type="button"
-            className="btn btn-lock-day"
-            onClick={() => setShowModal(true)}
-            title="Lock this day — you won't be able to edit it after confirming"
-          >
-            <Lock size={15} /> Lock Day {activeDay}
-          </button>
         ) : (
-          <button type="button" className="btn btn-draft"
-            onClick={handleSave}>
-            <Save size={15} /> Save for Later
-          </button>
+          <>
+            {!isAfterStay && (
+              <button type="button" className="btn btn-draft"
+                onClick={handleSave}>
+                <Save size={15} /> Save for Later
+              </button>
+            )}
+            {canSubmit && (
+              <button
+                type="button"
+                className="btn btn-lock-day"
+                onClick={() => setShowModal(true)}
+                title="Lock this day — you won't be able to edit it after confirming"
+              >
+                <Lock size={15} /> Lock Day {activeDay}
+              </button>
+            )}
+          </>
         )}
 
         <div className="footer-step-indicator">

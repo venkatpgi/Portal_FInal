@@ -30,9 +30,21 @@ AWAITING_STAGES = frozenset({"awaiting_delivery", "readmitted_awaiting", "discha
 COUNT_KEYS = (
     # Screening (Form A)
     "screened", "eligible", "not_eligible", "screen_failures", "pending", "consented",
+    "drafts",
     # Delivery and randomisation (Form B)
     "awaiting_delivery", "delivered", "needed_ppv", "randomised", "not_randomised", "no_ppv",
 )
+
+
+def is_form_a_draft(row):
+    """Save-for-Later / autosave Form A: never clicked Save.
+
+    Historical rows from before is_complete was sent have is_complete NULL
+    and stay out of this tile. New drafts always write is_complete.
+    """
+    if getattr(row, "explicitly_saved", None) is True:
+        return False
+    return getattr(row, "is_complete", None) is not None
 
 
 def scoped_screenings(db, sites):
@@ -113,6 +125,8 @@ def members(items):
     for r, status, stage, b in items:
         for k in tile_keys(status, r.consent_given, stage, b):
             m[k].append(r.screening_id)
+        if getattr(b, "first", True) is not False and is_form_a_draft(r):
+            m["drafts"].append(r.screening_id)
     return m
 
 

@@ -13,6 +13,7 @@ import SaveSuccessModal from "./components/SaveSuccessModal";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import { relativeTime, toDateOnlyValue, parseDateOnly } from "./utils/datetime";
 import { designationForCompletedBy } from "./utils/completedByDesignation";
+import { helperLocationOptions, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import { classifyVeryPretermCentile } from "./data/intergrowthVeryPreterm";
 import {
@@ -171,6 +172,12 @@ const RULES = {
 
   // KMC
   immediate_kmc: { required: true, type: "toggle" },
+
+  transferred_out_day1: { required: true, type: "toggle" },
+  transferred_out_location: {
+    required: (fd) => fd.transferred_out_day1 === "Yes",
+    type: "pill",
+  },
 
   date: {
     required: true, type: "date",
@@ -385,7 +392,8 @@ export default function FormD() {
     adverse_type: [], adverse_type_other: "", mode_of_support: [],
     early_cpap: "", humidified_gas: "", max_fio2_1hr: "",
     caffeine: "", caffeine_dose: "", intubation_after_resus: "",
-    immediate_kmc: "", device_type_other: "",
+    immediate_kmc: "", transferred_out_day1: "", transferred_out_location: "",
+    device_type_other: "",
     caffeine_loading: "", caffeine_loading_abs: "", caffeine_maint_abs: "",
     caffeine_date: "", caffeine_time: "", caffeine_maint_frequency: "",
     completed_by: "", designation: "", date: "",
@@ -446,6 +454,9 @@ export default function FormD() {
         updated.caffeine_date = "";
         updated.caffeine_time = "";
         updated.caffeine_maint_frequency = "";
+      }
+      if (name === "transferred_out_day1" && value !== "Yes") {
+        updated.transferred_out_location = "";
       }
       return updated;
     });
@@ -524,6 +535,7 @@ export default function FormD() {
     const loadData = async () => {
       let pd1Weeks = "";
       let pd1Days = "";
+      let siteName = "";
       try {
         // ── Form B: identification fields (readonly) ──
         const res = await api.get(`/birth-resuscitation/${enrollmentId}`);
@@ -538,7 +550,6 @@ export default function FormD() {
           } catch (_) {}
         }
         if (screeningId) setPdfScreeningId(screeningId);
-        let siteName = "";
         if (screeningId) {
           try {
             const piiRes = await api.get(`/pii/screening/${screeningId}`);
@@ -648,6 +659,13 @@ export default function FormD() {
           max_fio2_1hr:           d.max_fio2_1hr != null ? String(d.max_fio2_1hr) : "",
           intubation_after_resus: fromBool(d.intubation_after_resus),
           immediate_kmc:          fromBool(d.immediate_kmc),
+          transferred_out_day1:   fromBool(d.transferred_out_day1),
+          transferred_out_location: fromBool(d.transferred_out_day1) === "Yes"
+            ? normalizeHelperLocation(d.transferred_out_location, {
+                enrollmentId,
+                site: siteName || prev.site_name,
+              })
+            : "",
 
           caffeine:            fromBool(d.caffeine) || (
             fromBool(d.caffeine_loading) === "Yes" ? "Yes"
@@ -862,6 +880,10 @@ export default function FormD() {
     caffeine_maint_frequency: formData.caffeine_maint_frequency || null,
     intubation_after_resus: yesNoToBool(formData.intubation_after_resus),
     immediate_kmc:          yesNoToBool(formData.immediate_kmc),
+    transferred_out_day1:   yesNoToBool(formData.transferred_out_day1),
+    transferred_out_location: formData.transferred_out_day1 === "Yes"
+      ? (formData.transferred_out_location || null)
+      : null,
     completed_by:  formData.completed_by,
     designation:   formData.designation,
     completion_date: formData.date || null,
@@ -1011,6 +1033,8 @@ export default function FormD() {
     caffeine_date: "Caffeine Administration Date",
     caffeine_maint_frequency: "Caffeine Maintenance Frequency",
     immediate_kmc: "Immediate KMC",
+    transferred_out_day1: "Transferred out on 1st day",
+    transferred_out_location: "Location",
     completed_by: "Completed By",
     date: "Completion Date",
   };
@@ -1802,6 +1826,44 @@ export default function FormD() {
                     <div/>
                   </div>
                 </div>
+                <div className="obstetric-subcard" style={{ marginTop:16 }}>
+                  <div className="obstetric-subcard__title">Transfer</div>
+                  <div className="form-grid-2">
+                    <FieldWrap name="transferred_out_day1"
+                    formData={formData} touched={touched}
+                      label="37. Transferred out on 1st day?" required={true}>
+                      <SegmentedToggle name="transferred_out_day1" value={formData.transferred_out_day1}
+                        options={["Yes","No"]} onChange={handleToggle}
+                        disabled={!isFieldEditable} />
+                    </FieldWrap>
+                    <div/>
+                  </div>
+                  {formData.transferred_out_day1 === "Yes" && (
+                    <FieldWrap name="transferred_out_location"
+                    formData={formData} touched={touched}
+                      label="Location" required={true}>
+                      <div className="fd-location-pills">
+                        {helperLocationOptions({
+                          enrollmentId: formData.enrollment_id,
+                          site: formData.site_name,
+                          selected: formData.transferred_out_location
+                            ? [formData.transferred_out_location]
+                            : [],
+                        }).map(opt => (
+                          <button
+                            key={opt}
+                            type="button"
+                            className={`fd-location-pill${formData.transferred_out_location === opt ? " fd-location-pill--on" : ""}`}
+                            disabled={!isFieldEditable}
+                            onClick={() => handleToggle("transferred_out_location", opt)}
+                          >
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    </FieldWrap>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1915,7 +1977,7 @@ export default function FormD() {
           </div>
         </div>
         <button type="button" className="btn btn-primary" onClick={handleNext} disabled={!isSaved}>
-          NICU Admission <ArrowRight size={15} />
+          Admission <ArrowRight size={15} />
         </button>
       </div>
 

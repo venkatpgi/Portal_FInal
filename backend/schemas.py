@@ -474,6 +474,7 @@ class ScreeningClinicalOut(BaseModel):
     reason_for_consent_refusal_other: Optional[str] = None
     video_pis_shown: Optional[str] = None
     explicitly_saved: Optional[bool] = None
+    is_complete: Optional[bool] = None
 
     created_by: Optional[str] = None
     updated_by: Optional[str] = None
@@ -1094,6 +1095,8 @@ class PostnatalDay1Create(BaseModel):
     caffeine_dose: float | None = None
     intubation_after_resus: bool | None = None
     immediate_kmc: bool | None = None
+    transferred_out_day1: bool | None = None
+    transferred_out_location: str | None = None
 
     surfactant_brand_other: str | None = None
     lisa_catheter_type: str | None = None
@@ -1131,6 +1134,7 @@ class NICUAdmissionCreate(BaseModel):
     admission_datetime: Optional[datetime] = None
     age_at_admission_hours: Optional[float] = None
     age_at_admission_minutes: Optional[int] = None  # total whole minutes
+    area_of_admission: Optional[str] = None
 
     temp_dr: Optional[float] = None
     temp_skin: Optional[float] = None
