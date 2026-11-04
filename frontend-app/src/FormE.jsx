@@ -597,9 +597,21 @@ export default function FormE() {
   const { markDirty, resetInitialRender } = session;
 
   /* ── Mark dirty on form change (only while editable) ── */
+  // Only after the user has typed or clicked in the form (PI 2026-11-04):
+  // the Form B / site / PII fill-in lands after load and used to mark the
+  // form dirty, so autosave wrote a blank Form E for a baby who had none
+  // (trial NR-01-0111).
+  const userEditedRef = useRef(false);
+  const noteUserEdit = (e) => {
+    const t = e.target;
+    if (t?.closest?.(".btn-edit-form-header, .btn-print-form")) return;
+    if (e.type === "click" && !t?.closest?.("button, label, input, select, textarea")) return;
+    userEditedRef.current = true;
+  };
   useEffect(() => {
     if (!isFormELoaded) return;
     if (isSaved && !isEditing) return;
+    if (!userEditedRef.current) return;
     markDirty();
   }, [formData, isFormELoaded, isSaved, isEditing, markDirty]);
 
@@ -645,6 +657,7 @@ export default function FormE() {
     setTouched({});
     setFormData(emptyFormE());
     setPdfScreeningId("");
+    userEditedRef.current = false;
     resetInitialRender();
 
     /* ── Phase 1: identification from Form B (DOB/TOB drive age calc) ── */
@@ -1127,7 +1140,8 @@ export default function FormE() {
 
       <form
         className={`screening-form${isSaved && !isEditing ? " readonly" : ""}${isSaved && isEditing ? " editing-mode" : ""}`}
-        onSubmit={handleSubmit}>
+        onSubmit={handleSubmit}
+        onChangeCapture={noteUserEdit} onClickCapture={noteUserEdit} onKeyDownCapture={noteUserEdit}>
         <fieldset>
           <div className="form-inner">
 
