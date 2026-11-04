@@ -301,3 +301,13 @@
   .dqy-table td:nth-child(4) { display: none; }
   .dqy-hero h1 { font-size: 18px; }
 }
+
+/* Tiles are buttons: each shows the list it counts (PI 2026-11-04). */
+button.dqy-tile {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.dqy-tile:hover { border-color: #94a3b8; }
+button.dqy-tile:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+.dqy-tile--on { box-shadow: 0 0 0 2px #00132c; }

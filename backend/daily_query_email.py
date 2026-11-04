@@ -8,7 +8,7 @@ Who gets what:
     (superadmin): one email covering all sites.
 Each email lists queries new in the last 24 h, overdue (red, 7 days past
 due), and resolved / confirmed correct in the last 24 h, with open counts,
-plus the site summary's urgent safety items (W1, W3, W9, W10).
+plus the urgent items of the site summary's safety watch list (W1, W3, W9, W10, W11).
 It is sent on quiet days too: "nil to report" is itself the report (PI).
 
 Content is the query text, which carries IDs, numbers and dates only
@@ -158,18 +158,19 @@ def build_email(db, scope: str, now: datetime) -> tuple[str, str, dict]:
     nil = not (counts["new"] or counts["red"] or counts["closed"] or counts["open"] or counts["urgent"])
     subject = (f"PORTAL data queries — {where} — {day}: "
                + ("nil to report" if nil else
-                  (f"{counts['urgent']} URGENT safety, " if counts["urgent"] else "")
+                  (f"{counts['urgent']} URGENT on safety watch list, " if counts["urgent"] else "")
                   + f"{counts['new']} new, {counts['red']} overdue, {counts['open']} open"))
 
-    tiles = [("Open", counts["open"], "#0f172a"), ("New (24 h)", counts["new"], "#0369a1"),
-             ("Overdue (red)", counts["red"], "#b91c1c"), ("Ageing (amber)", counts["amber"], "#b45309"),
-             ("Awaiting sign-off", counts["awaiting_signoff"], "#6d28d9"),
-             ("Closed (24 h)", counts["closed"], "#15803d")]
-    tile_html = "".join(
-        f'<td style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;text-align:center;">'
-        f'<div style="font-size:22px;font-weight:700;color:{c};">{n}</div>'
-        f'<div style="font-size:11px;color:#64748b;">{escape(label)}</div></td>'
-        for label, n, c in tiles)
+    # each number links to its list (PI 2026-11-04): DataQueries.jsx ?show=
+    summary_page = site_summary.PORTAL_URL + ("" if all_sites else f"?site={scope}")
+    tile_html = site_summary.tile_cells([
+        ("Open", counts["open"], "#0f172a", PORTAL_URL),
+        ("New (24 h)", counts["new"], "#0369a1", f"{PORTAL_URL}?show=new"),
+        ("Overdue (red)", counts["red"], "#b91c1c", f"{PORTAL_URL}?show=red"),
+        ("Ageing (amber)", counts["amber"], "#b45309", f"{PORTAL_URL}?show=amber"),
+        ("Awaiting sign-off", counts["awaiting_signoff"], "#6d28d9", f"{PORTAL_URL}?show=awaiting"),
+        ("Closed (24 h)", counts["closed"], "#15803d", f"{PORTAL_URL}?show=closed24"),
+        (site_summary.WATCH_HEADING + " (urgent)", counts["urgent"], "#b91c1c", f"{summary_page}#watch")])
 
     by_site = ""
     if all_sites:
@@ -196,7 +197,7 @@ def build_email(db, scope: str, now: datetime) -> tuple[str, str, dict]:
 
     nil_line = ('<p style="margin:16px 0 0;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;'
                 'border-radius:8px;color:#166534;font-size:14px;"><strong>Nil to report.</strong> No open, new, '
-                'overdue or closed data queries and no urgent safety items.</p>') if nil else ""
+                'overdue or closed data queries and nothing urgent on the safety watch list.</p>') if nil else ""
 
     html = f"""<!doctype html><html><body style="margin:0;padding:0;background:#f8fafc;">
 <div style="max-width:760px;margin:0 auto;padding:20px 16px;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
@@ -209,9 +210,10 @@ def build_email(db, scope: str, now: datetime) -> tuple[str, str, dict]:
   Queries are raised automatically by the portal's data checks.</p>
   <table style="border-collapse:separate;border-spacing:6px;width:100%;"><tr>{tile_html}</tr></table>
   {nil_line}
-  <h3 style="margin:22px 0 8px;font-size:15px;color:#b91c1c;">Urgent safety items ({len(urgent)})</h3>
+  <h3 style="margin:22px 0 8px;font-size:15px;color:#b91c1c;">{escape(site_summary.WATCH_HEADING)}: urgent items ({len(urgent)})</h3>
   <p style="margin:0 0 6px;color:#64748b;font-size:12px;">Serious AE not reviewed for SAE, severe brain scan not
-  in Form H, death without an SAE report, SAE reporting deadline. Full list in the twice-weekly site summary.</p>
+  in Form H, death without an SAE report, SAE reporting deadline, converted to SAE with no report. The full
+  {escape(site_summary.WATCH_HEADING.lower())} is in the twice-weekly site summary.</p>
   {urgent_html}
   {by_site}
   {_table("New in the last 24 hours", new, all_sites, "None.", "new")}

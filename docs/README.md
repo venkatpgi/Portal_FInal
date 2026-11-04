@@ -156,7 +156,11 @@ and details hold ids, numbers and dates only.
   sends one test copy (audit `EMAIL_TEST`, does not count). Query text holds
   IDs only, so the email carries no names, CR or phone numbers. Needs
   `SES_SENDER_EMAIL` (trial `.env` only; training never sends). It also
-  lists the site summary's **urgent safety items** (W1, W3, W9, W10, W11, below; IDs only).
+  lists the **urgent items of the safety watch list** (W1, W3, W9, W10, W11, below; IDs only),
+  under the same heading as the site summary, "Safety watch list" (PI 2026-11-04).
+  Every count tile links to its list (`/data-queries?show=new|red|amber|awaiting|closed24`,
+  and the watch list on `/site-summary#watch`); the Data Queries page tiles filter the
+  list the same way. After login the portal returns to the linked page.
 
 ## Twice-daily report (PI 2026-10-31)
 
@@ -201,12 +205,15 @@ enrolment IDs only; the page also shows "Baby of <mother>" (or the Form E
 baby name) to viewers who may see that site's PII (`can_view_pii_for_site`),
 and the mother's name on Form B-missing rows. The W / M codes below are
 internal: page and email show only the rule name (PI 2026-10-26).
+The count tiles on the page and in the email go to their list
+(`/site-summary?site=<site>#watch|advisory|active|missed|census`; overdue
+queries to `/data-queries?show=red`) (PI 2026-11-04).
 **Rule-based only, no AI.** Rules approved by the PI (rule sheet
 https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
 
 | Rule | Fires when |
 |---|---|
-| W1 Serious AE not reviewed for SAE | AE grade ≥ 3 on the AE form with "Converted to SAE" blank, or auto-detected grade ≥ 3 whose term is not on the AE form |
+| W1 Serious AE not reviewed for SAE | AE grade ≥ 3 on the AE form with "Converted to SAE" blank ("<AE> grade N reported on DD/MM/YY: SAE decision not recorded", date = AE start date), or auto-detected grade ≥ 3 whose term is not on the AE form |
 | W2 Grade going up | a term's grade is higher than at the last live send (grades kept in the audit row, table `site_summary`) |
 | W3 Severe brain scan not in Form H | `detect_pending_cranial_usg_findings` (IVH III/IV, cPVL ≥ II) |
 | W4 Proven infection | culture-positive sepsis or meningitis starting in the last 7 days |
@@ -217,6 +224,7 @@ https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
 | W9 Death without SAE report | died (Form H outcome or Helper 5) and no Form Y report with a diagnosis that records the death (Death ticked or outcome Fatal; PI 2026-10-31) |
 | W10 SAE deadline | SAE list row: 24-h notification blank after the start day; the "14 days" date blank within 3 days of, or past, start + 14 days |
 | W11 Converted to SAE, no report | AE row answered Converted to SAE = Yes with no Form Y for that term (urgent item) |
+| A1 Review AE grade (advisory, PI 2026-11-04) | AE form row with grade 1–2 or no grade and "Converted to SAE" blank: "review and confirm the AE grade" (blank: "grade not recorded"). Own "Advisory" list and tile; not on the watch list, not in the daily email |
 | M1 / M7 / M8 | existing Dashboard tasks: daily logs ≥ 2 days missing, Form C missing, delivered without Form B |
 | M2 Cranial USG | a Form F schedule window (< 28 wk or < 1000 g: Day 1–3, 4–7, 10–14, 28, 36 and 40 wk PMA; else Day 4–7, 10–14, 28, 40 wk PMA) ended 2 days ago with no scan in it (± tolerance), skipping windows after the stay ended |
 | M3 | Helper 2 IVH / cPVL flag and no Form F scan |

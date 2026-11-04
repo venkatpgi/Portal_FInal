@@ -55,6 +55,17 @@ def test_w1_grade3_ae_without_sae_decision():
           "converted_to_sae": ""}
     assert codes(evaluate(baby(ae_events=[ev]), TODAY, NOW, None), "watch") == ["W1"]
     assert evaluate(baby(ae_events=[dict(ev, converted_to_sae="No")]), TODAY, NOW, None)["watch"] == []
+    assert evaluate(baby(ae_events=[ev]), TODAY, NOW, None)["watch"][0][1] == \
+        "NEC grade 3 reported on 10/11/26: SAE decision not recorded"
+
+
+def test_a1_lower_or_blank_grade_is_an_advisory_not_a_watch_item():
+    ev = {"description": "Apnea ", "start_date": "2026-11-03", "grade": "2", "converted_to_sae": ""}
+    r = evaluate(baby(ae_events=[ev, dict(ev, grade=None, start_date="")]), TODAY, NOW, None)
+    assert r["watch"] == []
+    assert r["advisory"] == [("A1", "Apnea grade 2 reported on 03/11/26: review and confirm the AE grade"),
+                             ("A1", "Apnea: grade not recorded; enter and confirm the AE grade")]
+    assert evaluate(baby(ae_events=[dict(ev, converted_to_sae="No")]), TODAY, NOW, None)["advisory"] == []
 
 
 def test_w1_auto_detected_grade3_not_on_ae_form_also_m9():
