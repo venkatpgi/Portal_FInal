@@ -1,8 +1,8 @@
 import {
-  DEFAULT_HELPER_LOCATIONS,
-  PGIMER_HELPER_LOCATIONS,
+  LOCATION_AREAS,
   helperLocationOptions,
   isPgimerBaby,
+  locationLabel,
   normalizeHelperLocations,
 } from "./helperLocation";
 
@@ -14,27 +14,21 @@ test("PGIMER is enrollment prefix 01, not the logged-in user", () => {
   expect(isPgimerBaby({ site: "GMCH" })).toBe(false);
 });
 
-test("PGIMER babies get AMCC wards; other sites keep the current chips", () => {
-  expect(helperLocationOptions({ enrollmentId: "01-C-099" })).toEqual(
-    PGIMER_HELPER_LOCATIONS,
-  );
-  expect(helperLocationOptions({ enrollmentId: "03-A-002" })).toEqual(
-    DEFAULT_HELPER_LOCATIONS,
-  );
-  expect(helperLocationOptions({ site: "IOG" })).toEqual(DEFAULT_HELPER_LOCATIONS);
+test("every site gets the same generic areas; Form D has no DR", () => {
+  expect(helperLocationOptions()).toEqual(LOCATION_AREAS);
+  expect(helperLocationOptions({ noDR: true })).not.toContain("DR");
+  expect(helperLocationOptions({ noDR: true })).toContain("NICU");
 });
 
-test("legacy DR/NICU on a PGIMER row map onto AMCC labels", () => {
-  expect(
-    normalizeHelperLocations(["DR", "NICU", "KMC-N"], { enrollmentId: "01-C-099" }),
-  ).toEqual(["AMCC-1A (DR)", "AMCC-4A (NICU)", "KMC-N"]);
-  expect(
-    normalizeHelperLocations(["AMCC-1A(DR)"], { enrollmentId: "01-C-099" }),
-  ).toEqual(["AMCC-1A (DR)"]);
-  expect(
-    helperLocationOptions({
-      enrollmentId: "01-C-099",
-      selected: ["AMCC-1A (DR)", "KMC-N"],
-    }),
-  ).toEqual([...PGIMER_HELPER_LOCATIONS, "KMC-N"]);
+test("PGIMER buttons show the AMCC ward; other sites the area only", () => {
+  expect(locationLabel("NICU", { enrollmentId: "01-C-099" })).toBe("NICU (AMCC 4A / 4B)");
+  expect(locationLabel("KMC nursery", { site: "PGIMER" })).toBe("KMC nursery (AMCC 5C)");
+  expect(locationLabel("HDU", { enrollmentId: "01-C-099" })).toBe("HDU");
+  expect(locationLabel("NICU", { enrollmentId: "03-A-002" })).toBe("NICU");
+});
+
+test("earlier labels map onto the generic areas; unknown values are kept", () => {
+  expect(normalizeHelperLocations(["Step-down/Nursery", "KMC-N", "AMCC-4A (NICU)", "AMCC-1C(NURSERY)"]))
+    .toEqual(["Nursery", "KMC nursery", "NICU", "Transitional nursery"]);
+  expect(helperLocationOptions({ selected: ["NICU", "Other"] })).toEqual([...LOCATION_AREAS, "Other"]);
 });

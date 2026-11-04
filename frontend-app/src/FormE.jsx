@@ -13,7 +13,7 @@ import OfflineBanner from "./components/OfflineBanner";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { toDateOnlyValue, parseDateOnly, toDateTimeLocalValue } from "./utils/datetime";
 import { designationForCompletedBy } from "./utils/completedByDesignation";
-import { helperLocationOptions, normalizeHelperLocation } from "./utils/helperLocation";
+import { helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import {
   ArrowLeft, ArrowRight, Save, Home,
@@ -1277,8 +1277,6 @@ export default function FormE() {
                   <label>5. Area of Admission <span className="required">*</span></label>
                   <div className="rx-horizontal-group" style={{ flexWrap:"wrap" }}>
                     {helperLocationOptions({
-                      enrollmentId: formData.enrollment_id,
-                      site: formData.site_name,
                       selected: formData.area_of_admission
                         ? [formData.area_of_admission]
                         : [],
@@ -1290,7 +1288,9 @@ export default function FormE() {
                           setFormData(prev => ({ ...prev, area_of_admission: opt }));
                           setErrors(prev => ({ ...prev, area_of_admission: "" }));
                         }}
-                        disabled={!isFieldEditable}>{opt}</button>
+                        disabled={!isFieldEditable}>
+                        {locationLabel(opt, { enrollmentId: formData.enrollment_id, site: formData.site_name })}
+                      </button>
                     ))}
                   </div>
                   <FieldErr msg={errors.area_of_admission} />

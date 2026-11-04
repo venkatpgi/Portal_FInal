@@ -154,3 +154,16 @@ Helpers 2 and 5 are scored **after** the DMS overlay (§3a), so a day can reach
   window is active. Re-locking clears the override.
 - **Stale write**: Helpers 2/4/5 return 409 if the day changed since it was
   loaded (`concurrent_writes.assert_fresh_write`).
+
+## Location / area of the baby (PI 2026-11-04)
+
+Helper 5 "4.6 Location", Form E "Area of admission" and Form D "Transferred
+out on 1st day: Location" use one list (`utils/helperLocation.js`): **DR,
+NICU, HDU, Nursery, Transitional nursery, KMC nursery**. Form D has no DR.
+Every site stores the same generic area so sites compare like with like. A
+site that sends its ward names sees them on the buttons only (PGIMER: DR =
+AMCC 1A, NICU = AMCC 4A / 4B, Nursery = AMCC 5A / 5B, Transitional nursery =
+AMCC 1C LR nursery, KMC nursery = AMCC 5C); other sites see the area alone
+until they send theirs. Earlier labels (Step-down/Nursery, KMC-N, AMCC-…)
+are shown as the matching area and saved that way on the next save; any
+other saved value (e.g. "Other") stays as an extra button.
