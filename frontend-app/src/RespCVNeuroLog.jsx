@@ -1195,6 +1195,14 @@ export default function RespCVNeuroLog() {
     // longer forces the record read-only on its own — only isSubmitted
     // (i.e. a nurse/site user explicitly clicked Lock and confirmed) does.
 
+  // DMS values filled into a saved, unlocked day while it is in view mode are
+  // saved quietly (PI 2026-11-04). Before view mode (86b5ded) the autofill
+  // opened edit mode and autosave stored them; without this the screen
+  // showed DMS values the stored day did not have.
+  const dmsChangedRef = useRef(false);
+  const [dmsSaveTick, setDmsSaveTick] = useState(0);
+  const noteDmsChange = () => { dmsChangedRef.current = true; setDmsSaveTick(n => n + 1); };
+
   const applyAutofillFromMml = async (recordDate = activeDayDate, options = {}) => {
     if (!enrollmentId || !recordDate) return;
     if (isFutureActiveDay) return;
@@ -1212,6 +1220,7 @@ export default function RespCVNeuroLog() {
       if (bolusSync.changed) {
         setCvData((p) => ({ ...p, fluid_bolus_given: bolusSync.next }));
         setBolusAutofilled(bolusSync.autofilled);
+        noteDmsChange();
       } else if (bolusSync.autofilled) {
         setBolusAutofilled(true);
       }
@@ -1493,6 +1502,7 @@ export default function RespCVNeuroLog() {
 
       if (anyBgChanged) {
         setBloodGasAutofilled(afNext);
+        noteDmsChange();
       }
     } catch (err) {
       console.warn("DMS autofill (Helper 2)", err);
@@ -2138,6 +2148,13 @@ export default function RespCVNeuroLog() {
       return false;
     }
   };
+
+  useEffect(() => {
+    if (!dmsChangedRef.current) return;
+    dmsChangedRef.current = false;
+    if (!isSaved || isEditing) return;   // new day / edit mode: saved as before
+    handleSave({ force: true, silent: true });
+  }, [dmsSaveTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchActiveDay = async (d) => {
     if (d === activeDay) return;

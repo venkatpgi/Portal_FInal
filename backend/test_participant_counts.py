@@ -61,3 +61,11 @@ def test_drafts_tile_only_save_for_later_rows():
     ]
     m = members(items)
     assert m["drafts"] == ["01-d1", "01-d2"]
+
+
+def test_drafts_leave_out_screenings_with_a_form_b():
+    items = [
+        (row("01-d1", explicitly_saved=False, is_complete=False), "Eligible", "awaiting_delivery", None),
+        (row("01-d2", explicitly_saved=False, is_complete=True), "Eligible", "delivered", b(True, True)),
+    ]
+    assert members(items)["drafts"] == ["01-d1"]
