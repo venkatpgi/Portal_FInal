@@ -13,7 +13,7 @@ import SaveSuccessModal from "./components/SaveSuccessModal";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import { relativeTime, toDateOnlyValue, parseDateOnly } from "./utils/datetime";
 import { designationForCompletedBy } from "./utils/completedByDesignation";
-import { helperLocationOptions, normalizeHelperLocation } from "./utils/helperLocation";
+import { helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import { classifyVeryPretermCentile } from "./data/intergrowthVeryPreterm";
 import {
@@ -1844,8 +1844,7 @@ export default function FormD() {
                       label="Location" required={true}>
                       <div className="fd-location-pills">
                         {helperLocationOptions({
-                          enrollmentId: formData.enrollment_id,
-                          site: formData.site_name,
+                          noDR: true,
                           selected: formData.transferred_out_location
                             ? [formData.transferred_out_location]
                             : [],
@@ -1857,7 +1856,7 @@ export default function FormD() {
                             disabled={!isFieldEditable}
                             onClick={() => handleToggle("transferred_out_location", opt)}
                           >
-                            {opt}
+                            {locationLabel(opt, { enrollmentId: formData.enrollment_id, site: formData.site_name })}
                           </button>
                         ))}
                       </div>

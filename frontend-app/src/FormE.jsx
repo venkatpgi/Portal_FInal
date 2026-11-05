@@ -13,7 +13,7 @@ import OfflineBanner from "./components/OfflineBanner";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { toDateOnlyValue, parseDateOnly, toDateTimeLocalValue } from "./utils/datetime";
 import { designationForCompletedBy } from "./utils/completedByDesignation";
-import { helperLocationOptions, normalizeHelperLocation } from "./utils/helperLocation";
+import { helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import {
   ArrowLeft, ArrowRight, Save, Home,
@@ -597,9 +597,21 @@ export default function FormE() {
   const { markDirty, resetInitialRender } = session;
 
   /* ── Mark dirty on form change (only while editable) ── */
+  // Only after the user has typed or clicked in the form (PI 2026-11-04):
+  // the Form B / site / PII fill-in lands after load and used to mark the
+  // form dirty, so autosave wrote a blank Form E for a baby who had none
+  // (trial NR-01-0111).
+  const userEditedRef = useRef(false);
+  const noteUserEdit = (e) => {
+    const t = e.target;
+    if (t?.closest?.(".btn-edit-form-header, .btn-print-form")) return;
+    if (e.type === "click" && !t?.closest?.("button, label, input, select, textarea")) return;
+    userEditedRef.current = true;
+  };
   useEffect(() => {
     if (!isFormELoaded) return;
     if (isSaved && !isEditing) return;
+    if (!userEditedRef.current) return;
     markDirty();
   }, [formData, isFormELoaded, isSaved, isEditing, markDirty]);
 
@@ -645,6 +657,7 @@ export default function FormE() {
     setTouched({});
     setFormData(emptyFormE());
     setPdfScreeningId("");
+    userEditedRef.current = false;
     resetInitialRender();
 
     /* ── Phase 1: identification from Form B (DOB/TOB drive age calc) ── */
@@ -1127,7 +1140,8 @@ export default function FormE() {
 
       <form
         className={`screening-form${isSaved && !isEditing ? " readonly" : ""}${isSaved && isEditing ? " editing-mode" : ""}`}
-        onSubmit={handleSubmit}>
+        onSubmit={handleSubmit}
+        onChangeCapture={noteUserEdit} onClickCapture={noteUserEdit} onKeyDownCapture={noteUserEdit}>
         <fieldset>
           <div className="form-inner">
 
@@ -1277,8 +1291,6 @@ export default function FormE() {
                   <label>5. Area of Admission <span className="required">*</span></label>
                   <div className="rx-horizontal-group" style={{ flexWrap:"wrap" }}>
                     {helperLocationOptions({
-                      enrollmentId: formData.enrollment_id,
-                      site: formData.site_name,
                       selected: formData.area_of_admission
                         ? [formData.area_of_admission]
                         : [],
@@ -1290,7 +1302,9 @@ export default function FormE() {
                           setFormData(prev => ({ ...prev, area_of_admission: opt }));
                           setErrors(prev => ({ ...prev, area_of_admission: "" }));
                         }}
-                        disabled={!isFieldEditable}>{opt}</button>
+                        disabled={!isFieldEditable}>
+                        {locationLabel(opt, { enrollmentId: formData.enrollment_id, site: formData.site_name })}
+                      </button>
                     ))}
                   </div>
                   <FieldErr msg={errors.area_of_admission} />
