@@ -659,9 +659,9 @@ class NeonatalMorbidities(Base):
 
     bpd = Column(Boolean)
     bpd_grade = Column(String)
-    oxygen_days = Column(Integer)
-    vent_days = Column(Integer)
-    cpap_days = Column(Integer)
+    oxygen_days = Column(Float)
+    vent_days = Column(Float)
+    cpap_days = Column(Float)
 
     pulmonary_hemorrhage = Column(Boolean)
     pneumothorax = Column(Boolean)
@@ -777,7 +777,7 @@ class NeonatalMorbidities(Base):
     nippv = Column(String)
     nippv_days = Column(Integer)
     nippv_used = Column(String)
-    o2_days = Column(Integer)
+    o2_days = Column(Float)
     oxygen_exposure = Column(Float)
     pulmonary_hypertension = Column(String)
     rx_ino = Column(Boolean)

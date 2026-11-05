@@ -98,6 +98,28 @@ function YesNoToggle({ label, name, value, onChange, onBlur, required = false, d
   );
 }
 
+const FORM_H_DAY_FIELD_LABELS = {
+  o2_days: "O₂ Days",
+  oxygen_days: "O2 Days",
+  vent_days: "Vent Days",
+  cpap_days: "CPAP Days",
+};
+
+function formHApiErrorMessage(err) {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail) && detail.length) {
+    const first = detail[0];
+    const loc = Array.isArray(first?.loc)
+      ? first.loc.filter((p) => p !== "body" && p !== "query").join(".")
+      : "";
+    const field = FORM_H_DAY_FIELD_LABELS[loc] || loc;
+    const msg = first?.msg || "Invalid value";
+    return field ? `${field}: ${msg}` : msg;
+  }
+  return "Save failed. Please check the form and try again.";
+}
+
 /* Chip toggles for boolean "select all that apply" groups (H3–H12).
    Keeps the existing boolean fields and handleChange checkbox contract
    — only the control is swapped from native checkboxes to the same
@@ -1600,7 +1622,7 @@ const validateRespSupport = (name, value, updatedForm = formData) => {
     case "cpap_days":
       if (updatedForm.cpap_used === "Yes") {
         if (!value) error = "Required";
-        else if (!/^\d+$/.test(value)) error = "Only numbers";
+        else if (!/^\d*\.?\d+$/.test(String(value))) error = "Only numbers";
         else if (value < 0 || value > 365) error = "0–365 only";
       }
       break;
@@ -4670,8 +4692,8 @@ const validateBPD = (name, value, updatedForm = formData) => {
     case "cpap_days":
       if (value !== "") {
         const num = Number(value);
-        if (!/^\d+$/.test(value)) {
-          error = "Only whole numbers allowed";
+        if (!/^\d*\.?\d+$/.test(String(value))) {
+          error = "Only numbers";
         } else if (num < 0 || num > 365) {
           error = "Range: 0–365 days";
         }
@@ -4906,6 +4928,10 @@ const num = (v) => {
       total_los: num(formData.total_los),
       total_los_days: num(formData.total_los || formData.total_los_days),
       nicu_days: num(formData.nicu_days),
+      o2_days: num(formData.o2_days),
+      oxygen_days: num(formData.oxygen_days),
+      vent_days: num(formData.vent_days),
+      cpap_days: num(formData.cpap_days),
       discharge_weight: num(formData.discharge_weight),
 
       infections: infectionsList,
@@ -4940,8 +4966,9 @@ const num = (v) => {
       setSaveMessage("✅ Saved");
     } catch (err) {
       console.error("❌ BACKEND ERROR:", err.response?.data);
-      setSaveMessage("❌ Save failed — see console");
-      alert(JSON.stringify(err.response?.data, null, 2));
+      const msg = formHApiErrorMessage(err);
+      setSaveMessage("❌ Save failed");
+      alert(msg);
     } finally {
       setTimeout(() => setSaveMessage(""), 3000);
     }
@@ -5003,7 +5030,7 @@ const num = (v) => {
 
     } catch (err) {
       console.error("❌ BACKEND ERROR:", err.response?.data);
-      alert(JSON.stringify(err.response?.data, null, 2));
+      alert(formHApiErrorMessage(err));
     }
   };
 
@@ -6984,7 +7011,7 @@ const peripheralStatus= getPeripheralStatus();
       onBlur={handleBlur}
       min="0"
       max="365"
-      step="1"
+      step="any"
       placeholder="0–365"
     />
     {respAutoFilled.oxygen_days && <span className="field-hint-auto-inline">from daily logs</span>}
@@ -7049,12 +7076,12 @@ const peripheralStatus= getPeripheralStatus();
           placeholder="0–365"
           min="0"
           max="365"
-          step="1"
+          step="any"
           onChange={(e) => {
             clearRespAutoFilled("cpap_days");
             const value = e.target.value;
             if (value === "") { setFormData({ ...formData, cpap_days: "" }); return; }
-            if (!/^\d+$/.test(value)) return;
+            if (!/^\d*\.?\d*$/.test(value)) return;
             const num = Number(value);
             if (num < 0 || num > 365) return;
             setFormData({ ...formData, cpap_days: value });
@@ -11060,6 +11087,9 @@ const peripheralStatus= getPeripheralStatus();
           value={formData.o2_days || ""}
           onChange={handleChange}
           onBlur={handleBlur}
+          min="0"
+          max="365"
+          step="any"
         />
         {errors.o2_days && <div className="error-text">{errors.o2_days}</div>}
       </div>
@@ -11072,6 +11102,9 @@ const peripheralStatus= getPeripheralStatus();
           value={formData.vent_days || ""}
           onChange={handleChange}
           onBlur={handleBlur}
+          min="0"
+          max="365"
+          step="any"
         />
         {errors.vent_days && <div className="error-text">{errors.vent_days}</div>}
       </div>
@@ -11084,6 +11117,9 @@ const peripheralStatus= getPeripheralStatus();
           value={formData.cpap_days || ""}
           onChange={handleChange}
           onBlur={handleBlur}
+          min="0"
+          max="365"
+          step="any"
         />
         {errors.cpap_days && <div className="error-text">{errors.cpap_days}</div>}
       </div>

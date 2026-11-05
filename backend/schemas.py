@@ -1322,9 +1322,9 @@ class NeonatalMorbiditiesCreate(BaseModel):
     # ---------------- RESPIRATORY ----------------
     bpd: bool | None = None
     bpd_grade: str | None = None
-    oxygen_days: int | None = None
-    vent_days: int | None = None
-    cpap_days: int | None = None
+    oxygen_days: float | None = None
+    vent_days: float | None = None
+    cpap_days: float | None = None
 
     pulmonary_hemorrhage: bool | None = None
     pneumothorax: bool | None = None
@@ -1446,7 +1446,7 @@ class NeonatalMorbiditiesCreate(BaseModel):
     nippv: Optional[str] = None
     nippv_days: Optional[int] = None
     nippv_used: Optional[str] = None
-    o2_days: Optional[int] = None
+    o2_days: Optional[float] = None
     oxygen_exposure: Optional[float] = None
     pulmonary_hypertension: Optional[str] = None
     rx_ino: Optional[bool] = None

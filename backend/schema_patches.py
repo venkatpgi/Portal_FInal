@@ -1364,3 +1364,15 @@ FORM_D_TRANSFER_OUT_PATCHES = [
 FORM_E_AREA_OF_ADMISSION_PATCHES = [
     "ALTER TABLE nicu_admission ADD COLUMN IF NOT EXISTS area_of_admission VARCHAR",
 ]
+
+# H12 O₂ / vent / CPAP days (and H2 O2 Days) accept half-days such as 2.5.
+NEONATAL_MORBIDITIES_DAY_COUNTS_FLOAT_PATCHES = [
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS o2_days DOUBLE PRECISION",
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS oxygen_days DOUBLE PRECISION",
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS vent_days DOUBLE PRECISION",
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS cpap_days DOUBLE PRECISION",
+    "ALTER TABLE neonatal_morbidities ALTER COLUMN o2_days TYPE DOUBLE PRECISION USING o2_days::double precision",
+    "ALTER TABLE neonatal_morbidities ALTER COLUMN oxygen_days TYPE DOUBLE PRECISION USING oxygen_days::double precision",
+    "ALTER TABLE neonatal_morbidities ALTER COLUMN vent_days TYPE DOUBLE PRECISION USING vent_days::double precision",
+    "ALTER TABLE neonatal_morbidities ALTER COLUMN cpap_days TYPE DOUBLE PRECISION USING cpap_days::double precision",
+]

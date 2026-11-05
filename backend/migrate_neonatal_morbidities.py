@@ -48,7 +48,7 @@ SECTIONS = {
         ("invasive_ventilation", "VARCHAR"), ("nasal_cannula", "VARCHAR"),
         ("nasal_cannula_days", "INTEGER"), ("nasal_cannula_used", "VARCHAR"),
         ("nippv", "VARCHAR"), ("nippv_days", "INTEGER"), ("nippv_used", "VARCHAR"),
-        ("o2_days", "INTEGER"), ("oxygen_exposure", "FLOAT"),
+        ("o2_days", "FLOAT"), ("oxygen_exposure", "FLOAT"),
         ("pulmonary_hypertension", "VARCHAR"), ("rx_ino", "BOOLEAN"),
         ("rx_miliri", "BOOLEAN"), ("rx_other", "BOOLEAN"), ("rx_other_text", "VARCHAR"),
         ("rx_sildenafil", "BOOLEAN"), ("rx_vaso", "BOOLEAN"),

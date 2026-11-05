@@ -156,6 +156,8 @@ function formatTimeRangeAmPm(value) {
 const ans = v => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0);
 const listToString = v => Array.isArray(v) ? v.join(",") : (v || "");
 const stringToList = v => Array.isArray(v) ? v : String(v || "").split(",").map(s => s.trim()).filter(Boolean);
+const listFirst = v => stringToList(v)[0] || "";
+const asSingleList = v => (v ? [v] : []);
 const asNumber = v => v === "" || v === null || v === undefined ? null : Number(v);
 const asInteger = v => v === "" || v === null || v === undefined ? null : parseInt(v, 10);
 
@@ -2466,8 +2468,9 @@ export default function MinimalMonitoringLog() {
             {(e, i) => (
               <>
                 <Item n={1} label="Vasoactive given">
-                  <PillMulti options={["Dopamine", "Dobutamine", "Epinephrine", "Milrinone", "Vasopressin", "Norepinephrine"]}
-                    value={e.vasoactive_drugs || []} onChange={v => setEntryField("cv_c", i, "vasoactive_drugs", v)}
+                  <PillSingle options={["Dopamine", "Dobutamine", "Epinephrine", "Milrinone", "Vasopressin", "Norepinephrine"]}
+                    value={listFirst(e.vasoactive_drugs)}
+                    onChange={v => setEntryField("cv_c", i, "vasoactive_drugs", asSingleList(v))}
                     disabled={!isEditable} />
                 </Item>
                 <Item n={2} label="Dose administered">
@@ -2492,8 +2495,10 @@ export default function MinimalMonitoringLog() {
             {(e, i) => (
               <>
                 <Item n={1} label="Agent for Medical Rx of PDA">
-                  <PillMulti options={["Indo", "Ibu", "PCM"]} value={e.pda_agent || []}
-                    onChange={v => setEntryField("cv_d", i, "pda_agent", v)} disabled={!isEditable} />
+                  <PillSingle options={["Indo", "Ibu", "PCM"]}
+                    value={listFirst(e.pda_agent)}
+                    onChange={v => setEntryField("cv_d", i, "pda_agent", asSingleList(v))}
+                    disabled={!isEditable} />
                 </Item>
                 <Item n={2} label="Dose administered">
                   <Num value={e.pda_dose} onChange={v => setEntryField("cv_d", i, "pda_dose", v)}
@@ -2620,16 +2625,19 @@ export default function MinimalMonitoringLog() {
             {(e, i) => (
               <>
                 <Item n={1} label="Postnatal steroids">
-                  <PillMulti options={["Hydrocortisone", "Dexamethasone", "Budesonide", "Other"]}
-                    value={e.postnatal_steroids || []}
-                    onChange={v => setEntryField("resp_d", i, "postnatal_steroids", v)}
+                  <PillSingle options={["Hydrocortisone", "Dexamethasone", "Budesonide", "Other"]}
+                    value={listFirst(e.postnatal_steroids)}
+                    onChange={v => {
+                      setEntryField("resp_d", i, "postnatal_steroids", asSingleList(v));
+                      if (v !== "Other") setEntryField("resp_d", i, "steroid_other", "");
+                    }}
                     disabled={!isEditable} />
                 </Item>
                 <Item n={2} label="Dose administered">
                   <Num value={e.steroid_dose} onChange={v => setEntryField("resp_d", i, "steroid_dose", v)}
                     disabled={!isEditable} unit="mg/kg" />
                 </Item>
-                {(e.postnatal_steroids || []).includes("Other") && (
+                {listFirst(e.postnatal_steroids) === "Other" && (
                   <Item n={3} label="If Other, specify" hint="Required when 'Other' is selected above" error={err("resp_d", i, "steroid_other")}>
                     <Txt value={e.steroid_other}
                       onChange={v => setEntryField("resp_d", i, "steroid_other", v)}
@@ -2792,8 +2800,12 @@ export default function MinimalMonitoringLog() {
             {(e, i) => (
               <>
                 <Item n={1} label="Transfusion">
-                  <PillMulti options={["PRBC", "Platelets", "FFP/Cryo"]} value={e.transfusion_products || []}
-                    onChange={v => setEntryField("heme_a", i, "transfusion_products", v)}
+                  <PillSingle options={["PRBC", "Platelets", "FFP/Cryo"]}
+                    value={listFirst(e.transfusion_products)}
+                    onChange={v => {
+                      setEntryField("heme_a", i, "transfusion_products", asSingleList(v));
+                      if (v !== "PRBC") setEntryField("heme_a", i, "prbc_volume", "");
+                    }}
                     disabled={!isEditable} />
                 </Item>
                 <Item n={2} label="No. of transfusions" hint="Whole number, 0 or more" error={err("heme_a", i, "transfusion_count")}>
@@ -2801,7 +2813,7 @@ export default function MinimalMonitoringLog() {
                     onChange={v => setEntryField("heme_a", i, "transfusion_count", v)}
                     disabled={!isEditable} error={err("heme_a", i, "transfusion_count")} />
                 </Item>
-                {(e.transfusion_products || []).includes("PRBC") && (
+                {listFirst(e.transfusion_products) === "PRBC" && (
                   <Item n={3} label="If PRBC, volume">
                     <Num value={e.prbc_volume} onChange={v => setEntryField("heme_a", i, "prbc_volume", v)}
                       disabled={!isEditable} unit="ml/kg" />
