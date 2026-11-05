@@ -9,7 +9,8 @@ content is served live at GET /site-summary for the portal page.
 Every randomised baby born since the trial start is checked against the
 rules the PI approved on 2026-10-26 (rule sheet:
 https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
-  W1-W10  watch list: close to an SAE
+  W1-W11  safety watch list: close to an SAE
+  A1      advisory: AE grade 1-2 (or blank) with no SAE decision
   active  morbidities still running
   M1-M10  missed data collection
 Rule-based only; no AI. Nothing is grouped or shown by arm. The email names
@@ -57,6 +58,7 @@ ALL_SITES = "ALL"
 REPORT_SITES = ["PGIMER", "GMCH", "GMCH-A", "AMC", "AFMC", "IOG"]
 AUDIT_TABLE = "site_summary"
 PORTAL_URL = "https://portaltrial.in/site-summary"
+QUERIES_URL = "https://portaltrial.in/data-queries"
 URGENT_RULES = ("W1", "W3", "W9", "W10", "W11")
 
 RULES = {
@@ -81,7 +83,11 @@ RULES = {
     "M8": "Form B after delivery",
     "M9": "AE review",
     "M10": "Old data queries",
+    "A1": "Review AE grade",
 }
+
+# One heading for the site summary and the daily query email (PI 2026-11-04).
+WATCH_HEADING = "Safety watch list"
 
 INFECTION_SLUGS = {"sepsis_culture_positive", "sepsis_culture_negative", "meningitis"}
 PROVEN_INFECTION_SLUGS = {"sepsis_culture_positive", "meningitis"}
@@ -158,8 +164,8 @@ def cranial_windows(ga_days: int | None, birth_weight: float | None) -> list[tup
 # ------------------------------------------------------------------ rules
 def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> dict:
     """Apply the PI's rules to one baby. b holds plain data (see _load);
-    returns {watch, active, missed: [(code, text)], grades: {slug: grade}}."""
-    watch, active, missed = [], [], []
+    returns {watch, active, missed, advisory: [(code, text)], grades: {slug: grade}}."""
+    watch, active, missed, advisory = [], [], [], []
     dob = b["dob"]
     dol_today = (today - dob).days + 1 if dob else None
     end = b.get("end_date")
@@ -187,14 +193,23 @@ def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> d
             grades[slug] = max(g, grades.get(slug, 0))
             names[slug] = AE_DEFINITIONS[slug]["name"]
 
-    # W1 serious AE not yet reviewed for SAE
+    # W1 serious AE not yet reviewed for SAE; A1 (PI 2026-11-04): a lower or
+    # blank grade with no SAE decision is an advisory, not a watch item.
     for e in events:
+        if answered(e.get("converted_to_sae")):
+            continue
         g = _int_grade(e.get("grade"))
-        if g and g >= 3 and not answered(e.get("converted_to_sae")):
-            what = (e.get("description") or (names.get(term_of(e)) if term_of(e) else None)
-                    or (f"AE {e['definition_no']}" if e.get("definition_no") not in (None, "", "NA")
-                        else "AE (term not recorded)"))
-            watch.append(("W1", f"{what} grade {g} on the AE form: SAE decision not recorded"))
+        what = (e.get("description") or (names.get(term_of(e)) if term_of(e) else None)
+                or (f"AE {e['definition_no']}" if e.get("definition_no") not in (None, "", "NA")
+                    else "AE (term not recorded)")).strip()
+        start = _iso(e.get("start_date"))
+        on = f" reported on {start.strftime('%d/%m/%y')}" if start else ""
+        if g and g >= 3:
+            watch.append(("W1", f"{what} grade {g}{on}: SAE decision not recorded"))
+        elif g:
+            advisory.append(("A1", f"{what} grade {g}{on}: review and confirm the AE grade"))
+        else:
+            advisory.append(("A1", f"{what}{on}: grade not recorded; enter and confirm the AE grade"))
     for c in cands:   # an auto-detected AE whose term is not on the AE form at all
         g = _int_grade(c.get("grade"))
         if g and g >= 3 and term_of(c) not in terms_on_form:
@@ -372,7 +387,7 @@ def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> d
         missed.append(("M9", f"{len(not_saved)} auto-detected AE(s) whose term is not on the AE form: "
                              + ", ".join(sorted({c.get('description') for c in not_saved}))))
 
-    return {"watch": watch, "active": active, "missed": missed, "grades": grades}
+    return {"watch": watch, "active": active, "missed": missed, "advisory": advisory, "grades": grades}
 
 
 # ------------------------------------------------------------------ data
@@ -478,6 +493,7 @@ def build(db, scope: str, now: datetime | None = None, snapshot=None) -> dict:
             "watch": [{"rule": c, "title": RULES[c], "detail": t} for c, t in r["watch"]],
             "active": r["active"],
             "missed": [{"rule": c, "title": RULES[c], "detail": t} for c, t in r["missed"]],
+            "advisory": [{"rule": c, "title": RULES[c], "detail": t} for c, t in r["advisory"]],
             "grades": r["grades"],
         })
 
@@ -507,6 +523,7 @@ def build(db, scope: str, now: datetime | None = None, snapshot=None) -> dict:
         "watch": sum(len(b["watch"]) for b in babies),
         "active_babies": sum(bool(b["active"]) for b in in_nicu),
         "missed": sum(len(b["missed"]) for b in babies) + len(mothers),
+        "advisory": sum(len(b["advisory"]) for b in babies),
         "red_queries": sum(red.values()),
     }
     return {"scope": scope, "generated_at": now.isoformat(timespec="minutes"), "since": since.isoformat(),
@@ -555,9 +572,20 @@ TH = '<th style="text-align:left;padding:6px 8px;border-bottom:2px solid #e2e8f0
 TD = '<td style="padding:6px 8px;border-bottom:1px solid #eef2f7;vertical-align:top;">{}</td>'
 
 
-def _h3(title, n=None):
-    return (f'<h3 style="margin:22px 0 8px;font-size:15px;color:#00132c;">{escape(title)}'
+def _h3(title, n=None, anchor=None):
+    ident = f' id="{anchor}"' if anchor else ""
+    return (f'<h3{ident} style="margin:22px 0 8px;font-size:15px;color:#00132c;">{escape(title)}'
             f'{f" ({n})" if n is not None else ""}</h3>')
+
+
+def tile_cells(tiles) -> str:
+    """Email count tiles; each number links to its list (PI 2026-11-04).
+    tiles: (label, n, colour, url)."""
+    return "".join(
+        f'<td style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;text-align:center;">'
+        f'<a href="{escape(url)}" style="text-decoration:none;display:block;">'
+        f'<div style="font-size:22px;font-weight:700;color:{col};text-decoration:underline;">{n}</div>'
+        f'<div style="font-size:11px;color:#64748b;">{escape(label)}</div></a></td>' for label, n, col, url in tiles)
 
 
 def _rows_table(cols, rows):
@@ -584,18 +612,21 @@ def render_email(s: dict) -> tuple[str, str]:
     now = datetime.fromisoformat(s["generated_at"])
     day = now.strftime("%a %d %b %Y")
     c = s["counts"]
-    nil = not (c["watch"] or c["missed"] or c["in_nicu"] or c["ended_since_last"])
+    nil = not (c["watch"] or c["missed"] or c.get("advisory") or c["in_nicu"] or c["ended_since_last"])
     subject = (f"PORTAL site summary — {where} — {day}: "
                + ("nil to report" if nil else
-                  f"{c['in_nicu']} in NICU, {c['watch_babies']} on watch list, {c['missed']} missed items"))
-    tiles = [("In NICU", c["in_nicu"], "#0f172a"), ("Stays ended since last", c["ended_since_last"], "#475569"),
-             ("Babies on watch list", c["watch_babies"], "#b91c1c"),
-             ("With active morbidity", c["active_babies"], "#b45309"),
-             ("Missed data items", c["missed"], "#6d28d9"), ("Overdue queries", c["red_queries"], "#0369a1")]
-    tile_html = "".join(
-        f'<td style="padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;text-align:center;">'
-        f'<div style="font-size:22px;font-weight:700;color:{col};">{n}</div>'
-        f'<div style="font-size:11px;color:#64748b;">{escape(label)}</div></td>' for label, n, col in tiles)
+                  f"{c['in_nicu']} in NICU, {c['watch_babies']} on safety watch list, {c['missed']} missed items"))
+    page = PORTAL_URL + ("" if all_sites else f"?site={s['scope']}")
+    tile_html = tile_cells([
+        ("In NICU", c["in_nicu"], "#0f172a", f"{page}#census"),
+        ("Stays ended since last", c["ended_since_last"], "#475569", f"{page}#census"),
+        ("Babies on safety watch list", c["watch_babies"], "#b91c1c", f"{page}#watch"),
+        ("With active morbidity", c["active_babies"], "#b45309", f"{page}#active"),
+        ("Missed data items", c["missed"], "#6d28d9", f"{page}#missed"),
+        ("Advisory notes", c.get("advisory", 0), "#0f766e", f"{page}#advisory"),
+        ("Overdue queries", c["red_queries"], "#0369a1", f"{QUERIES_URL}?show=red")])
+    advisory = [{"site": b["site"], "enrollment_id": b["enrollment_id"], **a}
+                for b in s["babies"] for a in b.get("advisory", [])]
     watch = [{"site": b["site"], "enrollment_id": b["enrollment_id"], **w} for b in s["babies"] for w in b["watch"]]
     missed = ([{"site": b["site"], "enrollment_id": b["enrollment_id"], **m} for b in s["babies"] for m in b["missed"]]
               + s["mothers"])
@@ -628,10 +659,11 @@ def render_email(s: dict) -> tuple[str, str]:
   <table style="border-collapse:separate;border-spacing:6px;width:100%;"><tr>{tile_html}</tr></table>
   {nil_line}
   {by_site}
-  {_h3("Watch list: close to an SAE", len(watch))}{rule_table(watch, all_sites)}
-  {_h3("Active morbidities (babies in the NICU)", len(active_rows))}{_rows_table(site_col + ["Baby", "Age", "Active"], active_rows)}
-  {_h3("Missed data collection", len(missed))}{rule_table(missed, all_sites)}
-  {_h3("Census: in the NICU or stay ended since last", len(census))}{_rows_table(site_col + ["Baby", "Age", "Status"], census)}
+  {_h3(WATCH_HEADING + ": close to an SAE", len(watch), "watch")}{rule_table(watch, all_sites)}
+  {_h3("Advisory: AE grades to review", len(advisory), "advisory")}{rule_table(advisory, all_sites)}
+  {_h3("Active morbidities (babies in the NICU)", len(active_rows), "active")}{_rows_table(site_col + ["Baby", "Age", "Active"], active_rows)}
+  {_h3("Missed data collection", len(missed), "missed")}{rule_table(missed, all_sites)}
+  {_h3("Census: in the NICU or stay ended since last", len(census), "census")}{_rows_table(site_col + ["Baby", "Age", "Status"], census)}
   <p style="margin:22px 0 0;"><a href="{PORTAL_URL}" style="display:inline-block;background:#00132c;color:#fff;
   text-decoration:none;padding:10px 16px;border-radius:8px;font-size:14px;">Open the site summary in the portal</a></p>
   <p style="margin:18px 0 0;font-size:11px;color:#94a3b8;">IDs only: no names, CR or phone numbers, and nothing by

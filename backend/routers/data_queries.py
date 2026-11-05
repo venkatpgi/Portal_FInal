@@ -62,6 +62,7 @@ def _out(q: DataQuery, now: datetime) -> dict:
         "due_at": q.due_at.isoformat() if q.due_at else None,
         "first_seen_at": q.first_seen_at.isoformat() if q.first_seen_at else None,
         "resolved_at": q.resolved_at.isoformat() if q.resolved_at else None,
+        "confirmed_at": q.confirmed_at.isoformat() if q.confirmed_at else None,
         "reopened_count": q.reopened_count or 0,
         "acknowledged_by": q.acknowledged_by, "confirmed_by": q.confirmed_by,
         "confirmed_reason": q.confirmed_reason, "signoff_by": q.signoff_by,

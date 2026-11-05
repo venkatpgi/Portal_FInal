@@ -17,7 +17,8 @@ export default function ProtectedRoute({ children }) {
   }
 
   if (!hasSession) {
-    return <Navigate to="/login" replace />;
+    // Back to this page after login, e.g. a list linked from an email (PI 2026-11-04).
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search + location.hash }} />;
   }
 
   const mustChange =

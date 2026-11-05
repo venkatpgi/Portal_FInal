@@ -1,12 +1,15 @@
 // Site summary (PI 2026-10-26): the Monday / Thursday email, live. Randomised
 // babies by enrolment ID, with the name when the server sends one (viewer may
-// see that site's PII; the email stays IDs only) -- watch list (close to an
-// SAE), active morbidities, missed data collection. Rules are fixed in
+// see that site's PII; the email stays IDs only) -- safety watch list (close
+// to an SAE), advisory notes, active morbidities, missed data collection.
+// Each count tile jumps to its list; the emails link to #watch etc. and
+// ?site= (PI 2026-11-04). Rules are fixed in
 // backend/site_summary.py; their W / M codes are not shown. Nothing here is
 // shown or grouped by arm.
 // Global PI + Project Scientist: any or all sites; Site PI / Site Scientist:
 // own site.
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { HeartPulse, RefreshCw } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
@@ -62,7 +65,10 @@ export default function SiteSummary() {
   const { user } = useAuth();
   const allowed = canUseReports(user);
   const global = isGlobalUser(user);
-  const [site, setSite] = useState("");
+  const [params] = useSearchParams();
+  const { hash } = useLocation();
+  const navigate = useNavigate();
+  const [site, setSite] = useState(params.get("site") || "");
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -79,8 +85,9 @@ export default function SiteSummary() {
   useEffect(() => { if (allowed) load(); }, [allowed, site]);
 
   const showSite = data?.scope === "ALL";
-  const babies = data?.babies || [];
+  const babies = useMemo(() => data?.babies || [], [data]);
   const watch = useMemo(() => babies.flatMap(b => b.watch.map(w => ({ ...w, site: b.site, enrollment_id: b.enrollment_id, name: b.name }))), [babies]);
+  const advisory = useMemo(() => babies.flatMap(b => (b.advisory || []).map(a => ({ ...a, site: b.site, enrollment_id: b.enrollment_id, name: b.name }))), [babies]);
   const missed = useMemo(() => [
     ...babies.flatMap(b => b.missed.map(m => ({ ...m, site: b.site, enrollment_id: b.enrollment_id, name: b.name }))),
     ...(data?.mothers || []),
@@ -88,6 +95,17 @@ export default function SiteSummary() {
   const active = babies.filter(b => b.status === "In NICU" && b.active.length);
   const census = babies.filter(b => b.status === "In NICU" || b.ended_since_last);
   const c = data?.counts || {};
+
+  // An email link (#watch, #missed ...) opens at that list once it is drawn.
+  useEffect(() => {
+    if (!data || !hash) return;
+    const el = document.getElementById(`ss-${hash.slice(1)}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [data, hash]);
+  const jump = (to) => {
+    if (to.startsWith("/")) { navigate(to); return; }
+    document.getElementById(`ss-${to}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   if (!allowed) {
     return (
@@ -98,9 +116,11 @@ export default function SiteSummary() {
   }
 
   const tiles = [
-    ["In NICU", c.in_nicu, "ss-t-dark"], ["Stays ended since last", c.ended_since_last, "ss-t-grey"],
-    ["Babies on watch list", c.watch_babies, "ss-t-red"], ["With active morbidity", c.active_babies, "ss-t-amber"],
-    ["Missed data items", c.missed, "ss-t-violet"], ["Overdue queries", c.red_queries, "ss-t-blue"],
+    ["In NICU", c.in_nicu, "ss-t-dark", "census"], ["Stays ended since last", c.ended_since_last, "ss-t-grey", "census"],
+    ["Babies on safety watch list", c.watch_babies, "ss-t-red", "watch"],
+    ["With active morbidity", c.active_babies, "ss-t-amber", "active"],
+    ["Missed data items", c.missed, "ss-t-violet", "missed"], ["Advisory notes", c.advisory, "ss-t-teal", "advisory"],
+    ["Overdue queries", c.red_queries, "ss-t-blue", "/data-queries?show=red"],
   ];
 
   return (
@@ -113,8 +133,9 @@ export default function SiteSummary() {
             <p>
               Randomised babies born since the trial start. Every item comes from a fixed rule on the data in the
               portal; check the baby's forms before acting. Emailed Monday and Thursday at 08:00 IST (enrolment IDs
-              only, no names); the urgent items (serious AE not reviewed for SAE, severe brain scan not in Form H,
-              death without an SAE report, SAE reporting deadline) also go in the daily 8 am email.
+              only, no names); the urgent items of the safety watch list (serious AE not reviewed for SAE, severe
+              brain scan not in Form H, death without an SAE report, SAE reporting deadline, converted to SAE with no
+              report) also go in the daily 8 am email. Tap a number to go to its list.
               {data?.since && <> "Since last" means since {data.since}.</>}
             </p>
           </div>
@@ -142,11 +163,12 @@ export default function SiteSummary() {
         {data && (
           <>
             <div className="ss-tiles">
-              {tiles.map(([label, n, cls]) => (
-                <div key={label} className={`ss-tile ${cls}`}>
+              {tiles.map(([label, n, cls, to]) => (
+                <button type="button" key={label} className={`ss-tile ${cls}`} onClick={() => jump(to)}
+                  title={to.startsWith("/") ? "Open the data queries" : "Go to the list"}>
                   <div className="ss-tile-n">{n ?? 0}</div>
                   <div className="ss-tile-label">{label}</div>
-                </div>
+                </button>
               ))}
             </div>
 
@@ -166,12 +188,17 @@ export default function SiteSummary() {
               </section>
             )}
 
-            <section className="ss-card ss-card-red">
-              <h2>Watch list: close to an SAE ({watch.length})</h2>
+            <section className="ss-card ss-card-red" id="ss-watch">
+              <h2>Safety watch list: close to an SAE ({watch.length})</h2>
               <RuleTable items={watch} showSite={showSite} />
             </section>
 
-            <section className="ss-card">
+            <section className="ss-card" id="ss-advisory">
+              <h2>Advisory: AE grades to review ({advisory.length})</h2>
+              <RuleTable items={advisory} showSite={showSite} />
+            </section>
+
+            <section className="ss-card" id="ss-active">
               <h2>Active morbidities, babies in the NICU ({active.length})</h2>
               {active.length ? (
                 <div className="ss-table-wrap">
@@ -192,12 +219,12 @@ export default function SiteSummary() {
               ) : <p className="ss-none">None.</p>}
             </section>
 
-            <section className="ss-card">
+            <section className="ss-card" id="ss-missed">
               <h2>Missed data collection ({missed.length})</h2>
               <RuleTable items={missed} showSite={showSite} />
             </section>
 
-            <section className="ss-card">
+            <section className="ss-card" id="ss-census">
               <h2>Census: in the NICU or stay ended since last ({census.length})</h2>
               {census.length ? (
                 <div className="ss-table-wrap">

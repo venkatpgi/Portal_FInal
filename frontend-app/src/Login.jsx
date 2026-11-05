@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import "./Login.css";
@@ -29,8 +29,16 @@ function loginErrorMessage(err) {
   return "Something went wrong, please try again";
 }
 
+// The page ProtectedRoute sent here from; only an address inside the portal.
+function returnTo(state) {
+  const from = state?.from;
+  return typeof from === "string" && from.startsWith("/") && !from.startsWith("//") && !from.startsWith("/login")
+    ? from : "/dashboard";
+}
+
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, token, user, authReady } = useAuth();
 
   const [username, setUsername] = useState("");
@@ -49,7 +57,7 @@ export default function Login() {
       if (res.data.user?.must_change_password) {
         navigate("/change-password", { replace: true });
       } else {
-        navigate("/dashboard", { replace: true });
+        navigate(returnTo(location.state), { replace: true });
       }
     } catch (err) {
       setError(loginErrorMessage(err));
@@ -70,7 +78,7 @@ export default function Login() {
     const mustChange =
       user?.must_change_password === true
       || localStorage.getItem("must_change_password") === "true";
-    return <Navigate to={mustChange ? "/change-password" : "/dashboard"} replace />;
+    return <Navigate to={mustChange ? "/change-password" : returnTo(location.state)} replace />;
   }
 
   return (

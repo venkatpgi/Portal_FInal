@@ -5,7 +5,7 @@
 // Site PI / Site Scientist: own site. Global PI + Overall Project Scientist:
 // all sites, and the second sign-off.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle, Clock, ListChecks, RefreshCw, ShieldAlert,
 } from "lucide-react";
@@ -30,6 +30,22 @@ function fmtDate(iso) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
+// ?show= (PI 2026-11-04): the count tiles here and in the daily email link
+// to the list they count. status = what the server is asked for; keep = the
+// rows of that list to show.
+const DAY_MS = 86400000;
+const since24 = (iso) => !!iso && Date.now() - new Date(iso.endsWith("Z") ? iso : `${iso}Z`).getTime() < DAY_MS;
+const SHOW = {
+  open: { label: "Open", status: "open", keep: () => true },
+  amber: { label: "Over 72 h", status: "open", keep: (q) => q.colour === "amber" },
+  red: { label: "Over 7 days", status: "open", keep: (q) => q.colour === "red" },
+  awaiting: { label: "Awaiting sign-off", status: "open", keep: (q) => q.status === "awaiting_signoff" },
+  new: { label: "New (24 h)", status: "open", keep: (q) => since24(q.first_seen_at) },
+  closed24: { label: "Closed (24 h)", status: "closed", keep: (q) => since24(q.confirmed_at) || since24(q.resolved_at) },
+  closed: { label: "Closed", status: "closed", keep: () => true },
+  all: { label: "All", status: "all", keep: () => true },
+};
+
 function recordLink(q) {
   // ?entry= opens the log at that entry (hooks/useEntryFocus.js).
   const entry = encodeURIComponent(q.record_key);
@@ -41,7 +57,10 @@ function recordLink(q) {
 export default function DataQueries() {
   const { user } = useAuth();
   const central = isCentralReviewer(user);
-  const [status, setStatus] = useState("open");
+  const [params, setParams] = useSearchParams();
+  const show = SHOW[params.get("show")] ? params.get("show") : "open";
+  const status = SHOW[show].status;
+  const setShow = (v) => setParams(v === "open" ? {} : { show: v }, { replace: true });
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -86,9 +105,19 @@ export default function DataQueries() {
 
   const groups = useMemo(() => {
     const g = {};
-    rows.forEach((q) => { (g[q.area || "Other"] = g[q.area || "Other"] || []).push(q); });
+    rows.filter(SHOW[show].keep).forEach((q) => { (g[q.area || "Other"] = g[q.area || "Other"] || []).push(q); });
     return Object.entries(g);
-  }, [rows]);
+  }, [rows, show]);
+  const shown = groups.reduce((n, [, qs]) => n + qs.length, 0);
+
+  const Tile = ({ to, className, label, icon: Icon, n }) => (
+    <button type="button" className={`dqy-tile ${className || ""} ${show === to ? "dqy-tile--on" : ""}`}
+      onClick={() => setShow(to)} title={`Show: ${SHOW[to].label}`}>
+      <span className="dqy-tile-label">{label}</span>
+      <Icon size={16} aria-hidden="true" />
+      <b>{n}</b>
+    </button>
+  );
 
   if (!canSeeDataQueries(user)) {
     return (
@@ -116,34 +145,17 @@ export default function DataQueries() {
 
         {summary && (
           <div className="dqy-tiles">
-            <div className="dqy-tile">
-              <span className="dqy-tile-label">Open</span>
-              <ListChecks size={16} aria-hidden="true" />
-              <b>{summary.total}</b>
-            </div>
-            <div className="dqy-tile dqy-tile--amber">
-              <span className="dqy-tile-label">Over 72 h</span>
-              <Clock size={16} aria-hidden="true" />
-              <b>{summary.amber || 0}</b>
-            </div>
-            <div className="dqy-tile dqy-tile--red">
-              <span className="dqy-tile-label">Over 7 days</span>
-              <AlertTriangle size={16} aria-hidden="true" />
-              <b>{summary.red || 0}</b>
-            </div>
-            <div className="dqy-tile dqy-tile--violet">
-              <span className="dqy-tile-label">Awaiting sign-off</span>
-              <ShieldAlert size={16} aria-hidden="true" />
-              <b>{summary.awaiting_signoff || 0}</b>
-            </div>
+            <Tile to="open" label="Open" icon={ListChecks} n={summary.total} />
+            <Tile to="amber" className="dqy-tile--amber" label="Over 72 h" icon={Clock} n={summary.amber || 0} />
+            <Tile to="red" className="dqy-tile--red" label="Over 7 days" icon={AlertTriangle} n={summary.red || 0} />
+            <Tile to="awaiting" className="dqy-tile--violet" label="Awaiting sign-off" icon={ShieldAlert}
+              n={summary.awaiting_signoff || 0} />
           </div>
         )}
 
         <div className="dqy-toolbar">
-          <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Show">
-            <option value="open">Open</option>
-            <option value="closed">Closed</option>
-            <option value="all">All</option>
+          <select value={show} onChange={(e) => setShow(e.target.value)} aria-label="Show">
+            {Object.entries(SHOW).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
           <button type="button" className="dqy-refresh" onClick={load} disabled={loading}>
             <RefreshCw size={14} aria-hidden="true" />
@@ -152,7 +164,9 @@ export default function DataQueries() {
         </div>
 
         {error && <div className="dqy-error">{error}</div>}
-        {!loading && rows.length === 0 && <div className="dqy-empty">No {status === "open" ? "open " : ""}queries.</div>}
+        {!loading && shown === 0 && (
+          <div className="dqy-empty">No queries{show === "all" ? "" : `: ${SHOW[show].label.toLowerCase()}`}.</div>
+        )}
 
         {groups.map(([area, qs]) => (
           <section key={area} className="dqy-group">
