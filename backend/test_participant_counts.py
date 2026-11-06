@@ -69,3 +69,10 @@ def test_drafts_leave_out_screenings_with_a_form_b():
         (row("01-d2", explicitly_saved=False, is_complete=True), "Eligible", "delivered", b(True, True)),
     ]
     assert members(items)["drafts"] == ["01-d1"]
+
+
+def test_consent_refused_tile():
+    items = [(row("01-r1", consent="No"), "Not Eligible", "not_eligible", None),
+             (row("01-r2", consent="Yes"), "Eligible", "awaiting_delivery", None)]
+    m = members(items)
+    assert m["consent_refused"] == ["01-r1"] and "01-r1" in m["not_eligible"]

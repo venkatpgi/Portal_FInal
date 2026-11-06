@@ -103,6 +103,35 @@ is used. Day-by-day logs are not offered.
   browser); an unknown column is a 422.
 - Each download is an audit row: action `EXPORT`, table `report`, with the
   columns, filters and row count. Saved reports are kept in the browser only.
+- **Column value filter** (PI 2026-11-06): each picked column has a filter
+  button listing its values with counts (`POST /reports/values`, among the
+  rows the other filters keep); ticked values keep only those rows
+  (`filters` in the request; "(blank)" = empty). Nothing ticked = all.
+- **Row choice "Consent refused"** (tile `consent_refused`, consent = No;
+  these women are also inside Not eligible).
+
+### Ready-made reports (PI 2026-11-06)
+Top of the `/reports` page; `backend/ready_reports.py`, endpoints in `main.py`
+(`GET /reports/ready`, `/reports/ready/{key}`, `/reports/ready/{key}/download?format=pdf|csv`),
+same access as the builder, optional site and screening-date range; each
+download is an audit row (`EXPORT`, table `report_ready`). PDF (A4 landscape,
+tables + bar charts) or CSV; preview draws the same on the page. IDs only,
+nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
+- **Consent refusals**: by site (asked = consent Yes or No), by the staff who
+  took consent (their refusals / women they asked), reasons (comma-joined
+  reasons counted separately), from whom consent was sought
+  (`relationship_to_participant`), list.
+- **Exclusions**: out of all Form A; excluded = Box 4a (gestation outside
+  25+0 to 31+6 or not recorded) + Box 4b (A4 exclusions); reasons; list.
+- **Form completeness**: randomised babies, sidebar green tick per form
+  (`enrollment-status`), per site; per-baby list of forms not complete. Forms
+  due later count as not complete. (Which items are blank: to follow.)
+- **At a glance**: per site, screened / excluded / not approached / refused /
+  eligible (Box 5) / consented / randomised babies; Form I status at 36 / 40 /
+  44 wk (`followup_by_baby`, as Boxes 9-11); outcomes from the Form L
+  composite suggestion (`components`): death by 36 / 44 wk, BPD, ROP-Rx, NEC
+  ≥ IIA, brain injury, composites 1 and 2 (Yes of known). Reason for loss to
+  follow-up: Form I has no field.
 
 ## Data queries (Phase 1, PI 2026-10-15)
 Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems

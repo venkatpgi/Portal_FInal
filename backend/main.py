@@ -65,6 +65,7 @@ from ae_terms import duplicate_of
 import audit_trail
 audit_trail.install()   # every form table audited when AUDIT_ALL_FORMS=1 (PI 2026-10-26)
 import composite_suggestion as cs
+import ready_reports
 from brain_injury_suggestion import suggest_brain_injury, grade_rank as bi_grade_rank, record as bi_record
 from nec_suggestion import suggest_nec, stage_rank as nec_stage_rank, finding as nec_finding, highest_stage as nec_highest_stage
 from concurrent_writes import (
@@ -5129,6 +5130,8 @@ def get_composite_suggestion(
         "checkpoint_44": t44.isoformat() if t44 else None,
         "composite_1": cs.combine([death36, bpd]),
         "composite_2": cs.combine([death44, bpd, rop, nec, brain]),
+        # The parts, for the At a glance report (PI 2026-11-06).
+        "components": {"death36": death36, "death44": death44, "bpd": bpd, "rop": rop, "nec": nec, "brain": brain},
         "mri_abnormality": cs.mri_suggestion(mri.selected_for_mri if mri else None, mri.overall_mri if mri else None),
         "form_g_item18": cs.form_g_item18(
             bool(g and (g.treatment_required is True or g.treatment_required_le is True)),
@@ -5136,6 +5139,75 @@ def get_composite_suggestion(
             any(j.treat_right is True or j.treat_left is True for j in j_rows),
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# Ready-made reports (PI 2026-11-06; ready_reports.py). Here, not in
+# routers/reports.py, because they reuse per-baby endpoints of this module
+# (enrollment-status ticks, composite outcome suggestion).
+# ---------------------------------------------------------------------------
+def _ready_report(key, site, date_from, date_to, db, current_user):
+    from routers.dashboard import followup_by_baby
+    from routers.reports import _scope_sites
+    if key not in ready_reports.REPORT_KEYS:
+        raise HTTPException(status_code=404, detail="No such report")
+    sites = _scope_sites(current_user, site)
+    follow = {}
+
+    def status_for(eid):
+        try:
+            return get_enrollment_status(eid, db=db, current_user=current_user)
+        except HTTPException:
+            return {}
+
+    def composite_for(eid):
+        try:
+            c = get_composite_suggestion(eid, db=db, current_user=current_user)
+        except HTTPException:
+            return {}
+        return {**c.get("components", {}), "composite_1": c["composite_1"], "composite_2": c["composite_2"]}
+
+    def followup_for(eid):
+        if not follow:
+            follow.update({e: st for e, (_, st) in followup_by_baby(db).items()})
+        return follow.get(eid, {})
+
+    return ready_reports.build(key, db, sites, date_from, date_to, status_for=status_for,
+                               composite_for=composite_for, followup_for=followup_for)
+
+
+@app.get("/reports/ready")
+def list_ready_reports(current_user: User = Depends(get_current_user)):
+    from routers.reports import _scope_sites
+    _scope_sites(current_user, None)
+    return ready_reports.REPORTS
+
+
+@app.get("/reports/ready/{key}")
+def get_ready_report(key: str, site: Optional[str] = None, date_from: Optional[date] = None,
+                     date_to: Optional[date] = None, db: Session = Depends(get_db),
+                     current_user: User = Depends(get_current_user)):
+    return _ready_report(key, site, date_from, date_to, db, current_user)
+
+
+@app.get("/reports/ready/{key}/download")
+def download_ready_report(key: str, format: str = "pdf", site: Optional[str] = None,
+                          date_from: Optional[date] = None, date_to: Optional[date] = None,
+                          db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if format not in ("pdf", "csv"):
+        raise HTTPException(status_code=422, detail="format must be pdf or csv")
+    rep = _ready_report(key, site, date_from, date_to, db, current_user)
+    record_audit(db, user_id=current_user.id, username=current_user.full_name or current_user.username,
+                 action="EXPORT", table_name="report_ready",
+                 new_values={"report": key, "format": format, "site": site, "date_from": str(date_from or ""),
+                             "date_to": str(date_to or "")})
+    db.commit()
+    name = f"portal_{key}_{datetime.now():%Y%m%d_%H%M}.{format}"
+    if format == "csv":
+        body, media = ready_reports.to_csv(rep).encode("utf-8"), "text/csv; charset=utf-8"
+    else:
+        body, media = ready_reports.to_pdf(rep), "application/pdf"
+    return Response(content=body, media_type=media, headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @app.get("/neonatal-morbidities/pma-assessment-prefill/{enrollment_id}")

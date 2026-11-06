@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, ChevronDown, ChevronRight, Plus, Save, Trash2, CheckCircle2, Pencil,
-  Heart, Wind, Beaker, Utensils, Brain, Droplet, Clock, Info, Scale,
+  Heart, Wind, Beaker, Utensils, Brain, Droplet, Clock, Info, Scale, Activity,
 } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
@@ -33,7 +33,10 @@ import "./styles/MinimalMonitoring.css";
 
 /** Server still uses NICU_DAY_GRACE_HOUR for legacy GET/PUT .../today only. */
 
+// Vitals is its own module (PI 2026-11-06); it keeps its CRF item 5.1.A and
+// the stored block key cv_a, so only the page grouping changed.
 const SECTION_META = {
+  vitals: { code: "5.1.A", title: "Vitals", icon: Activity },
   cardiovascular: { code: "5.1", title: "Cardiovascular", icon: Heart },
   respiratory: { code: "5.2", title: "Respiratory", icon: Wind },
   metabolic: { code: "5.3", title: "Metabolic", icon: Beaker },
@@ -46,7 +49,7 @@ const SECTION_META = {
 const SECTION_KEYS = Object.keys(SECTION_META);
 
 const BLOCK_TO_SECTION = {
-  cv_a: "cardiovascular", cv_b: "cardiovascular", cv_c: "cardiovascular", cv_d: "cardiovascular",
+  cv_a: "vitals", cv_b: "cardiovascular", cv_c: "cardiovascular", cv_d: "cardiovascular",
   resp_a: "respiratory", resp_b: "respiratory", resp_c: "respiratory", resp_d: "respiratory",
   met_a: "metabolic", met_b: "metabolic",
   gi_a: "gastrointestinal", gi_b: "gastrointestinal",
@@ -60,7 +63,8 @@ const BLOCK_TO_SECTION = {
  *  second-level "choose a field" list (e.g. Metabolic → Glucose / Lab
  *  Reports / Electrolyte abnormality). */
 const BLOCKS_BY_SECTION = {
-  cardiovascular: ["cv_a", "cv_b", "cv_c", "cv_d"],
+  vitals: ["cv_a"],
+  cardiovascular: ["cv_b", "cv_c", "cv_d"],
   respiratory: ["resp_a", "resp_b", "resp_c", "resp_d"],
   metabolic: ["met_a", "met_b"],
   gastrointestinal: ["gi_a", "gi_b"],
@@ -183,6 +187,51 @@ function mmlValidateBloodGasMmHg(value, { min, max, label }) {
 }
 
 /** Live soft warnings for 5.2.B (draft row + saved readings table). */
+/* ── Drug rows (PI 2026-11-06): one drug per row; a dose change is a new row
+   with the same drug, a stop is a row ticked "Stopped at this time". ── */
+const DRUG_BLOCKS = {
+  cv_c: { drug: "vasoactive_drugs", dose: "vasoactive_dose", unit: "vasoactive_unit" },
+  cv_d: { drug: "pda_agent", dose: "pda_dose", fixedUnit: "mg/kg" },
+  resp_d: { drug: "postnatal_steroids", dose: "steroid_dose", fixedUnit: "mg/kg" },
+};
+
+function drugsOf(entry, cfg) {
+  const v = entry?.[cfg.drug];
+  return Array.isArray(v) ? v.filter(Boolean) : stringToList(v);
+}
+
+/** "Dopamine: 10 → 15 → 20 mcg/kg/min (10:18 · 10:23 · 10:24)", one per drug. */
+function drugTimelines(entries, cfg) {
+  const byDrug = new Map();
+  (entries || []).filter(hasEntryData).forEach(e => {
+    drugsOf(e, cfg).forEach(d => {
+      if (!byDrug.has(d)) byDrug.set(d, []);
+      byDrug.get(d).push(e);
+    });
+  });
+  return [...byDrug.entries()].map(([drug, rows]) => {
+    const sorted = rows.slice().sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+    const unit = cfg.fixedUnit || [...sorted].reverse().map(r => r[cfg.unit]).find(Boolean) || "";
+    const steps = sorted.map(r => (r.stopped ? "stopped" : (ans(r[cfg.dose]) ? String(r[cfg.dose]) : "no dose")));
+    return { drug, text: `${steps.join(" → ")}${unit ? ` ${unit}` : ""}`, times: sorted.map(r => r.time || "?").join(" · "),
+             running: !sorted[sorted.length - 1].stopped };
+  });
+}
+
+function buildDrugDoseWarnings(entries) {
+  const next = {};
+  Object.entries(DRUG_BLOCKS).forEach(([block, cfg]) => {
+    const list = entries[block] || [];
+    list.forEach((e, i) => {
+      if (i === list.length - 1) return;   // the reading being typed in the form
+      if (drugsOf(e, cfg).length && !e.stopped && !ans(e[cfg.dose])) {
+        next[`${block}.${i}.${cfg.dose}`] = "Dose not entered";
+      }
+    });
+  });
+  return next;
+}
+
 function buildRespBBloodGasWarnings(entries) {
   const next = {};
   const list = entries.resp_b || [];
@@ -482,15 +531,7 @@ function activeNotRequired(entries, notRequired) {
 function countProgress(entries, notRequired = []) {
   let total = 0;
   let done = 0;
-  const bySection = {
-    cardiovascular: { done: 0, total: 0 },
-    respiratory: { done: 0, total: 0 },
-    metabolic: { done: 0, total: 0 },
-    gastrointestinal: { done: 0, total: 0 },
-    neurological: { done: 0, total: 0 },
-    hematology: { done: 0, total: 0 },
-    growth: { done: 0, total: 0 },
-  };
+  const bySection = Object.fromEntries(SECTION_KEYS.map(k => [k, { done: 0, total: 0 }]));
   const byBlock = {};
   Object.keys(BLOCK_TO_SECTION).forEach(b => { byBlock[b] = { done: 0, total: 0 }; });
 
@@ -524,6 +565,9 @@ function countProgress(entries, notRequired = []) {
         if (block === "gi_a" && (k === "milk_type" || k === "volume_ml") && entry.status !== "EF") return;
         if (k === "steroid_other" && !(entry.postnatal_steroids || []).includes("Other")) return;
         if ((k === "vasoactive_dose" || k === "vasoactive_unit") && !(entry.vasoactive_drugs || []).length) return;
+        if (k === "stopped") return;
+        if (entry.stopped && DRUG_BLOCKS[block]
+            && (k === DRUG_BLOCKS[block].dose || k === DRUG_BLOCKS[block].unit)) return;
         if (k === "prbc_volume" && !(entry.transfusion_products || []).includes("PRBC")) return;
         bump(section, block, ans(v));
       });
@@ -867,10 +911,12 @@ const BLOCK_FIELDS = {
     { key: "vasoactive_drugs", label: "Vasoactive", list: true },
     { key: "vasoactive_dose", label: "Dose" },
     { key: "vasoactive_unit", label: "Unit" },
+    { key: "stopped", label: "Stopped", bool: true },
   ],
   cv_d: [
     { key: "pda_agent", label: "PDA Agent", list: true },
     { key: "pda_dose", label: "Dose", unit: "mg/kg" },
+    { key: "stopped", label: "Stopped", bool: true },
   ],
   resp_a: [
     { key: "time_range", label: "Time" },
@@ -892,6 +938,7 @@ const BLOCK_FIELDS = {
     { key: "postnatal_steroids", label: "Steroids", list: true },
     { key: "steroid_dose", label: "Dose", unit: "mg/kg" },
     { key: "steroid_other", label: "Other" },
+    { key: "stopped", label: "Stopped", bool: true },
   ],
   met_a: [
     { key: "glucose", label: "Glucose", unit: "mg/dL" },
@@ -949,6 +996,7 @@ function formatCell(field, entry) {
   if (field.key === "time_range") {
     return formatTimeRangeAmPm(v) || "—";
   }
+  if (field.key === "stopped") return v === true ? "Stopped" : "";
   if (field.bool) {
     if (v === true) return "Yes";
     if (v === false) return "No";
@@ -1534,7 +1582,7 @@ function ScheduledFlowsheet({
 
 function EntryBlock({
   blockKey, code, subsectionTitle, entries, onChangeEntry, onAdd, onRemove, disabled, blankFactory, children, fixedDate,
-  errors = {}, allowNew = true,
+  errors = {}, allowNew = true, addLabel = "Log another reading", drugCfg = null, onStartDrugRow = null,
 }) {
   const fieldErr = (idx, key) => errors[`${blockKey}.${idx}.${key}`];
   const rowHasErr = (idx) =>
@@ -1559,6 +1607,19 @@ function EntryBlock({
     .map((entry, idx) => ({ entry, idx, isDraft: false }))
     .filter(({ entry, idx }) => hasEntryData(entry) && (idx !== lastIdx || !showForm || editIdx >= 0));
   const fieldsMeta = tableFieldsForBlock(blockKey);
+  // Drug blocks: the latest reading of each drug offers Change dose / Stop.
+  const latestByDrug = {};
+  if (drugCfg) {
+    entries.forEach((e, idx) => {
+      if (!hasEntryData(e)) return;
+      drugsOf(e, drugCfg).forEach(d => {
+        const cur = latestByDrug[d];
+        if (!cur || `${e.date} ${e.time}` >= `${entries[cur].date} ${entries[cur].time}`) latestByDrug[d] = idx;
+      });
+    });
+  }
+  // Same readings as the table: not the one being typed in the form.
+  const timelines = drugCfg ? drugTimelines(tableRows.map(r => r.entry), drugCfg) : [];
   /** 5.2.A uses time range in the form; other blocks use stamp time here + in the table. */
   const hideStampTime = blockKey === "resp_a";
   const entryDate = fixedDate || draft.date || "";
@@ -1648,7 +1709,7 @@ function EntryBlock({
           ) : !disabled && allowNew && hasEntryData(draft) && (
             <button type="button" className="mml-add-btn"
               onClick={() => onAdd(blankFactory ? blankFactory() : freshEntry({}, fixedDate))}>
-              <Plus size={14} /> Log another reading
+              <Plus size={14} /> {addLabel}
             </button>
           )}
         </div>
@@ -1666,6 +1727,16 @@ function EntryBlock({
 
       <div className="mml-history">
         <h4 className="mml-history-title">Readings ({tableRows.length})</h4>
+        {timelines.length > 0 && (
+          <ul className="mml-drug-timelines" aria-label="Dose over time, per drug">
+            {timelines.map(t => (
+              <li key={t.drug}>
+                <strong>{t.drug}:</strong> {t.text} <span className="mml-drug-times">({t.times})</span>
+                {!t.running && <span className="mml-drug-stopped">stopped</span>}
+              </li>
+            ))}
+          </ul>
+        )}
         {tableRows.length === 0 ? (
           <p className="mml-history-empty">No entries yet for this field today.</p>
         ) : (
@@ -1705,6 +1776,21 @@ function EntryBlock({
                     })}
                     {!disabled && !isDraft && (
                       <td className="mml-history-td-action">
+                       <div className="mml-history-actions">
+                        {drugCfg && onStartDrugRow && allowNew && !entry.stopped
+                          && drugsOf(entry, drugCfg).length === 1 && latestByDrug[drugsOf(entry, drugCfg)[0]] === idx && (
+                          <>
+                            <button type="button" className="mml-history-edit-btn" title="New reading: same drug, new dose"
+                              onClick={() => { setEditId(null); onStartDrugRow({ [drugCfg.drug]: drugsOf(entry, drugCfg),
+                                ...(drugCfg.unit ? { [drugCfg.unit]: entry[drugCfg.unit] || "" } : {}) }, false); }}>
+                              Change dose
+                            </button>
+                            <button type="button" className="mml-history-edit-btn" title="Record that this drug was stopped now"
+                              onClick={() => { setEditId(null); onStartDrugRow({ [drugCfg.drug]: drugsOf(entry, drugCfg), stopped: true }, true); }}>
+                              Stop
+                            </button>
+                          </>
+                        )}
                         {entry.id && (
                           <button type="button" className="mml-history-edit-btn"
                             title={idx === editIdx ? "Being edited above" : "Edit this reading"}
@@ -1714,9 +1800,11 @@ function EntryBlock({
                           </button>
                         )}
                         <button type="button" className="mml-history-remove-btn" title="Remove this reading"
+                          aria-label="Remove this reading"
                           onClick={() => { if (idx === editIdx) setEditId(null); onRemove(idx); }}>
                           <Trash2 size={13} />
                         </button>
+                       </div>
                       </td>
                     )}
                     {!disabled && isDraft && (
@@ -1924,9 +2012,10 @@ export default function MinimalMonitoringLog() {
   );
   const counts = useMemo(() => countProgress(entries, notRequiredNow), [entries, notRequiredNow]);
   const liveFieldWarnings = useMemo(
-    () => buildRespBBloodGasWarnings(entries),
+    () => ({ ...buildRespBBloodGasWarnings(entries), ...buildDrugDoseWarnings(entries) }),
     [entries],
   );
+  const drugErrors = useMemo(() => ({ ...liveFieldWarnings, ...errors }), [liveFieldWarnings, errors]);
 
   const setEntryField = (block, idx, key, value) => {
     setEntries(prev => {
@@ -1947,6 +2036,32 @@ export default function MinimalMonitoringLog() {
   const addEntry = (block, blank) => {
     setEntries(prev => ({ ...prev, [block]: [...(prev[block] || []), blank] }));
   };
+
+  /** Change dose / Stop (PI 2026-11-06): a new reading of the same drug, now.
+   *  Replaces a still-blank draft. A stop is complete as it is, so it saves. */
+  const startDrugRow = (block, fields, save) => {
+    setEntries(prev => {
+      const list = [...(prev[block] || [])];
+      const row = freshEntry(fields, sheetDate);
+      if (list.length && !hasEntryData(list[list.length - 1])) list[list.length - 1] = row;
+      else list.push(row);
+      return { ...prev, [block]: list };
+    });
+    if (save) {
+      setSaveTick((t) => t + 1);
+      dirtyRef.current = true;
+    }
+  };
+
+  const stoppedItem = (block, e, i, n) => (
+    <Item n={n} label="Stopped at this time">
+      <label className="mml-stopped-check">
+        <input type="checkbox" checked={e.stopped === true} disabled={!isEditable}
+          onChange={ev => setEntryField(block, i, "stopped", ev.target.checked ? true : undefined)} />
+        Drug stopped (no dose needed)
+      </label>
+    </Item>
+  );
 
   const removeEntry = (block, idx) => {
     setEntries(prev => {
@@ -2460,8 +2575,10 @@ export default function MinimalMonitoringLog() {
         );
       case "cv_c":
         return (
-          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="cv_c" code="5.1.C" entries={entries.cv_c} disabled={!isEditable}
-            errors={errors}
+          <EntryBlock allowNew={allowNew} addLabel="Add" drugCfg={DRUG_BLOCKS.cv_c}
+            onStartDrugRow={(fields, save) => startDrugRow("cv_c", fields, save)}
+            fixedDate={sheetDate || ""} blockKey="cv_c" code="5.1.C" entries={entries.cv_c} disabled={!isEditable}
+            errors={drugErrors}
             onChangeEntry={(i, k, v) => setEntryField("cv_c", i, k, v)}
             onAdd={blank => addEntry("cv_c", blank)} onRemove={i => removeEntry("cv_c", i)}
             blankFactory={() => freshEntry({ vasoactive_drugs: [], vasoactive_dose: "", vasoactive_unit: "" }, sheetDate)}>
@@ -2473,22 +2590,25 @@ export default function MinimalMonitoringLog() {
                     onChange={v => setEntryField("cv_c", i, "vasoactive_drugs", asSingleList(v))}
                     disabled={!isEditable} />
                 </Item>
-                <Item n={2} label="Dose administered">
+                <Item n={2} label="Dose administered" error={!e.stopped && err("cv_c", i, "vasoactive_dose")}>
                   <Txt value={e.vasoactive_dose} onChange={v => setEntryField("cv_c", i, "vasoactive_dose", v)}
-                    disabled={!isEditable} />
+                    disabled={!isEditable || e.stopped === true} />
                 </Item>
                 <Item n={3} label="Unit">
                   <PillSingle options={["mg/kg/min", "mcg/kg/min", "U/kg/min"]} value={e.vasoactive_unit}
                     onChange={v => setEntryField("cv_c", i, "vasoactive_unit", v)} disabled={!isEditable} />
                 </Item>
+                {stoppedItem("cv_c", e, i, 4)}
               </>
             )}
           </EntryBlock>
         );
       case "cv_d":
         return (
-          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="cv_d" code="5.1.D" entries={entries.cv_d} disabled={!isEditable}
-            errors={errors}
+          <EntryBlock allowNew={allowNew} addLabel="Add" drugCfg={DRUG_BLOCKS.cv_d}
+            onStartDrugRow={(fields, save) => startDrugRow("cv_d", fields, save)}
+            fixedDate={sheetDate || ""} blockKey="cv_d" code="5.1.D" entries={entries.cv_d} disabled={!isEditable}
+            errors={drugErrors}
             onChangeEntry={(i, k, v) => setEntryField("cv_d", i, k, v)}
             onAdd={blank => addEntry("cv_d", blank)} onRemove={i => removeEntry("cv_d", i)}
             blankFactory={() => freshEntry({ pda_agent: [], pda_dose: "" }, sheetDate)}>
@@ -2500,10 +2620,11 @@ export default function MinimalMonitoringLog() {
                     onChange={v => setEntryField("cv_d", i, "pda_agent", asSingleList(v))}
                     disabled={!isEditable} />
                 </Item>
-                <Item n={2} label="Dose administered">
+                <Item n={2} label="Dose administered" error={!e.stopped && err("cv_d", i, "pda_dose")}>
                   <Num value={e.pda_dose} onChange={v => setEntryField("cv_d", i, "pda_dose", v)}
-                    disabled={!isEditable} unit="mg/kg" />
+                    disabled={!isEditable || e.stopped === true} unit="mg/kg" />
                 </Item>
+                {stoppedItem("cv_d", e, i, 3)}
               </>
             )}
           </EntryBlock>
@@ -2617,8 +2738,10 @@ export default function MinimalMonitoringLog() {
         );
       case "resp_d":
         return (
-          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="resp_d" code="5.2.D" entries={entries.resp_d} disabled={!isEditable}
-            errors={errors}
+          <EntryBlock allowNew={allowNew} addLabel="Add" drugCfg={DRUG_BLOCKS.resp_d}
+            onStartDrugRow={(fields, save) => startDrugRow("resp_d", fields, save)}
+            fixedDate={sheetDate || ""} blockKey="resp_d" code="5.2.D" entries={entries.resp_d} disabled={!isEditable}
+            errors={drugErrors}
             onChangeEntry={(i, k, v) => setEntryField("resp_d", i, k, v)}
             onAdd={blank => addEntry("resp_d", blank)} onRemove={i => removeEntry("resp_d", i)}
             blankFactory={() => freshEntry({ postnatal_steroids: [], steroid_dose: "", steroid_other: "" }, sheetDate)}>
@@ -2633,10 +2756,11 @@ export default function MinimalMonitoringLog() {
                     }}
                     disabled={!isEditable} />
                 </Item>
-                <Item n={2} label="Dose administered">
+                <Item n={2} label="Dose administered" error={!e.stopped && err("resp_d", i, "steroid_dose")}>
                   <Num value={e.steroid_dose} onChange={v => setEntryField("resp_d", i, "steroid_dose", v)}
-                    disabled={!isEditable} unit="mg/kg" />
+                    disabled={!isEditable || e.stopped === true} unit="mg/kg" />
                 </Item>
+                {stoppedItem("resp_d", e, i, 4)}
                 {listFirst(e.postnatal_steroids) === "Other" && (
                   <Item n={3} label="If Other, specify" hint="Required when 'Other' is selected above" error={err("resp_d", i, "steroid_other")}>
                     <Txt value={e.steroid_other}
@@ -2792,7 +2916,7 @@ export default function MinimalMonitoringLog() {
         );
       case "heme_a":
         return (
-          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="heme_a" code="5.6.A" entries={entries.heme_a} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} addLabel="Add" fixedDate={sheetDate || ""} blockKey="heme_a" code="5.6.A" entries={entries.heme_a} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("heme_a", i, k, v)}
             onAdd={blank => addEntry("heme_a", blank)} onRemove={i => removeEntry("heme_a", i)}

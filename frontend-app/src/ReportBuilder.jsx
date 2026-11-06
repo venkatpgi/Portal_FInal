@@ -4,7 +4,7 @@
 // nothing that could unblind. Global PI + Overall Project Scientist: all
 // sites; Site PI / Site Scientist: own site. Downloads go to the audit trail.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Download, Eye, FileSpreadsheet, Save, Search, Trash2, X } from "lucide-react";
+import { Check, Download, Eye, FileSpreadsheet, Filter, Save, Search, Trash2, X } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import DashboardWorkspaceLayout from "./components/dashboard/DashboardWorkspaceLayout";
@@ -12,6 +12,7 @@ import { canUseReports, isGlobalUser } from "./utils/roles";
 import { PARTICIPANT_TILES } from "./utils/participantCounts";
 import { SITE_ORDER } from "./utils/siteNames";
 import { formatSiteName } from "./components/dashboard/siteLabels";
+import ReadyReports from "./components/ReadyReports";
 import "./ReportBuilder.css";
 
 const SAVED_KEY = "portal_saved_reports_v1";
@@ -57,6 +58,10 @@ export default function ReportBuilder() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(loadSaved);
+  // Per-column value filters (PI 2026-11-06): {field id: [values kept]}.
+  const [valueFilters, setValueFilters] = useState({});
+  const [filterOpen, setFilterOpen] = useState("");
+  const [filterValues, setFilterValues] = useState(null);
 
   useEffect(() => {
     if (!allowed) return;
@@ -78,6 +83,10 @@ export default function ReportBuilder() {
   const q = fieldSearch.trim().toLowerCase();
 
   const toggle = id => {
+    if (selected.includes(id)) {
+      setValueFilters(prev => { const n = { ...prev }; delete n[id]; return n; });
+      if (filterOpen === id) setFilterOpen("");
+    }
     setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
     setPreview(null);
   };
@@ -100,7 +109,27 @@ export default function ReportBuilder() {
     trial_only: filters.trial_only,
     include_stage: filters.include_stage,
     headings: filters.headings || "both",
-  }), [selected, filters, global]);
+    filters: Object.fromEntries(Object.entries(valueFilters).filter(([, v]) => v.length)),
+  }), [selected, filters, global, valueFilters]);
+
+  const openFilter = async id => {
+    if (filterOpen === id) { setFilterOpen(""); return; }
+    setFilterOpen(id);
+    setFilterValues(null);
+    try {
+      const res = await api.post("/reports/values", { ...body(), columns: [id] });
+      setFilterValues(res.data);
+    } catch (err) {
+      setFilterValues({ values: [], error: apiError(err, "Could not load the values.") });
+    }
+  };
+  const toggleValue = (id, v) => {
+    setValueFilters(prev => {
+      const cur = prev[id] || [];
+      return { ...prev, [id]: cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v] };
+    });
+    setPreview(null);
+  };
 
   const runPreview = async () => {
     setBusy("preview");
@@ -142,13 +171,15 @@ export default function ReportBuilder() {
   const saveCurrent = () => {
     const name = (window.prompt("Name for this report (saved in this browser only):") || "").trim();
     if (!name) return;
-    const next = [...saved.filter(s => s.name !== name), { name, columns: selected, filters }];
+    const next = [...saved.filter(s => s.name !== name), { name, columns: selected, filters, valueFilters }];
     setSaved(next);
     storeSaved(next);
   };
   const applySaved = s => {
     setSelected((s.columns || []).filter(id => fieldById[id]));
     setFilters(prev => ({ ...prev, ...(s.filters || {}) }));
+    setValueFilters(s.valueFilters || {});
+    setFilterOpen("");
     setPreview(null);
   };
   const removeSaved = name => {
@@ -171,16 +202,19 @@ export default function ReportBuilder() {
         <div className="rb-hero">
           <div className="rb-hero-icon" aria-hidden="true"><FileSpreadsheet size={20} /></div>
           <div>
-            <h1>Report builder</h1>
+            <h1>Reports</h1>
             <p>
-              One row per screened woman and her baby. Pick the columns you need from any form, filter, preview,
-              then download a CSV (opens in Excel). Reports carry IDs only: no names, CR / UID numbers, phone
+              Ready-made reports open with one click. To build your own: one row per screened woman and her
+              baby; pick the columns you need from any form, filter, preview, then download a CSV (opens in Excel). Reports carry IDs only: no names, CR / UID numbers, phone
               numbers, addresses or signatures. Day-by-day logs are not included. Every download is recorded in
               the audit trail.
             </p>
           </div>
         </div>
 
+        <ReadyReports global={global} userSite={user?.site_name} />
+
+        <h2 className="rb-section-title">Build your own report</h2>
         {error && <div className="rb-error" role="alert">{error}</div>}
 
         <div className="rb-grid">
@@ -269,15 +303,61 @@ export default function ReportBuilder() {
               pick it; click again to remove it. The variable name is shown in brackets.
             </p>
             {selected.length > 0 && (
-              <div className="rb-picked" aria-label="Picked columns">
-                {selected.map(id => fieldById[id] && (
-                  <button key={id} type="button" className="rb-chip" onClick={() => toggle(id)} title={`Remove ${fieldById[id].label}`}>
-                    <span className="rb-chip-form">{id.split(".")[0]}</span>
-                    {fieldById[id].label}
-                    <X size={12} aria-hidden="true" />
-                  </button>
-                ))}
-              </div>
+              <>
+                <p className="rb-note">
+                  To keep only some rows, click <Filter size={11} aria-hidden="true" /> on a picked column and tick
+                  the values you want, e.g. Consent given = No.
+                </p>
+                <div className="rb-picked" aria-label="Picked columns">
+                  {selected.map(id => fieldById[id] && (
+                    <span key={id} className={`rb-chip${(valueFilters[id] || []).length ? " rb-chip--filtered" : ""}`}>
+                      <span className="rb-chip-form">{id.split(".")[0]}</span>
+                      {fieldById[id].label}
+                      {(valueFilters[id] || []).length > 0 && (
+                        <span className="rb-chip-count">= {valueFilters[id].join(" or ")}</span>
+                      )}
+                      <button type="button" className="rb-chip-btn" onClick={() => openFilter(id)}
+                        aria-label={`Filter ${fieldById[id].label}`} title="Keep only some values">
+                        <Filter size={12} aria-hidden="true" />
+                      </button>
+                      <button type="button" className="rb-chip-btn" onClick={() => toggle(id)}
+                        aria-label={`Remove ${fieldById[id].label}`} title="Remove this column">
+                        <X size={12} aria-hidden="true" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                {filterOpen && fieldById[filterOpen] && (
+                  <div className="rb-filter" aria-label={`Values of ${fieldById[filterOpen].label}`}>
+                    <div className="rb-filter-head">
+                      <strong>{fieldById[filterOpen].label}</strong>: keep rows where it is
+                      {(valueFilters[filterOpen] || []).length > 0 && (
+                        <button type="button" className="rb-link"
+                          onClick={() => { setValueFilters(p => ({ ...p, [filterOpen]: [] })); setPreview(null); }}>
+                          Clear
+                        </button>
+                      )}
+                      <button type="button" className="rb-link" onClick={() => setFilterOpen("")}>Done</button>
+                    </div>
+                    {!filterValues ? <p className="rb-note">Loading values…</p>
+                      : filterValues.error ? <p className="rb-error">{filterValues.error}</p>
+                      : filterValues.values.length === 0 ? <p className="rb-note">No rows with the other filters.</p>
+                      : (
+                        <div className="rb-filter-values">
+                          {filterValues.values.map(({ value, n }) => (
+                            <label key={value} className="rb-check">
+                              <input type="checkbox" checked={(valueFilters[filterOpen] || []).includes(value)}
+                                onChange={() => toggleValue(filterOpen, value)} />
+                              {value} <span className="rb-muted">({n})</span>
+                            </label>
+                          ))}
+                          {filterValues.more && <p className="rb-note">Only the 300 most common values are listed.</p>}
+                        </div>
+                      )}
+                    <p className="rb-note">Nothing ticked = all values. Values as stored, counted among the rows the other filters keep.</p>
+                  </div>
+                )}
+              </>
             )}
             <div className="rb-forms">
               {forms.map(form => {
@@ -338,7 +418,7 @@ export default function ReportBuilder() {
             <Save size={15} /> Save
           </button>
           {selected.length > 0 && (
-            <button type="button" className="rb-link" onClick={() => { setSelected([]); setPreview(null); }}>Clear all columns</button>
+            <button type="button" className="rb-link" onClick={() => { setSelected([]); setValueFilters({}); setFilterOpen(""); setPreview(null); }}>Clear all columns</button>
           )}
         </div>
 

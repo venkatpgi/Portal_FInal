@@ -64,9 +64,11 @@
   width: 100%;
 }
 
+/* Grow to share a row, but never narrower than the label: long lists
+   (e.g. six vasoactive drugs) wrap onto the next line (PI 2026-11-06). */
 .mml-pills-compact .rcn-pill {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: max-content;
   justify-content: center;
   padding: 6px 14px;
   font-size: 12.5px;
@@ -512,8 +514,31 @@
 
 .mml-history-th-action,
 .mml-history-td-action {
-  width: 40px;
+  width: 1%;
+  padding-left: 4px;
+  padding-right: 8px;
 }
+
+/* Row buttons wrap inside the column instead of running off the page
+   (drug rows have Change dose, Stop, Edit and Remove; PI 2026-11-06). */
+.mml-history-table td.mml-history-td-action {
+  white-space: normal;
+}
+/* ScreeningForm.css caps every td at 120px with overflow hidden; that cut
+   off the row buttons here. */
+.mml-history-table td {
+  max-width: none;
+  overflow: visible;
+}
+.mml-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  width: 176px;   /* fixed, so the table column is sized to fit the buttons */
+}
+.mml-history-actions .mml-history-edit-btn { white-space: nowrap; }
 
 .mml-history-remove-btn {
   display: inline-flex;
@@ -1329,3 +1354,10 @@
   padding: 4px 8px;
   border-top: 2px solid #34D399;
 }
+
+/* Drug rows (PI 2026-11-06): dose over time per drug, Stopped tick */
+.mml-drug-timelines { list-style: none; margin: 4px 0 10px; padding: 8px 10px; border: 1px solid #dbeafe; border-radius: 8px; background: #f8fbff; font-size: 12.5px; color: #1e293b; }
+.mml-drug-timelines li { margin: 2px 0; }
+.mml-drug-times { color: #64748b; font-variant-numeric: tabular-nums; }
+.mml-drug-stopped { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: #fee2e2; color: #991b1b; font-size: 11px; font-weight: 600; }
+.mml-stopped-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #334155; }

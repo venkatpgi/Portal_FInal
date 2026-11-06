@@ -546,8 +546,34 @@ def followup_states(dob, gest_weeks, gest_days, form_i, known_death, death_date,
     return states
 
 
-def _compute_followup_boxes(db: Session):
+def followup_by_baby(db: Session) -> dict:
+    """{enrollment_id: (site, {36: state, 40: state, 44: state})} for every
+    randomised baby (CONSORT Boxes 9-11; also the At a glance report)."""
     today = clinical_today()
+    # Latest row per baby, as site_summary._load.
+    form_i = {r.enrollment_id: r for r in db.query(StudyOutcomes).order_by(StudyOutcomes.id)}
+    form_h = {r.enrollment_id: r for r in db.query(NeonatalMorbidities).order_by(NeonatalMorbidities.id)}
+    death_days = {}
+    for eid, day in (db.query(MetabRenalVascEyeDayLog.enrollment_id, MetabRenalVascEyeDayLog.nicu_day)
+                     .filter(MetabRenalVascEyeDayLog.survived_the_day.is_(False))):
+        if day:
+            death_days[eid] = min(day, death_days.get(eid, day))
+    out = {}
+    for row in db.execute(FOLLOWUP_QUERY).mappings():
+        eid = row["enrollment_id"]
+        dob = _as_date(row["date_of_birth"])
+        nm = form_h.get(eid)
+        form_h_died = nm is not None and nm.outcome == "Died"
+        dates = [_as_date(nm.discharge_date)] if form_h_died and nm.discharge_date else []
+        if eid in death_days and dob:
+            dates.append(dob + timedelta(days=death_days[eid] - 1))
+        out[eid] = (row["site_name"], followup_states(dob, row["gestation_weeks"], row["gestation_days"],
+                                                      form_i.get(eid), form_h_died or eid in death_days,
+                                                      min(dates) if dates else None, today))
+    return out
+
+
+def _compute_followup_boxes(db: Session):
     # counts[box][state][site] -> int. Form I has no reason-for-loss field, so
     # the reason rows stay empty.
     boxes = {
@@ -557,29 +583,10 @@ def _compute_followup_boxes(db: Session):
     }
     ltfu_reasons = {9: {s: {} for s in ALL_SITES}, 10: {s: {} for s in ALL_SITES}, 11: {s: {} for s in ALL_SITES}}
 
-    # Latest row per baby, as site_summary._load.
-    form_i = {r.enrollment_id: r for r in db.query(StudyOutcomes).order_by(StudyOutcomes.id)}
-    form_h = {r.enrollment_id: r for r in db.query(NeonatalMorbidities).order_by(NeonatalMorbidities.id)}
-    death_days = {}
-    for eid, day in (db.query(MetabRenalVascEyeDayLog.enrollment_id, MetabRenalVascEyeDayLog.nicu_day)
-                     .filter(MetabRenalVascEyeDayLog.survived_the_day.is_(False))):
-        if day:
-            death_days[eid] = min(day, death_days.get(eid, day))
-
-    for row in db.execute(FOLLOWUP_QUERY).mappings():
-        site, eid = row["site_name"], row["enrollment_id"]
+    for site, states in followup_by_baby(db).values():
         for box in boxes:
             boxes[box].setdefault(site, {"died": 0, "assessed": 0, "ltfu": 0, "awaiting": 0})
             ltfu_reasons[box].setdefault(site, {})
-
-        dob = _as_date(row["date_of_birth"])
-        nm = form_h.get(eid)
-        form_h_died = nm is not None and nm.outcome == "Died"
-        dates = [_as_date(nm.discharge_date)] if form_h_died and nm.discharge_date else []
-        if eid in death_days and dob:
-            dates.append(dob + timedelta(days=death_days[eid] - 1))
-        states = followup_states(dob, row["gestation_weeks"], row["gestation_days"], form_i.get(eid),
-                                 form_h_died or eid in death_days, min(dates) if dates else None, today)
         for wk, box in ((36, 9), (40, 10), (44, 11)):
             if wk in states:
                 boxes[box][site][states[wk]] += 1
