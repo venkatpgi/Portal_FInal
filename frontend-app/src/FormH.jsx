@@ -582,6 +582,7 @@ if (name.startsWith("pda_")) {
 }
 
 validateShock(name, val, updatedForm);
+validateCvMisc(name, val, updatedForm);
 
 // group validations
 if (name.startsWith("hypotension_")) {
@@ -1971,6 +1972,25 @@ const validateNEC = (name, value, updatedForm = formData) => {
   }));
 };
 
+
+// H5.4 Miscellaneous (PI 2026-11-06): each Yes needs its details.
+const validateCvMisc = (name, value, updatedForm = formData) => {
+  const f = updatedForm;
+  const next = {};
+  if (["cv_misc", "tachycardia", "bradycardia", "tachycardia_type", "tachycardia_other",
+       "bradycardia_type", "heart_block_degree"].includes(name)) {
+    const misc = f.cv_misc === "Yes";
+    next.tachycardia = misc && !f.tachycardia ? "Required" : "";
+    next.bradycardia = misc && !f.bradycardia ? "Required" : "";
+    next.tachycardia_type = misc && f.tachycardia === "Yes" && !f.tachycardia_type ? "Select at least one" : "";
+    next.tachycardia_other = misc && f.tachycardia === "Yes" && (f.tachycardia_type || "").includes("Others")
+      && !(f.tachycardia_other || "").trim() ? "Please specify" : "";
+    next.bradycardia_type = misc && f.bradycardia === "Yes" && !f.bradycardia_type ? "Select at least one" : "";
+    next.heart_block_degree = misc && f.bradycardia === "Yes" && (f.bradycardia_type || "").includes("Heart block")
+      && !f.heart_block_degree ? "Select the degree" : "";
+    setErrors(prev => ({ ...prev, ...next }));
+  }
+};
 
 const validateShock = (name, value, updatedForm = formData) => {
   let error = "";
@@ -4805,6 +4825,23 @@ const num = (v) => {
       ...formData,
       _record_id: undefined, // UI-only; never send to API
 
+      // H5.4 Miscellaneous: details only stand under their Yes (PI 2026-11-06).
+      ...(() => {
+        const misc = formData.cv_misc === "Yes";
+        const tachy = misc && formData.tachycardia === "Yes";
+        const brady = misc && formData.bradycardia === "Yes";
+        return {
+          tachycardia: misc ? formData.tachycardia || null : null,
+          tachycardia_type: tachy ? formData.tachycardia_type || null : null,
+          tachycardia_other: tachy && (formData.tachycardia_type || "").includes("Others")
+            ? formData.tachycardia_other || null : null,
+          bradycardia: misc ? formData.bradycardia || null : null,
+          bradycardia_type: brady ? formData.bradycardia_type || null : null,
+          heart_block_degree: brady && (formData.bradycardia_type || "").includes("Heart block")
+            ? formData.heart_block_degree || null : null,
+        };
+      })(),
+
       ivh: yesNoToBool(formData.ivh_present),
       ivh_side: formData.ivh_side || null,
       // The CRF always captures Right and Left grade/date/age separately
@@ -5951,7 +5988,7 @@ const CATEGORY_MARKER_FIELDS = {
   resp: ["bpd", "cpap_used", "nippv_used", "hfnc_used", "imv_used", "apnea"],
   gi: ["feed_intolerance", "nec", "pn"],
   metabolic: ["hypoglycemia", "hyperglycemia", "hyponatremia", "hypocalcemia"],
-  cvs: ["structural_heart_disease", "hs_pda", "shock", "hypotension"],
+  cvs: ["structural_heart_disease", "hs_pda", "shock", "hypotension", "cv_misc"],
   heme: ["anemia", "prbc", "platelets", "ffp_cryo"],
   renal: ["aki"],
   eye: ["rop", "rop_screened"],
@@ -9214,6 +9251,83 @@ const peripheralStatus= getPeripheralStatus();
 
 </div>
 
+  </CollapsibleCard>
+
+  {/* ================= H5.4 MISCELLANEOUS (PI 2026-11-06) ================= */}
+  <CollapsibleCard
+    code="H5.4"
+    title="Miscellaneous (arrhythmia)"
+    icon="💗"
+    accentColor="bg-rose-400"
+    summary={formData.cv_misc === "Yes"
+      ? [formData.tachycardia === "Yes" && "Tachycardia", formData.bradycardia === "Yes" && "Bradycardia"].filter(Boolean).join(", ") || "Yes"
+      : formData.cv_misc || "Not filled"}
+    statusClass={getStatusClass(formData.cv_misc)}
+    open={openSection === "cvmisc"}
+    onToggle={() => setOpenSection(openSection === "cvmisc" ? null : "cvmisc")}
+  >
+    <div className="fh-grid-row">
+      <div className="form-group">
+        <YesNoToggle label="Miscellaneous" name="cv_misc" value={formData.cv_misc} onChange={handleChange} onBlur={handleBlur} />
+      </div>
+    </div>
+    {formData.cv_misc === "Yes" && (
+      <>
+        <div className="fh-grid-row">
+          <div className="form-group">
+            <YesNoToggle label="Tachycardia" name="tachycardia" value={formData.tachycardia} onChange={handleChange} onBlur={handleBlur} required />
+            {errors.tachycardia && <div className="error-text">{errors.tachycardia}</div>}
+          </div>
+          <div className="form-group">
+            <YesNoToggle label="Bradycardia" name="bradycardia" value={formData.bradycardia} onChange={handleChange} onBlur={handleBlur} required />
+            {errors.bradycardia && <div className="error-text">{errors.bradycardia}</div>}
+          </div>
+        </div>
+        {formData.tachycardia === "Yes" && (
+          <div className="form-group">
+            <ChipMultiSelect
+              label="If tachycardia, type (select all that apply)"
+              options={["Sinus tachycardia", "PSVT", "Ventricular tachycardia", "Others"].map(v => ({ value: v, label: v }))}
+              value={(formData.tachycardia_type || "").split(",").map(x => x.trim()).filter(Boolean)}
+              onChange={next => handleChange({ target: { name: "tachycardia_type", value: next.join(", ") } })}
+            />
+            {errors.tachycardia_type && <div className="error-text">{errors.tachycardia_type}</div>}
+            {(formData.tachycardia_type || "").includes("Others") && (
+              <>
+                <label>Specify other tachycardia <span className="required">*</span></label>
+                <input name="tachycardia_other" value={formData.tachycardia_other || ""}
+                  onChange={handleChange} onBlur={handleBlur} placeholder="Specify" />
+                {errors.tachycardia_other && <div className="error-text">{errors.tachycardia_other}</div>}
+              </>
+            )}
+          </div>
+        )}
+        {formData.bradycardia === "Yes" && (
+          <div className="form-group">
+            <ChipMultiSelect
+              label="If bradycardia, type (select all that apply)"
+              options={["Sinus bradycardia", "Heart block"].map(v => ({ value: v, label: v }))}
+              value={(formData.bradycardia_type || "").split(",").map(x => x.trim()).filter(Boolean)}
+              onChange={next => handleChange({ target: { name: "bradycardia_type", value: next.join(", ") } })}
+            />
+            {errors.bradycardia_type && <div className="error-text">{errors.bradycardia_type}</div>}
+            {(formData.bradycardia_type || "").includes("Heart block") && (
+              <PillSelect
+                label="Heart block: degree"
+                required
+                name="heart_block_degree"
+                value={formData.heart_block_degree || ""}
+                options={["First degree", "Second degree", "Third degree (complete)"]}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.heart_block_degree}
+                touched
+              />
+            )}
+          </div>
+        )}
+      </>
+    )}
   </CollapsibleCard>
 </div>
 

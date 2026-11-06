@@ -1575,6 +1575,13 @@ class NeonatalMorbiditiesCreate(BaseModel):
     pda_wide_pp: Optional[bool] = None
     sbp: Optional[float] = None
     structural_heart_disease: Optional[str] = None
+    cv_misc: Optional[str] = None
+    tachycardia: Optional[str] = None
+    tachycardia_type: Optional[str] = None
+    tachycardia_other: Optional[str] = None
+    bradycardia: Optional[str] = None
+    bradycardia_type: Optional[str] = None
+    heart_block_degree: Optional[str] = None
     structural_heart_disease_detail: Optional[str] = None
     vis_score: Optional[float] = None
 
