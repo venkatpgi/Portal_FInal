@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, ChevronDown, ChevronRight, Plus, Save, Trash2, CheckCircle2, Pencil,
-  Heart, Wind, Beaker, Utensils, Brain, Droplet, Clock, Info, Scale,
+  Heart, Wind, Beaker, Utensils, Brain, Droplet, Clock, Info, Scale, Activity,
 } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
@@ -33,7 +33,10 @@ import "./styles/MinimalMonitoring.css";
 
 /** Server still uses NICU_DAY_GRACE_HOUR for legacy GET/PUT .../today only. */
 
+// Vitals is its own module (PI 2026-11-06); it keeps its CRF item 5.1.A and
+// the stored block key cv_a, so only the page grouping changed.
 const SECTION_META = {
+  vitals: { code: "5.1.A", title: "Vitals", icon: Activity },
   cardiovascular: { code: "5.1", title: "Cardiovascular", icon: Heart },
   respiratory: { code: "5.2", title: "Respiratory", icon: Wind },
   metabolic: { code: "5.3", title: "Metabolic", icon: Beaker },
@@ -46,7 +49,7 @@ const SECTION_META = {
 const SECTION_KEYS = Object.keys(SECTION_META);
 
 const BLOCK_TO_SECTION = {
-  cv_a: "cardiovascular", cv_b: "cardiovascular", cv_c: "cardiovascular", cv_d: "cardiovascular",
+  cv_a: "vitals", cv_b: "cardiovascular", cv_c: "cardiovascular", cv_d: "cardiovascular",
   resp_a: "respiratory", resp_b: "respiratory", resp_c: "respiratory", resp_d: "respiratory",
   met_a: "metabolic", met_b: "metabolic",
   gi_a: "gastrointestinal", gi_b: "gastrointestinal",
@@ -60,7 +63,8 @@ const BLOCK_TO_SECTION = {
  *  second-level "choose a field" list (e.g. Metabolic → Glucose / Lab
  *  Reports / Electrolyte abnormality). */
 const BLOCKS_BY_SECTION = {
-  cardiovascular: ["cv_a", "cv_b", "cv_c", "cv_d"],
+  vitals: ["cv_a"],
+  cardiovascular: ["cv_b", "cv_c", "cv_d"],
   respiratory: ["resp_a", "resp_b", "resp_c", "resp_d"],
   metabolic: ["met_a", "met_b"],
   gastrointestinal: ["gi_a", "gi_b"],
@@ -1534,7 +1538,7 @@ function ScheduledFlowsheet({
 
 function EntryBlock({
   blockKey, code, subsectionTitle, entries, onChangeEntry, onAdd, onRemove, disabled, blankFactory, children, fixedDate,
-  errors = {}, allowNew = true,
+  errors = {}, allowNew = true, addLabel = "Log another reading",
 }) {
   const fieldErr = (idx, key) => errors[`${blockKey}.${idx}.${key}`];
   const rowHasErr = (idx) =>
@@ -1648,7 +1652,7 @@ function EntryBlock({
           ) : !disabled && allowNew && hasEntryData(draft) && (
             <button type="button" className="mml-add-btn"
               onClick={() => onAdd(blankFactory ? blankFactory() : freshEntry({}, fixedDate))}>
-              <Plus size={14} /> Log another reading
+              <Plus size={14} /> {addLabel}
             </button>
           )}
         </div>
@@ -2460,7 +2464,7 @@ export default function MinimalMonitoringLog() {
         );
       case "cv_c":
         return (
-          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="cv_c" code="5.1.C" entries={entries.cv_c} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} addLabel="Add" fixedDate={sheetDate || ""} blockKey="cv_c" code="5.1.C" entries={entries.cv_c} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("cv_c", i, k, v)}
             onAdd={blank => addEntry("cv_c", blank)} onRemove={i => removeEntry("cv_c", i)}
@@ -2487,7 +2491,7 @@ export default function MinimalMonitoringLog() {
         );
       case "cv_d":
         return (
-          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="cv_d" code="5.1.D" entries={entries.cv_d} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} addLabel="Add" fixedDate={sheetDate || ""} blockKey="cv_d" code="5.1.D" entries={entries.cv_d} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("cv_d", i, k, v)}
             onAdd={blank => addEntry("cv_d", blank)} onRemove={i => removeEntry("cv_d", i)}
@@ -2617,7 +2621,7 @@ export default function MinimalMonitoringLog() {
         );
       case "resp_d":
         return (
-          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="resp_d" code="5.2.D" entries={entries.resp_d} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} addLabel="Add" fixedDate={sheetDate || ""} blockKey="resp_d" code="5.2.D" entries={entries.resp_d} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("resp_d", i, k, v)}
             onAdd={blank => addEntry("resp_d", blank)} onRemove={i => removeEntry("resp_d", i)}
@@ -2792,7 +2796,7 @@ export default function MinimalMonitoringLog() {
         );
       case "heme_a":
         return (
-          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="heme_a" code="5.6.A" entries={entries.heme_a} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} addLabel="Add" fixedDate={sheetDate || ""} blockKey="heme_a" code="5.6.A" entries={entries.heme_a} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("heme_a", i, k, v)}
             onAdd={blank => addEntry("heme_a", blank)} onRemove={i => removeEntry("heme_a", i)}

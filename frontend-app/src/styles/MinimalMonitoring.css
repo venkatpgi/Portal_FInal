@@ -64,9 +64,11 @@
   width: 100%;
 }
 
+/* Grow to share a row, but never narrower than the label: long lists
+   (e.g. six vasoactive drugs) wrap onto the next line (PI 2026-11-06). */
 .mml-pills-compact .rcn-pill {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: max-content;
   justify-content: center;
   padding: 6px 14px;
   font-size: 12.5px;
