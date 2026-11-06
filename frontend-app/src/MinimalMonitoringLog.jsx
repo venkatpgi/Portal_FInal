@@ -486,15 +486,7 @@ function activeNotRequired(entries, notRequired) {
 function countProgress(entries, notRequired = []) {
   let total = 0;
   let done = 0;
-  const bySection = {
-    cardiovascular: { done: 0, total: 0 },
-    respiratory: { done: 0, total: 0 },
-    metabolic: { done: 0, total: 0 },
-    gastrointestinal: { done: 0, total: 0 },
-    neurological: { done: 0, total: 0 },
-    hematology: { done: 0, total: 0 },
-    growth: { done: 0, total: 0 },
-  };
+  const bySection = Object.fromEntries(SECTION_KEYS.map(k => [k, { done: 0, total: 0 }]));
   const byBlock = {};
   Object.keys(BLOCK_TO_SECTION).forEach(b => { byBlock[b] = { done: 0, total: 0 }; });
 
