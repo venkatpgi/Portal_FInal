@@ -91,6 +91,15 @@ Plus:
 
 ## Form I — Study outcomes (`study_outcomes`)
 
+**Reason for loss to follow-up (PI 2026-11-06; not on the paper CRF).** At
+36, 40 and 44 wk, when no Method of Encounter is entered, "If not assessed:
+reason for loss to follow-up" (`ltfu{wk}_reason`: could not be contacted,
+family relocated, family declined the visit, consent withdrawn, seen at
+another hospital without records, Other + `ltfu{wk}_reason_other`). Choosing
+a method clears it on save. A recorded reason counts the baby as lost to
+follow-up at that checkpoint at once (CONSORT Boxes 9-11, At a glance);
+without one, lost to follow-up still starts 28 days after the expected date.
+
 **One death, one entry (PI 2026-10-31):** cause, date and time of death entered at any place carry to every other mortality place answered Yes (`utils/deathDetails.js`). A place changed by hand keeps its own text. Age at death uses date and time of birth and of death (hours rounded, days completed); if either time is missing, the dates alone.
 
 | Section | Source | Rule |

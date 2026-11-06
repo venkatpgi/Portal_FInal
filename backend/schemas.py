@@ -1822,6 +1822,8 @@ class StudyOutcomesCreate(BaseModel):
     encounter36_method: Optional[str] = None
     encounter36_other: Optional[str] = None
     encounter36_other_text: Optional[str] = None
+    ltfu36_reason: Optional[str] = None
+    ltfu36_reason_other: Optional[str] = None
     death36: Optional[bool] = None
     death36_cause: Optional[str] = None
     death36_date: Optional[date] = None
@@ -1848,6 +1850,8 @@ class StudyOutcomesCreate(BaseModel):
     encounter40_method: Optional[str] = None
     encounter40_other: Optional[str] = None
     encounter40_other_text: Optional[str] = None
+    ltfu40_reason: Optional[str] = None
+    ltfu40_reason_other: Optional[str] = None
     death40: Optional[bool] = None
     death40_cause: Optional[str] = None
     death40_date: Optional[date] = None
@@ -1868,6 +1872,8 @@ class StudyOutcomesCreate(BaseModel):
     encounter44_method: Optional[str] = None
     encounter44_other: Optional[str] = None
     encounter44_other_text: Optional[str] = None
+    ltfu44_reason: Optional[str] = None
+    ltfu44_reason_other: Optional[str] = None
     death44: Optional[bool] = None
     death44_cause: Optional[str] = None
     death44_date: Optional[date] = None
