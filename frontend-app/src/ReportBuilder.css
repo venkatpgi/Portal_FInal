@@ -250,3 +250,27 @@
 @media (max-width: 900px) {
   .rb-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Ready-made reports (PI 2026-11-06) */
+.rr-root { margin-bottom: 18px; }
+.rr-filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin: 6px 0 10px; }
+.rr-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.rr-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid #dbe4f0; border-radius: 12px; background: #fff; }
+.rr-card--on { border-color: #1d4ed8; box-shadow: 0 0 0 1px #1d4ed8; }
+.rr-card strong { display: inline-flex; gap: 6px; align-items: center; color: #00132c; }
+.rr-card-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.rr-report { margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+.rr-report h3 { margin: 0 0 6px; font-size: 16px; color: #00132c; }
+.rr-section { margin: 14px 0; }
+.rr-section h4 { margin: 0 0 4px; font-size: 14px; color: #00132c; }
+.rr-chart { margin: 6px 0 10px; max-width: 760px; }
+.rr-chart figcaption { font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 4px; }
+.rr-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: #475569; margin-bottom: 4px; }
+.rr-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.rr-bar-row { display: grid; grid-template-columns: minmax(120px, 240px) 1fr; gap: 8px; align-items: center; margin: 2px 0; }
+.rr-bar-label { font-size: 12px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.rr-bar-set { display: flex; flex-direction: column; gap: 1px; }
+.rr-bar-line { display: flex; align-items: center; gap: 6px; }
+.rr-bar { display: inline-block; height: 12px; min-width: 2px; border-radius: 2px; }
+.rr-bar-value { font-size: 11px; color: #475569; font-variant-numeric: tabular-nums; }
+.rb-section-title { margin: 6px 0 10px; font-size: 16px; color: #00132c; }

@@ -12,6 +12,7 @@ import { canUseReports, isGlobalUser } from "./utils/roles";
 import { PARTICIPANT_TILES } from "./utils/participantCounts";
 import { SITE_ORDER } from "./utils/siteNames";
 import { formatSiteName } from "./components/dashboard/siteLabels";
+import ReadyReports from "./components/ReadyReports";
 import "./ReportBuilder.css";
 
 const SAVED_KEY = "portal_saved_reports_v1";
@@ -201,16 +202,19 @@ export default function ReportBuilder() {
         <div className="rb-hero">
           <div className="rb-hero-icon" aria-hidden="true"><FileSpreadsheet size={20} /></div>
           <div>
-            <h1>Report builder</h1>
+            <h1>Reports</h1>
             <p>
-              One row per screened woman and her baby. Pick the columns you need from any form, filter, preview,
-              then download a CSV (opens in Excel). Reports carry IDs only: no names, CR / UID numbers, phone
+              Ready-made reports open with one click. To build your own: one row per screened woman and her
+              baby; pick the columns you need from any form, filter, preview, then download a CSV (opens in Excel). Reports carry IDs only: no names, CR / UID numbers, phone
               numbers, addresses or signatures. Day-by-day logs are not included. Every download is recorded in
               the audit trail.
             </p>
           </div>
         </div>
 
+        <ReadyReports global={global} userSite={user?.site_name} />
+
+        <h2 className="rb-section-title">Build your own report</h2>
         {error && <div className="rb-error" role="alert">{error}</div>}
 
         <div className="rb-grid">
