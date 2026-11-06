@@ -515,6 +515,8 @@
 .mml-history-th-action,
 .mml-history-td-action {
   width: 1%;
+  padding-left: 4px;
+  padding-right: 8px;
 }
 
 /* Row buttons wrap inside the column instead of running off the page
@@ -528,10 +530,9 @@
   justify-content: flex-end;
   align-items: center;
   gap: 4px;
-  min-width: 150px;
-  max-width: 230px;
-  margin-left: auto;
+  width: 176px;   /* fixed, so the table column is sized to fit the buttons */
 }
+.mml-history-actions .mml-history-edit-btn { white-space: nowrap; }
 
 .mml-history-remove-btn {
   display: inline-flex;
