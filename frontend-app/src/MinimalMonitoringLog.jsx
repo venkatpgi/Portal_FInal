@@ -1618,7 +1618,8 @@ function EntryBlock({
       });
     });
   }
-  const timelines = drugCfg ? drugTimelines(entries, drugCfg) : [];
+  // Same readings as the table: not the one being typed in the form.
+  const timelines = drugCfg ? drugTimelines(tableRows.map(r => r.entry), drugCfg) : [];
   /** 5.2.A uses time range in the form; other blocks use stamp time here + in the table. */
   const hideStampTime = blockKey === "resp_a";
   const entryDate = fixedDate || draft.date || "";
