@@ -514,7 +514,23 @@
 
 .mml-history-th-action,
 .mml-history-td-action {
-  width: 40px;
+  width: 1%;
+}
+
+/* Row buttons wrap inside the column instead of running off the page
+   (drug rows have Change dose, Stop, Edit and Remove; PI 2026-11-06). */
+.mml-history-table td.mml-history-td-action {
+  white-space: normal;
+}
+.mml-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  min-width: 150px;
+  max-width: 230px;
+  margin-left: auto;
 }
 
 .mml-history-remove-btn {

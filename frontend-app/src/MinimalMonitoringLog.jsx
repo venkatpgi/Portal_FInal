@@ -1776,6 +1776,7 @@ function EntryBlock({
                     })}
                     {!disabled && !isDraft && (
                       <td className="mml-history-td-action">
+                       <div className="mml-history-actions">
                         {drugCfg && onStartDrugRow && allowNew && !entry.stopped
                           && drugsOf(entry, drugCfg).length === 1 && latestByDrug[drugsOf(entry, drugCfg)[0]] === idx && (
                           <>
@@ -1799,9 +1800,11 @@ function EntryBlock({
                           </button>
                         )}
                         <button type="button" className="mml-history-remove-btn" title="Remove this reading"
+                          aria-label="Remove this reading"
                           onClick={() => { if (idx === editIdx) setEditId(null); onRemove(idx); }}>
                           <Trash2 size={13} />
                         </button>
+                       </div>
                       </td>
                     )}
                     {!disabled && isDraft && (
