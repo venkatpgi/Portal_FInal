@@ -30,7 +30,7 @@ AWAITING_STAGES = frozenset({"awaiting_delivery", "readmitted_awaiting", "discha
 COUNT_KEYS = (
     # Screening (Form A)
     "screened", "eligible", "not_eligible", "screen_failures", "pending", "consented",
-    "drafts",
+    "consent_refused", "drafts",
     # Delivery and randomisation (Form B)
     "awaiting_delivery", "delivered", "needed_ppv", "randomised", "not_randomised", "no_ppv",
 )
@@ -99,6 +99,9 @@ def tile_keys(status, consent_given, stage, b):
     }.get(status, "pending")]
     if consent_given == "Yes":
         keys.append("consented")
+    elif consent_given == "No":
+        keys.append("consent_refused")   # PI 2026-11-06; inside Not eligible
+
     if stage in AWAITING_STAGES:
         keys.append("awaiting_delivery")
     if b is None:

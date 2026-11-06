@@ -198,7 +198,21 @@
   font-size: 12px;
   cursor: pointer;
 }
-.rb-chip:hover { border-color: #f87171; background: #fef2f2; color: #b91c1c; }
+.rb-chip { cursor: default; }
+.rb-chip--filtered { border-color: #0369a1; background: #e0f2fe; }
+.rb-chip-count { font-weight: 600; color: #0c4a6e; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-chip-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; padding: 0; border: 0; border-radius: 999px;
+  background: transparent; color: inherit; cursor: pointer;
+}
+.rb-chip-btn:hover { background: #bae6fd; }
+.rb-chip-btn:last-child:hover { background: #fecaca; color: #b91c1c; }
+.rb-chip-btn:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 1px; }
+/* Column value filter (PI 2026-11-06) */
+.rb-filter { margin: 8px 0 12px; padding: 10px 12px; border: 1px solid #bae6fd; border-radius: 10px; background: #f8fbff; }
+.rb-filter-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 13px; margin-bottom: 6px; }
+.rb-filter-values { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 2px 12px; max-height: 260px; overflow: auto; }
 .rb-chip-form { font-weight: 700; font-size: 11px; }
 .rb-field-gap { margin-top: 8px; }
 

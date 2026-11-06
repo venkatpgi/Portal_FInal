@@ -10,6 +10,7 @@ export const SCREENING_TILES = [
   { key: "pending",         label: "Pending",         tone: "warning" },
   { key: "drafts",          label: "Drafts",          tone: "warning" },
   { key: "consented",       label: "Consented",       tone: "teal"    },
+  { key: "consent_refused", label: "Consent refused", tone: "danger"  },
 ];
 
 // Form B counts; no arm is shown anywhere (allocation is blinded).

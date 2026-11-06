@@ -160,6 +160,17 @@ class ReportRequest(BaseModel):
     trial_only: bool = False          # screened on or after trial_dates.trial_start()
     include_stage: bool = True
     headings: str = "both"            # one of HEADINGS
+    # Keep a row only if each of these columns holds one of the values (PI
+    # 2026-11-06). Values as shown in the report; BLANK for an empty cell.
+    filters: dict[str, list[str]] = {}
+
+
+BLANK = "(blank)"
+MAX_VALUES = 300
+
+
+def _filter_key(v) -> str:
+    return BLANK if v == "" else str(v)
 
 
 def _cell(v):
@@ -189,6 +200,10 @@ def build_report(db: Session, user: User, req: ReportRequest):
         raise HTTPException(status_code=422, detail=f"Unknown headings {req.headings!r}")
     if req.group and req.group not in COUNT_KEYS:
         raise HTTPException(status_code=422, detail=f"Unknown group {req.group!r}")
+    filters = {c: {str(v) for v in vals} for c, vals in (req.filters or {}).items() if vals}
+    bad = [c for c in filters if c not in index]
+    if bad:
+        raise HTTPException(status_code=422, detail=f"Not available in reports: {', '.join(bad[:5])}")
 
     rows = scoped_screenings(db, sites)
     start = trial_start() if req.trial_only else None
@@ -210,7 +225,7 @@ def build_report(db: Session, user: User, req: ReportRequest):
     items.sort(key=lambda it: (it[0].site_name or "", it[0].screening_id or ""))
 
     by_form: dict[str, list[str]] = {}
-    for c in dict.fromkeys(req.columns):
+    for c in dict.fromkeys(list(req.columns) + list(filters)):
         form, column = index[c][:2]
         by_form.setdefault(form, []).append(column)
 
@@ -233,16 +248,20 @@ def build_report(db: Session, user: User, req: ReportRequest):
     headers += [index[c][2] for c in dict.fromkeys(req.columns)]
     labels = list(ID_LABELS) + (["Stage"] if req.include_stage else [])
     labels += [index[c][3] for c in dict.fromkeys(req.columns)]
+    def cell_of(r, c):
+        form, column = index[c][:2]
+        key = r.screening_id if FORMS_BY_KEY[form][3] == "screening_id" else r.enrollment_id
+        return _cell((values[form].get(key) or {}).get(column))
+
     out = []
     for r, _, stage, _ in items:
+        if any(_filter_key(cell_of(r, c)) not in allowed for c, allowed in filters.items()):
+            continue
         line = [r.site_name, r.screening_id, r.enrollment_id or ""]
         if req.include_stage:
             line.append(stage_payload(stage)["label"])
         for c in dict.fromkeys(req.columns):
-            form, column = index[c][:2]
-            join = FORMS_BY_KEY[form][3]
-            key = r.screening_id if join == "screening_id" else r.enrollment_id
-            line.append(_cell((values[form].get(key) or {}).get(column)))
+            line.append(cell_of(r, c))
         out.append(line)
     return headers, labels, out
 
@@ -253,6 +272,26 @@ def csv_headings(headers, labels, style):
     if style == "english":
         return labels
     return [f"{lab} ({code})" for code, lab in zip(headers, labels)]
+
+
+@router.post("/values")
+def column_values(req: ReportRequest, db: Session = Depends(get_db),
+                  current_user: User = Depends(get_current_user)):
+    """Distinct values of one column (req.columns[0]) among the rows the other
+    filters keep, with counts, for that column's filter list (PI 2026-11-06)."""
+    if len(req.columns) != 1:
+        raise HTTPException(status_code=422, detail="Ask for one column.")
+    col = req.columns[0]
+    others = {c: v for c, v in (req.filters or {}).items() if c != col}
+    headers, _, rows = build_report(db, current_user, req.model_copy(
+        update={"filters": others, "include_stage": False}))
+    i = headers.index(_field_index()[col][2])
+    counts: dict[str, int] = {}
+    for line in rows:
+        v = _filter_key(line[i])
+        counts[v] = counts.get(v, 0) + 1
+    out = sorted(counts.items(), key=lambda kv: (kv[0] == BLANK, -kv[1], kv[0]))
+    return {"values": [{"value": v, "n": n} for v, n in out[:MAX_VALUES]], "more": len(out) > MAX_VALUES}
 
 
 @router.post("/preview")

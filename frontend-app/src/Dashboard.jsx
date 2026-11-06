@@ -12,7 +12,7 @@ import {
 import {
   Users, UserCheck, AlertTriangle, Shield, ClipboardList,
   FileText, Activity, TrendingUp, MapPin, BarChart3, Sparkles, Send,
-  Inbox, XCircle, Ban, Clock, Hourglass, Baby, Shuffle, CheckCircle2,
+  Inbox, XCircle, Ban, Clock, Hourglass, Baby, Shuffle, CheckCircle2, UserX, Search,
 } from "lucide-react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
@@ -39,7 +39,7 @@ import "./Dashboard.css";
 
 const TILE_ICON = {
   screened: Users, eligible: UserCheck, not_eligible: XCircle, screen_failures: Ban,
-  pending: Clock, drafts: ClipboardList, consented: FileText, awaiting_delivery: Hourglass, delivered: Baby,
+  pending: Clock, drafts: ClipboardList, consented: FileText, consent_refused: UserX, awaiting_delivery: Hourglass, delivered: Baby,
   needed_ppv: Activity, randomised: Shuffle, not_randomised: AlertTriangle, no_ppv: CheckCircle2,
 };
 
@@ -237,11 +237,13 @@ export default function Dashboard() {
     if (!search) return true;
     const q = search.toLowerCase();
     const baby = formatBabyOfLabel(piiByScreening[d.screening_id]).toLowerCase();
+    const stage = (stageByScreening[d.screening_id]?.label || d.screening_status || "").toLowerCase();
     return (
       (d.screening_id  || "").toLowerCase().includes(q) ||
       (d.enrollment_id || "").toLowerCase().includes(q) ||
       (d.site_name     || "").toLowerCase().includes(q) ||
-      baby.includes(q)
+      formatSiteName(d.site_name).toLowerCase().includes(q) ||
+      baby.includes(q) || stage.includes(q)
     );
   });
 
@@ -585,11 +587,22 @@ export default function Dashboard() {
         <div className="space-y-6">
           <DashboardSection icon={Users} title="Screened Participants" sub={`${filtered.length} Form A records — mother and baby`}>
             <div className="mb-4 grid grid-cols-1 gap-2 rounded-lg bg-portal-surface-low p-2 sm:grid-cols-12">
-              <div className="sm:col-span-12">
-                <p className="px-1 text-[12px] text-portal-muted">
-                  Every woman with a Form A, newest first. Filter uses the header search — name, screening ID, randomisation no., or site.
-                </p>
-              </div>
+              {/* The header search box was removed 2026-09-25; the list has its own (PI 2026-11-06). */}
+              <label className="relative sm:col-span-6">
+                <Search size={15} aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-portal-outline" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search name, screening ID, randomisation no., site or stage"
+                  aria-label="Search participants"
+                  className="ds-focus h-10 w-full rounded-lg border border-portal-line bg-white pl-9 pr-3 text-[13px] text-portal-ink"
+                />
+              </label>
+              <p className="self-center px-1 text-[12px] text-portal-muted sm:col-span-6">
+                Every woman with a Form A, newest first. For a list such as consent refused, click its tile on View Entries (All Participants).
+              </p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-left">

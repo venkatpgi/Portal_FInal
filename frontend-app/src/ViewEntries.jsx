@@ -10,7 +10,7 @@ import {
   Eye, Edit, Trash2, ArrowRight, Filter, AlertTriangle,
   RefreshCw, Users, FileText, Activity, ShieldAlert,
   CheckCircle2, Clock, XCircle, ClipboardList, X,
-  History, Baby, Hourglass, Ban, Shuffle,
+  History, Baby, Hourglass, Ban, Shuffle, UserX,
 } from "lucide-react";
 import "./ViewEntries.css";
 import { formatMotherFirstName, formatParticipantListName } from "./utils/babyName";
@@ -183,7 +183,7 @@ const TONE_COLOR = { primary: "blue", success: "green", muted: "purple", danger:
 const TILE_ICON = {
   screened: <Users size={20}/>, eligible: <CheckCircle2 size={20}/>, not_eligible: <XCircle size={20}/>,
   screen_failures: <Ban size={20}/>, pending: <Clock size={20}/>, drafts: <ClipboardList size={20}/>,
-  consented: <FileText size={20}/>,
+  consented: <FileText size={20}/>, consent_refused: <UserX size={20}/>,
   awaiting_delivery: <Hourglass size={20}/>, delivered: <Baby size={20}/>, needed_ppv: <Activity size={20}/>,
   randomised: <Shuffle size={20}/>, not_randomised: <AlertTriangle size={20}/>, no_ppv: <CheckCircle2 size={20}/>,
 };
