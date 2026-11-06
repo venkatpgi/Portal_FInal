@@ -177,3 +177,19 @@ Helper 4 NPO / feeds / feed type / volumes / transfusions; Helper 5 glucose)
 are saved quietly when they change on such a day, so the stored day matches
 the screen. Locked days are never changed. A day without DMS feed readings
 is not filled (a blank DMS volume is no reading, not 0 ml).
+
+## DMS drugs: one drug per row (PI 2026-11-06)
+
+5.1.C vasoactive drugs, 5.1.D PDA agent, 5.2.D postnatal steroids (and 5.6.A
+transfusion products) take one choice per reading; two drugs running at
+once are two rows. A dose change is a new row of the same drug at the time of
+the change; "Stopped at this time" records the end (no dose needed). In the
+readings table the latest row of each drug has **Change dose** (new row,
+same drug and unit, time now; only the dose to type) and **Stop** (saves a
+stopped row). Above the table one line per drug shows the doses over time,
+e.g. "Dopamine: 10 → 15 → 20 mcg/kg/min (10:18 · 10:23 · 10:24)". A drug row
+with no dose is marked "Dose not entered" (warning only). Vitals (5.1.A) is
+its own module on the page (stored block `cv_a` unchanged).
+Old readings with more than one choice were split by `backend/dms_split_drugs.py`
+(one row each, same date / time / stamps; a dose on a multi-drug reading
+stays on the first drug only).
