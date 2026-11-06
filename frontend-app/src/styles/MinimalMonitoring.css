@@ -524,6 +524,12 @@
 .mml-history-table td.mml-history-td-action {
   white-space: normal;
 }
+/* ScreeningForm.css caps every td at 120px with overflow hidden; that cut
+   off the row buttons here. */
+.mml-history-table td {
+  max-width: none;
+  overflow: visible;
+}
 .mml-history-actions {
   display: flex;
   flex-wrap: wrap;
