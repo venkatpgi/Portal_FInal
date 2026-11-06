@@ -78,6 +78,11 @@ def _num(n, d) -> float:
 
 
 def site_label(site: str) -> str:
+    """Short site code in tables and charts; the full name is in the scope line."""
+    return site or "—"
+
+
+def site_full_name(site: str) -> str:
     import sae_config
     return sae_config.site_for(site or "").get("display", site or "—")
 
@@ -275,15 +280,12 @@ def completeness_report(babies, sites, status_for):
         per_site[s].append(eid)
     order = _site_order(per_site, sites)
     rows = []
-    chart_vals = defaultdict(list)
     for key, label in FORM_TICKS:
         line = [label]
         for s in order + (["ALL"] if len(order) > 1 else []):
             eids = [e for _, e in babies] if s == "ALL" else per_site[s]
             done = sum(1 for e in eids if ticks[e].get(key) is True)
             line += [f"{done}/{len(eids)}", pct(len(eids) - done, len(eids))]
-            if s != "ALL":
-                chart_vals[s].append(_num(len(eids) - done, len(eids)))
         rows.append(line)
     cols = ["Form"]
     for s in order + (["ALL"] if len(order) > 1 else []):
@@ -298,10 +300,10 @@ def completeness_report(babies, sites, status_for):
         "note": f"Randomised babies ({len(babies)}). Complete = the sidebar green tick. Forms that fall due later "
                 "(Form I at 36 / 40 / 44 weeks, Form J after discharge) count as not complete until filled.",
         "columns": cols, "rows": rows,
-        "chart": {"title": "% not complete, by form", "unit": "%", "labels": [lab.split(" ", 2)[0] + " " + lab.split(" ", 2)[1]
-                                                                             if lab.startswith("Form") else lab
-                                                                             for _, lab in FORM_TICKS],
-                  "series": [{"name": site_label(s), "values": chart_vals[s]} for s in order]},
+        "chart": {"title": "% of randomised babies with the form not complete" + (" (all sites)" if len(order) > 1 else ""),
+                  "unit": "%", "labels": [lab for _, lab in FORM_TICKS],
+                  "series": [{"name": "% not complete", "values": [
+                      _num(sum(1 for _, e in babies if ticks[e].get(key) is not True), len(babies)) for key, _ in FORM_TICKS]}]},
     }, {
         "title": "Forms not yet complete, per baby",
         "note": "Enrolment IDs only.",
@@ -347,14 +349,14 @@ def glance_report(db, rows, sites, composite_for, followup_for):
             lines.append(row(f"{wk} wk PMA: {label}",
                              lambda s, wk=wk, state=state: frac(sum(1 for e in kids(s) if fu[e].get(wk) == state),
                                                                 len(kids(s)))))
-    lines.append(row("Reason for loss to follow-up", lambda s: "not recorded (Form I has no field)"))
+    lines.append(row("Reason for loss to follow-up (no field on Form I yet)", lambda s: "—"))
     comps = {eid: composite_for(eid) or {} for _, eid in babies}
     for key, label in OUTCOMES:
         def outcome(s, key=key):
             vals = [(comps[e].get(key) or {}).get("value") for e in kids(s)]
             yes, known = sum(v == "Yes" for v in vals), sum(v in ("Yes", "No") for v in vals)
-            return f"{yes} of {known} known" + (f" ({pct(yes, known)})" if known else "") + \
-                   (f"; {len(vals) - known} not yet known" if len(vals) > known else "")
+            return (f"{yes}/{known} ({pct(yes, known)})" if known else "—") + \
+                   (f" · {len(vals) - known} pending" if len(vals) > known else "")
         lines.append(row(label, outcome))
 
     header = ["Measure"] + [("All sites" if s == "ALL" else site_label(s)) for s in cols_sites]
@@ -367,7 +369,8 @@ def glance_report(db, rows, sites, composite_for, followup_for):
         "note": "Women (Form A) down to Consented; babies from Randomised on (twins count twice). Percentages: "
                 "of women screened, or of randomised babies. Follow-up: Form I at each checkpoint (lost to follow-up "
                 "= 28 days past the expected date with no assessment). Outcomes: Form I first, else the live "
-                "suggestions, as on Form L. Pooled, never by study arm.",
+                "suggestions, as on Form L; '2/3 (66.7%) · 1 pending' = 2 Yes of 3 known, 1 not yet known. "
+                "Pooled, never by study arm.",
         "columns": header, "rows": lines,
         "chart": {"title": "Screened to randomised, by site", "unit": "n", "labels": [site_label(s) for s in order],
                   "series": [{"name": name, "values": [fn(s) for s in order]} for name, fn in chart_rows]},
@@ -389,7 +392,7 @@ def build(key, db, sites, date_from=None, date_to=None, *, status_for=None, comp
     meta = next(r for r in REPORTS if r["key"] == key)
     period = ("screened " + " to ".join(d.strftime("%d-%m-%Y") for d in (date_from, date_to) if d)
               if date_from or date_to else "all women screened")
-    where = "All sites" if len(sites) > 1 else site_label(sites[0])
+    where = "All sites" if len(sites) > 1 else site_full_name(sites[0])
     return {"key": key, "title": meta["title"], "scope": f"{where} · {period}",
             "generated_at": clinical_now().strftime("%d-%m-%Y %H:%M IST"), "sections": sections}
 
@@ -425,12 +428,12 @@ def _chart(chart, width):
     if not labels or not series:
         return None
     n_bars = len(labels) * len(series)
-    plot_h = max(60, min(14 * n_bars + 8 * len(labels), 420))
+    plot_h = max(50, min(12 * n_bars + 6 * len(labels), 320))
     legend_h = 16 if len(series) > 1 else 0
-    d = Drawing(width, plot_h + 34 + legend_h)
-    d.add(String(0, plot_h + 22 + legend_h, chart["title"], fontName="Helvetica-Bold", fontSize=9))
+    d = Drawing(width, plot_h + 46 + legend_h)
+    d.add(String(0, plot_h + 34 + legend_h, chart["title"], fontName="Helvetica-Bold", fontSize=9))
     bc = HorizontalBarChart()
-    bc.x, bc.y, bc.height, bc.width = 190, 6, plot_h, width - 230
+    bc.x, bc.y, bc.height, bc.width = 170, 18, plot_h, width - 170 - 70
     bc.data = [list(s["values"]) or [0] for s in series]
     bc.categoryAxis.categoryNames = labels
     bc.categoryAxis.reverseDirection = 1
@@ -450,7 +453,7 @@ def _chart(chart, width):
     d.add(bc)
     if len(series) > 1:
         lg = Legend()
-        lg.x, lg.y = 190, plot_h + 18
+        lg.x, lg.y = 170, plot_h + 30
         lg.alignment, lg.columnMaximum, lg.fontSize = "right", 1, 7
         lg.dx = lg.dy = 7
         lg.colorNamePairs = [(colors.HexColor(PALETTE[i % len(PALETTE)]), s["name"]) for i, s in enumerate(series)]
@@ -483,7 +486,7 @@ def to_pdf(rep) -> bytes:
     story = [Paragraph(f"PORTAL Trial — {esc(rep['title'])}", h1),
              Paragraph(f"{esc(rep['scope'])} · generated {esc(rep['generated_at'])} · IDs only, no names, "
                        "nothing by study arm", small), Spacer(1, 6)]
-    for sec in rep["sections"]:
+    for k, sec in enumerate(rep["sections"]):
         block = [Paragraph(esc(sec["title"]), h2)]
         if sec.get("note"):
             block.append(Paragraph(esc(sec["note"]), small))
@@ -492,7 +495,8 @@ def to_pdf(rep) -> bytes:
             ch = _chart(sec["chart"], width)
             if ch:
                 block += [ch, Spacer(1, 4)]
-        story.append(KeepTogether(block))
+        story.append(KeepTogether(block[:3]))   # heading + note stay together
+        story += block[3:]
         data = [[Paragraph(esc(c), head) for c in sec["columns"]]]
         data += [[Paragraph(esc(c), cell) for c in r] for r in sec["rows"]] or \
                 [[Paragraph("None.", cell)] + [""] * (len(sec["columns"]) - 1)]
@@ -505,7 +509,9 @@ def to_pdf(rep) -> bytes:
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
         ]))
-        story += [t, Spacer(1, 8)]
+        story.append(t)
+        if k < len(rep["sections"]) - 1:
+            story.append(Spacer(1, 8))
 
     def footer(canvas, _doc):
         canvas.setFont("Helvetica", 7)
