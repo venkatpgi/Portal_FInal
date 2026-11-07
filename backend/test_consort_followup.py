@@ -40,3 +40,10 @@ def test_death_after_36_weeks_counts_at_the_next_checkpoint():
 
 def test_no_dates_stays_awaiting():
     assert followup_states(None, None, None, None, False, None, date(2027, 6, 1))[36] == "awaiting"
+
+
+def test_recorded_ltfu_reason_counts_at_once_but_not_over_an_assessment():
+    # 1 Dec: 36 wk passed 5 days ago, still inside the 28-day wait
+    assert states(date(2026, 12, 1), form_i(ltfu36_reason="Family relocated"))[36] == "ltfu"
+    assert states(date(2026, 12, 1), form_i(encounter36_method="Direct", ltfu36_reason="Family relocated"))[36] == "assessed"
+    assert states(date(2026, 12, 1), form_i(death36=True, ltfu36_reason="Family relocated"))[36] == "died"

@@ -1196,6 +1196,9 @@ class StudyOutcomes(Base):
     encounter36_method = Column(String)  # 22
     encounter36_other = Column(String)  # 23
     encounter36_other_text = Column(String)  # 23 Others specify
+    # Not assessed at 36 wk: why (PI 2026-11-06; not on the paper CRF).
+    ltfu36_reason = Column(String, nullable=True)
+    ltfu36_reason_other = Column(String, nullable=True)
     death36 = Column(Boolean)  # 24
     death36_cause = Column(Text)  # 25
     death36_date = Column(Date)  # 26
@@ -1223,6 +1226,9 @@ class StudyOutcomes(Base):
     encounter40_method = Column(String)  # 42
     encounter40_other = Column(String)  # 43
     encounter40_other_text = Column(String)  # 43 Others specify
+    # Not assessed at 40 wk: why (PI 2026-11-06; not on the paper CRF).
+    ltfu40_reason = Column(String, nullable=True)
+    ltfu40_reason_other = Column(String, nullable=True)
     death40 = Column(Boolean)  # 44
     death40_cause = Column(Text)  # 45
     death40_date = Column(Date)  # 46
@@ -1244,6 +1250,9 @@ class StudyOutcomes(Base):
     encounter44_method = Column(String)  # 59
     encounter44_other = Column(String)  # 60
     encounter44_other_text = Column(String)  # 60 Others specify
+    # Not assessed at 44 wk: why (PI 2026-11-06; not on the paper CRF).
+    ltfu44_reason = Column(String, nullable=True)
+    ltfu44_reason_other = Column(String, nullable=True)
     death44 = Column(Boolean)  # 61
     death44_cause = Column(Text)  # 62
     death44_date = Column(Date)  # 63

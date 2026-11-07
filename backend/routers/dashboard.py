@@ -528,6 +528,12 @@ def _compute_ga_check_boxes(db: Session):
     return ga_counts_by_site, never_checked_by_site, never_checked_reasons_by_site, orphan_screenings_by_site
 
 
+def ltfu_reason(form_i, wk):
+    """Form I "If not assessed: reason for loss to follow-up" at a checkpoint
+    (PI 2026-11-06), or None."""
+    return (getattr(form_i, f"ltfu{wk}_reason", None) or "").strip() or None
+
+
 def followup_states(dob, gest_weeks, gest_days, form_i, known_death, death_date, today):
     """{36: state, 40: state, 44: state} for one baby; a checkpoint after the
     baby's death is left out. form_i is the Form I row or None. "Died" is Form
@@ -541,14 +547,16 @@ def followup_states(dob, gest_weeks, gest_days, form_i, known_death, death_date,
             known_death and (death_date is None or expected is None or death_date <= expected))
         method = getattr(form_i, f"encounter{wk}_method", None)
         states[wk] = _classify(today, method or None, died or None, expected)
+        if states[wk] == "awaiting" and ltfu_reason(form_i, wk):
+            states[wk] = "ltfu"   # staff recorded the loss: no need to wait 28 days
         if states[wk] == "died":
             break
     return states
 
 
 def followup_by_baby(db: Session) -> dict:
-    """{enrollment_id: (site, {36: state, 40: state, 44: state})} for every
-    randomised baby (CONSORT Boxes 9-11; also the At a glance report)."""
+    """{enrollment_id: (site, {36: state, 40: state, 44: state}, {wk: LTFU reason})}
+    for every randomised baby (CONSORT Boxes 9-11; also the At a glance report)."""
     today = clinical_today()
     # Latest row per baby, as site_summary._load.
     form_i = {r.enrollment_id: r for r in db.query(StudyOutcomes).order_by(StudyOutcomes.id)}
@@ -567,15 +575,16 @@ def followup_by_baby(db: Session) -> dict:
         dates = [_as_date(nm.discharge_date)] if form_h_died and nm.discharge_date else []
         if eid in death_days and dob:
             dates.append(dob + timedelta(days=death_days[eid] - 1))
-        out[eid] = (row["site_name"], followup_states(dob, row["gestation_weeks"], row["gestation_days"],
-                                                      form_i.get(eid), form_h_died or eid in death_days,
-                                                      min(dates) if dates else None, today))
+        states = followup_states(dob, row["gestation_weeks"], row["gestation_days"], form_i.get(eid),
+                                 form_h_died or eid in death_days, min(dates) if dates else None, today)
+        reasons = {wk: ltfu_reason(form_i.get(eid), wk) or "Reason not recorded"
+                   for wk, st in states.items() if st == "ltfu"}
+        out[eid] = (row["site_name"], states, reasons)
     return out
 
 
 def _compute_followup_boxes(db: Session):
-    # counts[box][state][site] -> int. Form I has no reason-for-loss field, so
-    # the reason rows stay empty.
+    # counts[box][state][site] -> int; LTFU reasons from Form I (PI 2026-11-06).
     boxes = {
         9: {s: {"died": 0, "assessed": 0, "ltfu": 0, "awaiting": 0} for s in ALL_SITES},
         10: {s: {"died": 0, "assessed": 0, "ltfu": 0, "awaiting": 0} for s in ALL_SITES},
@@ -583,13 +592,15 @@ def _compute_followup_boxes(db: Session):
     }
     ltfu_reasons = {9: {s: {} for s in ALL_SITES}, 10: {s: {} for s in ALL_SITES}, 11: {s: {} for s in ALL_SITES}}
 
-    for site, states in followup_by_baby(db).values():
+    for site, states, reasons in followup_by_baby(db).values():
         for box in boxes:
             boxes[box].setdefault(site, {"died": 0, "assessed": 0, "ltfu": 0, "awaiting": 0})
             ltfu_reasons[box].setdefault(site, {})
         for wk, box in ((36, 9), (40, 10), (44, 11)):
             if wk in states:
                 boxes[box][site][states[wk]] += 1
+            if wk in reasons:
+                ltfu_reasons[box][site][reasons[wk]] = ltfu_reasons[box][site].get(reasons[wk], 0) + 1
 
     return boxes, ltfu_reasons
 

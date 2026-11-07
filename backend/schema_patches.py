@@ -1376,3 +1376,13 @@ NEONATAL_MORBIDITIES_DAY_COUNTS_FLOAT_PATCHES = [
     "ALTER TABLE neonatal_morbidities ALTER COLUMN vent_days TYPE DOUBLE PRECISION USING vent_days::double precision",
     "ALTER TABLE neonatal_morbidities ALTER COLUMN cpap_days TYPE DOUBLE PRECISION USING cpap_days::double precision",
 ]
+
+# Form I: reason for loss to follow-up at each checkpoint (PI 2026-11-06).
+FORM_I_LTFU_REASON_PATCHES = [
+    "ALTER TABLE study_outcomes ADD COLUMN IF NOT EXISTS ltfu36_reason VARCHAR",
+    "ALTER TABLE study_outcomes ADD COLUMN IF NOT EXISTS ltfu36_reason_other VARCHAR",
+    "ALTER TABLE study_outcomes ADD COLUMN IF NOT EXISTS ltfu40_reason VARCHAR",
+    "ALTER TABLE study_outcomes ADD COLUMN IF NOT EXISTS ltfu40_reason_other VARCHAR",
+    "ALTER TABLE study_outcomes ADD COLUMN IF NOT EXISTS ltfu44_reason VARCHAR",
+    "ALTER TABLE study_outcomes ADD COLUMN IF NOT EXISTS ltfu44_reason_other VARCHAR",
+]

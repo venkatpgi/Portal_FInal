@@ -342,14 +342,19 @@ def glance_report(db, rows, sites, composite_for, followup_for):
         row("Consented", lambda s: frac(sum(1 for r in women(s) if r.consent_given == "Yes"), len(women(s)))),
         row("Randomised (babies)", lambda s: len(kids(s))),
     ]
-    fu = {eid: followup_for(eid) for _, eid in babies}
+    fu, why = {}, {}
+    for _, eid in babies:
+        fu[eid], why[eid] = followup_for(eid)
     for wk in (36, 40, 44):
         for state, label in (("assessed", "assessed"), ("died", "died by then"), ("ltfu", "lost to follow-up"),
                              ("awaiting", "not yet due / awaiting")):
             lines.append(row(f"{wk} wk PMA: {label}",
                              lambda s, wk=wk, state=state: frac(sum(1 for e in kids(s) if fu[e].get(wk) == state),
                                                                 len(kids(s)))))
-    lines.append(row("Reason for loss to follow-up (no field on Form I yet)", lambda s: "—"))
+    def reasons(s):
+        c = Counter(r for e in kids(s) for r in why[e].values())
+        return "; ".join(f"{r} ({n})" for r, n in c.most_common()) or "—"
+    lines.append(row("Reasons for loss to follow-up (any checkpoint)", reasons))
     comps = {eid: composite_for(eid) or {} for _, eid in babies}
     for key, label in OUTCOMES:
         def outcome(s, key=key):
@@ -368,7 +373,7 @@ def glance_report(db, rows, sites, composite_for, followup_for):
         "title": "At a glance, by site",
         "note": "Women (Form A) down to Consented; babies from Randomised on (twins count twice). Percentages: "
                 "of women screened, or of randomised babies. Follow-up: Form I at each checkpoint (lost to follow-up "
-                "= 28 days past the expected date with no assessment). Outcomes: Form I first, else the live "
+                "= reason recorded on Form I, or 28 days past the expected date with no assessment). Outcomes: Form I first, else the live "
                 "suggestions, as on Form L; '2/3 (66.7%) · 1 pending' = 2 Yes of 3 known, 1 not yet known. "
                 "Pooled, never by study arm.",
         "columns": header, "rows": lines,

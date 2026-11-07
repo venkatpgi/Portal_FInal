@@ -5169,8 +5169,8 @@ def _ready_report(key, site, date_from, date_to, db, current_user):
 
     def followup_for(eid):
         if not follow:
-            follow.update({e: st for e, (_, st) in followup_by_baby(db).items()})
-        return follow.get(eid, {})
+            follow.update({e: (st, why) for e, (_, st, why) in followup_by_baby(db).items()})
+        return follow.get(eid, ({}, {}))
 
     return ready_reports.build(key, db, sites, date_from, date_to, status_for=status_for,
                                composite_for=composite_for, followup_for=followup_for)

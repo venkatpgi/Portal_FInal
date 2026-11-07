@@ -97,6 +97,17 @@ function RYesNo({ name, required }) {
   );
 }
 
+// Reason a baby was not assessed at a checkpoint (PI 2026-11-06; not on the
+// paper CRF). Recording one counts the baby as lost to follow-up there at once.
+const LTFU_REASONS = [
+  "Could not be contacted (phone unreachable / wrong number)",
+  "Family relocated / moved away",
+  "Family declined the follow-up visit",
+  "Consent withdrawn",
+  "Seen at another hospital; records not available",
+  "Other",
+];
+
 function RSelect({ name, options, placeholder = "Select" }) {
   const { formData, handleChange, clearAutoFilled } = useContext(FormIDataContext);
   return (
@@ -544,6 +555,7 @@ export default function FormI() {
     encounter36_method: "",
     encounter36_other: "",
     encounter36_other_text: "",
+    ltfu36_reason: "", ltfu36_reason_other: "",
     death36: "",
     death36_cause: "",
     death36_date: "",
@@ -571,6 +583,7 @@ export default function FormI() {
     encounter40_method: "",
     encounter40_other: "",
     encounter40_other_text: "",
+    ltfu40_reason: "", ltfu40_reason_other: "",
     death40: "",
     death40_cause: "",
     death40_date: "",
@@ -592,6 +605,7 @@ export default function FormI() {
     encounter44_method: "",
     encounter44_other: "",
     encounter44_other_text: "",
+    ltfu44_reason: "", ltfu44_reason_other: "",
     death44: "",
     death44_cause: "",
     death44_date: "",
@@ -711,6 +725,8 @@ export default function FormI() {
           encounter36_method: existing.encounter36_method || "",
           encounter36_other: existing.encounter36_other || "",
           encounter36_other_text: existing.encounter36_other_text || "",
+          ltfu36_reason: existing.ltfu36_reason || "",
+          ltfu36_reason_other: existing.ltfu36_reason_other || "",
           death36: boolToYesNo(existing.death36),
           death36_cause: existing.death36_cause || "",
           death36_date: existing.death36_date || "",
@@ -737,6 +753,8 @@ export default function FormI() {
           encounter40_method: existing.encounter40_method || "",
           encounter40_other: existing.encounter40_other || "",
           encounter40_other_text: existing.encounter40_other_text || "",
+          ltfu40_reason: existing.ltfu40_reason || "",
+          ltfu40_reason_other: existing.ltfu40_reason_other || "",
           death40: boolToYesNo(existing.death40),
           death40_cause: existing.death40_cause || "",
           death40_date: existing.death40_date || "",
@@ -757,6 +775,8 @@ export default function FormI() {
           encounter44_method: existing.encounter44_method || "",
           encounter44_other: existing.encounter44_other || "",
           encounter44_other_text: existing.encounter44_other_text || "",
+          ltfu44_reason: existing.ltfu44_reason || "",
+          ltfu44_reason_other: existing.ltfu44_reason_other || "",
           death44: boolToYesNo(existing.death44),
           death44_cause: existing.death44_cause || "",
           death44_date: existing.death44_date || "",
@@ -1406,6 +1426,10 @@ export default function FormI() {
     encounter36_method: emptyToNull(formData.encounter36_method),
     encounter36_other: emptyToNull(formData.encounter36_other),
     encounter36_other_text: emptyToNull(formData.encounter36_other_text),
+    // A reason only stands while the baby was not assessed at this checkpoint.
+    ltfu36_reason: formData.encounter36_method ? null : emptyToNull(formData.ltfu36_reason),
+    ltfu36_reason_other: formData.encounter36_method || formData.ltfu36_reason !== "Other"
+      ? null : emptyToNull(formData.ltfu36_reason_other),
     death36: yesNoToBool(formData.death36),
     death36_cause: emptyToNull(formData.death36_cause),
     death36_date: emptyToNull(formData.death36_date),
@@ -1432,6 +1456,10 @@ export default function FormI() {
     encounter40_method: emptyToNull(formData.encounter40_method),
     encounter40_other: emptyToNull(formData.encounter40_other),
     encounter40_other_text: emptyToNull(formData.encounter40_other_text),
+    // A reason only stands while the baby was not assessed at this checkpoint.
+    ltfu40_reason: formData.encounter40_method ? null : emptyToNull(formData.ltfu40_reason),
+    ltfu40_reason_other: formData.encounter40_method || formData.ltfu40_reason !== "Other"
+      ? null : emptyToNull(formData.ltfu40_reason_other),
     death40: yesNoToBool(formData.death40),
     death40_cause: emptyToNull(formData.death40_cause),
     death40_date: emptyToNull(formData.death40_date),
@@ -1452,6 +1480,10 @@ export default function FormI() {
     encounter44_method: emptyToNull(formData.encounter44_method),
     encounter44_other: emptyToNull(formData.encounter44_other),
     encounter44_other_text: emptyToNull(formData.encounter44_other_text),
+    // A reason only stands while the baby was not assessed at this checkpoint.
+    ltfu44_reason: formData.encounter44_method ? null : emptyToNull(formData.ltfu44_reason),
+    ltfu44_reason_other: formData.encounter44_method || formData.ltfu44_reason !== "Other"
+      ? null : emptyToNull(formData.ltfu44_reason_other),
     death44: yesNoToBool(formData.death44),
     death44_cause: emptyToNull(formData.death44_cause),
     death44_date: emptyToNull(formData.death44_date),
@@ -1839,6 +1871,16 @@ export default function FormI() {
                 )}
               </>
             )}
+            {!formData.encounter36_method && (
+              <>
+                <Mini label="If not assessed: reason for loss to follow-up">
+                  <RSelect name="ltfu36_reason" options={LTFU_REASONS} placeholder="Not lost / not yet due" />
+                </Mini>
+                {formData.ltfu36_reason === "Other" && (
+                  <MiniText label="Specify reason" name="ltfu36_reason_other" placeholder="Specify" />
+                )}
+              </>
+            )}
           </div>
           <CrfTable>
             <CrfRow num={24} outcome="Death by 36 weeks PMA" definition="Death due to any cause from birth till completion of 36 weeks of PMA"
@@ -1953,6 +1995,16 @@ export default function FormI() {
                 )}
               </>
             )}
+            {!formData.encounter40_method && (
+              <>
+                <Mini label="If not assessed: reason for loss to follow-up">
+                  <RSelect name="ltfu40_reason" options={LTFU_REASONS} placeholder="Not lost / not yet due" />
+                </Mini>
+                {formData.ltfu40_reason === "Other" && (
+                  <MiniText label="Specify reason" name="ltfu40_reason_other" placeholder="Specify" />
+                )}
+              </>
+            )}
           </div>
           <CrfTable>
             <CrfRow num={44} outcome="Death between 36 and 40 weeks PMA" definition="Death due to any cause from 36 weeks till completion of 40 weeks of PMA"
@@ -2049,6 +2101,16 @@ export default function FormI() {
                 </Mini>
                 {formData.encounter44_other === "Others" && (
                   <MiniText label="60. Specify others" name="encounter44_other_text" placeholder="Specify" />
+                )}
+              </>
+            )}
+            {!formData.encounter44_method && (
+              <>
+                <Mini label="If not assessed: reason for loss to follow-up">
+                  <RSelect name="ltfu44_reason" options={LTFU_REASONS} placeholder="Not lost / not yet due" />
+                </Mini>
+                {formData.ltfu44_reason === "Other" && (
+                  <MiniText label="Specify reason" name="ltfu44_reason_other" placeholder="Specify" />
                 )}
               </>
             )}

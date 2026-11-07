@@ -131,7 +131,7 @@ nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
   44 wk (`followup_by_baby`, as Boxes 9-11); outcomes from the Form L
   composite suggestion (`components`): death by 36 / 44 wk, BPD, ROP-Rx, NEC
   ≥ IIA, brain injury, composites 1 and 2 (Yes of known). Reason for loss to
-  follow-up: Form I has no field.
+  follow-up: Form I `ltfu36/40/44_reason` (PI 2026-11-06).
 
 ## Data queries (Phase 1, PI 2026-10-15)
 Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems
