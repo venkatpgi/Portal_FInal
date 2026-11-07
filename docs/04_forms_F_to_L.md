@@ -56,6 +56,15 @@ warning / Force refill. This is by design.
 
 ## Form H — Neonatal morbidities (`neonatal_morbidities`)
 
+**H5.4 Miscellaneous (PI 2026-11-06; not numbered on the CRF yet).**
+Miscellaneous Yes/No (`cv_misc`). If Yes: Tachycardia Yes/No (`tachycardia`)
+→ type, select all that apply (`tachycardia_type`: Sinus tachycardia, PSVT,
+Ventricular tachycardia, Others + `tachycardia_other`); Bradycardia Yes/No
+(`bradycardia`) → type (`bradycardia_type`: Sinus bradycardia, Heart block)
+→ heart block degree (`heart_block_degree`: First / Second / Third degree
+(complete)). All strings; details are saved only under their Yes. Manual
+(no prefill). Not part of the Form H tick (outcome, discharge, sign-off).
+
 **Outcome Died (PI 2026-10-31):** H12.4 asks Date of death (stored in `discharge_date`, prefilled from Helper 5) and Time of death (`death_time`); the Discharge Date box is hidden. Both are needed for the Form H tick. Form I's in-hospital mortality takes them.
 
 Sign-off (form completed by, designation, date) is at the end of H12 Hospital Course; the separate Review & Submit tab held nothing else and was removed (PI 2026-10-31). Completed by is a drop-down.
@@ -77,7 +86,7 @@ everywhere** (helper cut-off, death/alive checks, suggestions).
 | Cranial USG → IVH/PVL | **Form F** | per-side max IVH/PVL grade, its date and age, side; PVHI (IVH IV); PHH (≈ Form F PHVD); ventriculomegaly Yes (second source) | PVHI/PHH free text |
 | GI (H3, #68–94) | Helper 4 | feed intolerance, PN, probiotic, cholestasis, NEC (= any day **suspected**) + date/age, first-feed age, PDHM/EBM/FM day counts | NEC **stage** (suggestion, ch. 05), surgery detail, full-feed age |
 | ROP / thermoregulation (H8/H9) | Helper 5 (+ Form G per eye) | ROP screened / ROP Yes + dates; hypo/hyperthermia **from the temperature value** (< 36.5 / > 37.5), min/max temp | thermal severity/location/aetiology |
-| Cardiovascular (H5, #117–146) | Helper 2 + DMS | HS-PDA, shock, inotropes + drug ticks, PDA medical Rx, fluid bolus (+count from DMS 5.1.B), lowest SBP/DBP/MAP from DMS 5.1.A | echo detail, VIS, hydrocortisone |
+| Cardiovascular (H5, #117–146) | Helper 2 + DMS | HS-PDA, shock, inotropes + drug ticks, PDA medical Rx, fluid bolus (+count from DMS 5.1.B), lowest SBP/DBP/MAP from DMS 5.1.A | echo detail, VIS, hydrocortisone; H5.4 Miscellaneous (manual, below) |
 | Respiratory (H2, #38–67) | Helper 2 | O₂ days, NC/CPAP/NIPPV/HFNC (+days), invasive ventilation (+days, from the intubation flag), steroids, pulmonary haemorrhage, pneumothorax, chest drain, PH, extubation failure, caffeine, apnoea + onset | **BPD** (suggestion, ch. 05) |
 
 Plus:

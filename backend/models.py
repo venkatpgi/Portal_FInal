@@ -918,6 +918,16 @@ class NeonatalMorbidities(Base):
     pda_wide_pp = Column(Boolean)
     sbp = Column(Float)
     structural_heart_disease = Column(String)
+    # H5.4 Miscellaneous (PI 2026-11-06): Yes/No; tachycardia / bradycardia
+    # Yes/No with types (comma-joined), heart block degree. Strings like
+    # structural_heart_disease ("" = not answered).
+    cv_misc = Column(String, nullable=True)
+    tachycardia = Column(String, nullable=True)
+    tachycardia_type = Column(String, nullable=True)
+    tachycardia_other = Column(String, nullable=True)
+    bradycardia = Column(String, nullable=True)
+    bradycardia_type = Column(String, nullable=True)
+    heart_block_degree = Column(String, nullable=True)
     structural_heart_disease_detail = Column(String)
     vis_score = Column(Float)
 

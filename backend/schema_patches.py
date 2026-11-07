@@ -1386,3 +1386,14 @@ FORM_I_LTFU_REASON_PATCHES = [
     "ALTER TABLE study_outcomes ADD COLUMN IF NOT EXISTS ltfu44_reason VARCHAR",
     "ALTER TABLE study_outcomes ADD COLUMN IF NOT EXISTS ltfu44_reason_other VARCHAR",
 ]
+
+# Form H H5.4 Miscellaneous: tachycardia / bradycardia (PI 2026-11-06).
+FORM_H_CV_MISC_PATCHES = [
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS cv_misc VARCHAR",
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS tachycardia VARCHAR",
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS tachycardia_type VARCHAR",
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS tachycardia_other VARCHAR",
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS bradycardia VARCHAR",
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS bradycardia_type VARCHAR",
+    "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS heart_block_degree VARCHAR",
+]
