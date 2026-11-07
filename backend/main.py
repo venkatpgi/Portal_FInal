@@ -6309,6 +6309,38 @@ def _fill_ae_grades(rows, before) -> list:
     return [fill(e) if isinstance(e, dict) else e for e in rows] if rows else rows
 
 
+def _ae_day(v):
+    """YYYY-MM-DD -> date; None for a date that is not a real 20xx date
+    ("2-10-30" came from typing a two-digit year into the picker)."""
+    try:
+        d = date.fromisoformat(str(v or "").strip()[:10])
+    except ValueError:
+        return None
+    return d if d.year >= 2000 else None
+
+
+def _check_ae_dates(rows, before) -> None:
+    """Refuse an unreadable date or an end date before the start date (PI
+    2026-11-07) on a new row or one whose dates this save changed; rows saved
+    earlier are not blocked."""
+    old = {e.get("row_id"): (e.get("start_date"), e.get("end_date"))
+           for e in before or [] if isinstance(e, dict) and e.get("row_id")}
+    invalid, reversed_ = [], []
+    for i, e in enumerate(rows or [], start=1):
+        if not isinstance(e, dict) or old.get(e.get("row_id")) == (e.get("start_date"), e.get("end_date")):
+            continue
+        s, t = _ae_day(e.get("start_date")), _ae_day(e.get("end_date"))
+        if (fc.answered(e.get("start_date")) and not s) or (fc.answered(e.get("end_date")) and not t):
+            invalid.append(i)
+        elif s and t and t < s:
+            reversed_.append(i)
+    msgs = [f"Adverse event row{'s' if len(rows_) > 1 else ''} {', '.join(map(str, rows_))}: {text}"
+            for rows_, text in ((invalid, "a date is not valid (use dd/mm/yyyy)."),
+                                (reversed_, "the end date is before the start date.")) if rows_]
+    if msgs:
+        raise HTTPException(status_code=422, detail=" ".join(msgs))
+
+
 def _clean_ae_events(events) -> list:
     """AE form rows (PI 2026-10-26): drop rows with nothing in them and refuse
     a row that has a grade, date or SAE answer but no event ("NA" alone is not
@@ -6395,6 +6427,7 @@ def create_adverse_events(
         db, "adverse_events", data.enrollment_id, base, existing.events if existing else [],
         payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
     payload["events"] = _fill_ae_grades(payload["events"], existing.events if existing else [])
+    _check_ae_dates(payload["events"], existing.events if existing else [])
     if existing:
         for key, value in payload.items():
             if key == "enrollment_id":
@@ -6464,6 +6497,7 @@ def update_adverse_events(
     payload["events"] = _merged_rows(db, "adverse_events", enrollment_id, base, record.events,
                                      payload.get("events"), AE_ROW_KEYS, _ae_label, "AE form")
     payload["events"] = _fill_ae_grades(payload["events"], record.events)
+    _check_ae_dates(payload["events"], record.events)
     for key, value in payload.items():
         setattr(record, key, value)
 

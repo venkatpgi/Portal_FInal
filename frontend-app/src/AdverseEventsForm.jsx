@@ -148,16 +148,30 @@ function buildPayload(data, base = null) {
   };
 }
 
-function DateField({ value, onChange, disabled = false, className = "ae-input" }) {
+// PI 2026-11-07: an event cannot end before it started (dates are YYYY-MM-DD).
+// "2-10-30" was saved when a year was typed short; flag it as not valid.
+const badAeDate = (v) => !!v && !/^20\d\d-\d\d-\d\d/.test(v);
+const aeDateProblem = (row) => {
+  if (badAeDate(row?.start_date) || badAeDate(row?.end_date)) return "Date not valid";
+  if (row?.start_date && row?.end_date && row.end_date < row.start_date) return "Before the start date";
+  return "";
+};
+
+function DateField({ value, onChange, disabled = false, className = "ae-input", minDate = "" }) {
   return (
     <div className="ae-date-wrap">
       <DatePicker
         selected={value ? parseDateOnly(value) : null}
-        onChange={(date) => onChange(date ? toDateOnlyValue(date) : "")}
+        onChange={(date) => {
+          // Typing "30/10/2" gives year 2 before the year is finished; wait for a full year.
+          if (date && date.getFullYear() < 2000) return;
+          onChange(date ? toDateOnlyValue(date) : "");
+        }}
         dateFormat="dd/MM/yyyy"
         placeholderText="dd/mm/yyyy"
         className={className}
         disabled={disabled}
+        minDate={minDate ? parseDateOnly(minDate) : null}
         portalId="root"
         popperPlacement="bottom-start"
         popperClassName="ae-datepicker-popper"
@@ -568,6 +582,13 @@ export default function AdverseEventsForm() {
       setSaveMessage("❌ Enrollment ID is required");
       return false;
     }
+    const badDates = (formData.has_adverse_event === "Yes" ? formData.events || [] : [])
+      .map((r, i) => (aeDateProblem(r) ? `${i + 1} (${aeDateProblem(r).toLowerCase()})` : "")).filter(Boolean);
+    if (badDates.length) {
+      setSaveMessage(`❌ Check the dates of event ${badDates.join(", ")}`);
+      setTimeout(() => setSaveMessage(""), 5000);
+      return false;
+    }
     try {
       const res = await api.post("/adverse-events/", buildPayload(formData, baseEventsRef.current));
       baseEventsRef.current = res.data?.events || [];
@@ -765,7 +786,11 @@ export default function AdverseEventsForm() {
                         <DateField
                           value={row.end_date}
                           onChange={(v) => updateRow(idx, "end_date", v)}
+                          minDate={row.start_date}
                         />
+                        {aeDateProblem(row) && (
+                          <div className="ae-grade-mismatch">{aeDateProblem(row)}</div>
+                        )}
                       </td>
                       <td className="ae-desc-col">
                         <ExpandableText
