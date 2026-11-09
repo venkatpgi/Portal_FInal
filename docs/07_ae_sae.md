@@ -65,6 +65,13 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
   filled on opening or re-saving; the site scientist enters them by hand. A
   grade picked by hand is never changed. If the box and the text disagree,
   the form shows "Text says Grade N" under the box.
+- **Start and end dates (PI 2026-11-07, `main._check_ae_dates`, web + mobile +
+  API):** a save is refused, naming the row, when the end date is before the
+  start date or a date is not a real date (typing a short year once saved
+  "2-10-30"). The server checks only new rows and rows whose dates this save
+  changed, so older rows do not block a save; the web form flags every row
+  ("Before the start date" / "Date not valid" under End date), won't save until
+  they are fixed, and its calendar offers no end date before the start.
 
 - **Two people saving the same AE form (PI 2026-10-29, `list_merge.py`):**
   every row has a hidden `row_id`; the page sends the rows as it loaded them
