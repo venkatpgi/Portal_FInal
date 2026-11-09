@@ -5147,9 +5147,9 @@ def get_composite_suggestion(
 # (enrollment-status ticks, composite outcome suggestion).
 # ---------------------------------------------------------------------------
 # PI 2026-11-09: the IEC / DSMB AE summary only for the Global PI, the
-# project / global scientist and site PIs (their own site); not site scientists.
-from deps import ROLE_GLOBAL_SCIENTIST, ROLE_PROJECT_SCIENTIST  # noqa: E402
-READY_REPORT_ROLES = {"ae_summary": {ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_GLOBAL_SCIENTIST, ROLE_SITE_PI}}
+# Project Scientist ("global scientist") and site PIs (their own site).
+from deps import ROLE_PROJECT_SCIENTIST  # noqa: E402
+READY_REPORT_ROLES = {"ae_summary": {ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_SITE_PI}}
 
 
 def _may_see_ready(key, user) -> bool:

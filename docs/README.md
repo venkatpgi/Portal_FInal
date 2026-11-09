@@ -135,7 +135,7 @@ nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
 - **AE summary for IEC / DSMB** (PI 2026-11-09, monthly, pooled, never by
   arm): `ae_summary.py`; details in chapter 07. Dates = AE start date; a
   "Last month" button sets the previous calendar month. Only the Global PI,
-  Project / Global Scientist and Site PIs (own site) can open it.
+  Project Scientist and Site PIs (own site) can open it.
 
 ## Data queries (Phase 1, PI 2026-10-15)
 Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems
