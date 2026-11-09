@@ -117,7 +117,19 @@ same access as the builder, optional site and screening-date range; each
 download is an audit row (`EXPORT`, table `report_ready`). PDF (A4 landscape,
 tables + bar charts) or CSV; preview draws the same on the page. IDs only,
 nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
-- **Consent refusals**: by site (asked = consent Yes or No), by the staff who
+- **Eligible births to consent** (key `consent`, PI 2026-11-09): first a
+  funnel per site. Eligible births = women whose baby was born at 25+0 to
+  31+6 weeks (Log of All Births, from the trial start, by date of birth;
+  twins = one woman, keyed by site + CR + date of birth). No Form A = none
+  of her babies has `match_status` matched / possible_match (matches
+  refreshed first, as the CONSORT does). Screened = Form A by screening
+  date; not asked = no consent Yes/No, reason = A4 exclusion or gestation
+  outside the window, else `reason_not_approached`, else "Consent not yet
+  recorded". Then reasons for no Form A (birth-log `reason_not_approached`),
+  reasons not asked, and both lists (birth-log row numbers / screening IDs).
+  Unlike CONSORT Box 2 "never checked", no Form A counts women, and counts
+  them whether or not a Gestation Log entry exists. Then the refusals:
+  by site (asked = consent Yes or No), by the staff who
   took consent (their refusals / women they asked), reasons (comma-joined
   reasons counted separately), from whom consent was sought
   (`relationship_to_participant`), list.
