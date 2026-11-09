@@ -158,6 +158,10 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
   blank); sources. Literature values: `backend/ae_baseline.py`, quoted from
   each source's abstract with its population, "not yet sourced" otherwise;
   marked DRAFT until the PI approves (`APPROVED = True`).
+  Access (PI 2026-11-09, `main.READY_REPORT_ROLES`): Global PI, Project
+  Scientist (all sites) and Site PIs (own site only); site scientists
+  and everyone else do not see it in the list and get 403 on preview or
+  download.
 - SAE e-mail notification (`email_service.py`, recipients
   `main._sae_notification_recipients`), sent when a Form Y is saved: the
   site's active Site Scientist(s), the site PI email in `sae_config.py`, and

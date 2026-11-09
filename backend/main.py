@@ -5146,12 +5146,25 @@ def get_composite_suggestion(
 # routers/reports.py, because they reuse per-baby endpoints of this module
 # (enrollment-status ticks, composite outcome suggestion).
 # ---------------------------------------------------------------------------
+# PI 2026-11-09: the IEC / DSMB AE summary only for the Global PI, the
+# Project Scientist ("global scientist") and site PIs (their own site).
+from deps import ROLE_PROJECT_SCIENTIST  # noqa: E402
+READY_REPORT_ROLES = {"ae_summary": {ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_SITE_PI}}
+
+
+def _may_see_ready(key, user) -> bool:
+    allowed = READY_REPORT_ROLES.get(key)
+    return allowed is None or (user.role or "").lower() in allowed
+
+
 def _ready_report(key, site, date_from, date_to, db, current_user):
     from routers.dashboard import followup_by_baby
     from routers.reports import _scope_sites
     if key not in ready_reports.REPORT_KEYS:
         raise HTTPException(status_code=404, detail="No such report")
     sites = _scope_sites(current_user, site)
+    if not _may_see_ready(key, current_user):
+        raise HTTPException(status_code=403, detail="This report is for the Global PI, the Project Scientist and Site PIs.")
     follow = {}
 
     def status_for(eid):
@@ -5180,7 +5193,7 @@ def _ready_report(key, site, date_from, date_to, db, current_user):
 def list_ready_reports(current_user: User = Depends(get_current_user)):
     from routers.reports import _scope_sites
     _scope_sites(current_user, None)
-    return ready_reports.REPORTS
+    return [r for r in ready_reports.REPORTS if _may_see_ready(r["key"], current_user)]
 
 
 @app.get("/reports/ready/{key}")
