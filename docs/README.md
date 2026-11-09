@@ -132,6 +132,9 @@ nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
   composite suggestion (`components`): death by 36 / 44 wk, BPD, ROP-Rx, NEC
   ≥ IIA, brain injury, composites 1 and 2 (Yes of known). Reason for loss to
   follow-up: Form I `ltfu36/40/44_reason` (PI 2026-11-06).
+- **AE summary for IEC / DSMB** (PI 2026-11-09, monthly, pooled, never by
+  arm): `ae_summary.py`; details in chapter 07. Dates = AE start date; a
+  "Last month" button sets the previous calendar month.
 
 ## Data queries (Phase 1, PI 2026-10-15)
 Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems

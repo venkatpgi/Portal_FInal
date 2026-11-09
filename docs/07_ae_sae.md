@@ -142,6 +142,22 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
   `GET /dashboard/safety/summary-report` (`sae_summary_report.py`) — SAE line
   listing + all-AE listing by site for a chosen date range; rows with an
   unparseable onset date are included, never dropped.
+- **Monthly AE summary for the IEC and DSMB** (PI 2026-11-09; ready-made
+  report `ae_summary`, `backend/ae_summary.py`): pooled across both arms (no
+  unblinding unless the DSMB asks). Period = AE start date (SAE onset);
+  cumulative = everything started by the end date. Denominator = randomised
+  babies born by the end date; a baby counts once per term. Each AE row is
+  grouped under its INC term (`ae_reference.AE_DEFINITIONS`): definition
+  number if it is a term key, else the description matched to the term name
+  (spelling fixes: billi/bili, brachy/brady; "neonatal", "infantile" ignored),
+  else "Other: <as typed>". Deaths from `death_alert.status` (end of stay or
+  Form I). Sections: summary by site; terms with babies affected, rows in the
+  period / cumulative, grade 1-5 / blank, converted to SAE and the literature
+  baseline; terms by site; SAE reports; AE listing for the period; data checks
+  (no start date, end date not valid or before start, unmatched term, grade
+  blank); sources. Literature values: `backend/ae_baseline.py`, quoted from
+  each source's abstract with its population, "not yet sourced" otherwise;
+  marked DRAFT until the PI approves (`APPROVED = True`).
 - SAE e-mail notification (`email_service.py`, recipients
   `main._sae_notification_recipients`), sent when a Form Y is saved: the
   site's active Site Scientist(s), the site PI email in `sae_config.py`, and

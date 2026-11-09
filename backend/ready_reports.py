@@ -9,6 +9,8 @@
   glance        At a glance per site: screened, excluded, not approached,
                 refused, eligible, randomised, follow-up at 36 / 40 / 44
                 weeks, outcomes (components of the composites).
+  ae_summary    Monthly AE / SAE summary for the IEC and DSMB, with the
+                literature baseline (ae_summary.py; dates = AE start date).
 
 Same definitions as the Trial Monitoring CONSORT (routers/dashboard.py):
 excluded = Box 4a (gestation outside 25+0 to 31+6 weeks, or not recorded)
@@ -40,6 +42,9 @@ REPORTS = [
      "description": "Randomised babies: forms complete and not yet complete, by form and site."},
     {"key": "glance", "title": "At a glance",
      "description": "Per site: screened, excluded, refused, eligible, randomised, follow-up and outcomes."},
+    {"key": "ae_summary", "title": "AE summary for IEC / DSMB",
+     "description": "Monthly: AEs and SAEs by term and site, pooled (blinded), with the literature baseline. "
+                    "Dates = AE start date."},
 ]
 REPORT_KEYS = {r["key"] for r in REPORTS}
 
@@ -385,6 +390,13 @@ def glance_report(db, rows, sites, composite_for, followup_for):
 def build(key, db, sites, date_from=None, date_to=None, *, status_for=None, composite_for=None, followup_for=None):
     if key not in REPORT_KEYS:
         raise KeyError(key)
+    if key == "ae_summary":
+        import ae_summary
+        babies = ae_summary.collect(db, randomised_babies(db, screenings(db, sites, None, None)))
+        sections = ae_summary.sections(*babies, date_from, date_to, site_label)
+        period = ("AEs starting " + " to ".join(d.strftime("%d-%m-%Y") for d in (date_from, date_to) if d)
+                  + " · cumulative to the end date" if date_from or date_to else "all AEs to date")
+        return _report(key, sites, period, sections)
     rows = screenings(db, sites, date_from, date_to)
     if key == "consent":
         sections = consent_report(rows, sites)
@@ -394,9 +406,13 @@ def build(key, db, sites, date_from=None, date_to=None, *, status_for=None, comp
         sections = completeness_report(randomised_babies(db, rows), sites, status_for)
     else:
         sections = glance_report(db, rows, sites, composite_for, followup_for)
-    meta = next(r for r in REPORTS if r["key"] == key)
     period = ("screened " + " to ".join(d.strftime("%d-%m-%Y") for d in (date_from, date_to) if d)
               if date_from or date_to else "all women screened")
+    return _report(key, sites, period, sections)
+
+
+def _report(key, sites, period, sections):
+    meta = next(r for r in REPORTS if r["key"] == key)
     where = "All sites" if len(sites) > 1 else site_full_name(sites[0])
     return {"key": key, "title": meta["title"], "scope": f"{where} · {period}",
             "generated_at": clinical_now().strftime("%d-%m-%Y %H:%M IST"), "sections": sections}
@@ -500,13 +516,16 @@ def to_pdf(rep) -> bytes:
             ch = _chart(sec["chart"], width)
             if ch:
                 block += [ch, Spacer(1, 4)]
-        story.append(KeepTogether(block[:3]))   # heading + note stay together
-        story += block[3:]
+        story.append(KeepTogether(block))   # heading + note (+ chart) stay together
         data = [[Paragraph(esc(c), head) for c in sec["columns"]]]
         data += [[Paragraph(esc(c), cell) for c in r] for r in sec["rows"]] or \
                 [[Paragraph("None.", cell)] + [""] * (len(sec["columns"]) - 1)]
-        t = Table(data, repeatRows=1, hAlign="LEFT",
-                  colWidths=[width / len(sec["columns"])] * len(sec["columns"]) if len(sec["columns"]) > 6 else None)
+        widths = sec.get("widths")
+        if widths:
+            widths = [width * w / sum(widths) for w in widths]
+        elif len(sec["columns"]) > 6:
+            widths = [width / len(sec["columns"])] * len(sec["columns"])
+        t = Table(data, repeatRows=1, hAlign="LEFT", colWidths=widths)
         t.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#00132c")),
             ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f1f5f9")]),

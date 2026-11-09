@@ -60,6 +60,17 @@ export default function ReadyReports({ global, userSite }) {
     api.get("/reports/ready").then(res => setList(res.data || [])).catch(() => setList([]));
   }, []);
 
+  // PI 2026-11-09: the IEC / DSMB summary goes monthly; one click sets the last calendar month.
+  const lastMonth = () => {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const last = new Date(now.getFullYear(), now.getMonth(), 0);
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setFrom(iso(first));
+    setTo(iso(last));
+    setShown(null);
+  };
+
   const params = () => ({
     ...(global && site ? { site } : {}),
     ...(from ? { date_from: from } : {}),
@@ -121,14 +132,19 @@ export default function ReadyReports({ global, userSite }) {
           </label>
         ) : <p className="rb-note">Site: {formatSiteName(userSite)}</p>}
         <label className="rb-field">
-          <span>Screened from</span>
+          <span>From</span>
           <input type="date" value={from} onChange={e => { setFrom(e.target.value); setShown(null); }} />
         </label>
         <label className="rb-field">
           <span>to</span>
           <input type="date" value={to} onChange={e => { setTo(e.target.value); setShown(null); }} />
         </label>
+        <button type="button" className="rb-btn" onClick={lastMonth}>Last month</button>
       </div>
+      <p className="rb-note">
+        Dates are the screening date, except the AE summary, where they are the AE start date (it also shows
+        everything up to the end date).
+      </p>
       {error && <div className="rb-error" role="alert">{error}</div>}
       <div className="rr-cards">
         {list.map(r => (
