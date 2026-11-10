@@ -1,6 +1,8 @@
 """Ready-made reports (PI 2026-11-06): one click, preview / CSV / PDF.
 
-  consent       Consent refusals: by site, by the staff who took consent
+  consent       Eligible births to consent: births at 25+0 to 31+6 weeks with
+                no Form A (Log of All Births, with reasons), screened women not
+                asked (reasons), then consent refusals: by site, by the staff who took consent
                 (share of the women each asked who refused), reasons, from
                 whom consent was sought, and the list.
   exclusions    Exclusions out of all Form A (screened): by site, reasons.
@@ -34,8 +36,9 @@ from clinical_time import clinical_now
 from participant_counts import scoped_screenings
 
 REPORTS = [
-    {"key": "consent", "title": "Consent refusals",
-     "description": "Refusals by site and by the staff who took consent, with reasons and from whom consent was sought."},
+    {"key": "consent", "title": "Eligible births to consent",
+     "description": "Eligible births with no Form A (with reasons), screened women not asked, then consent "
+                    "refusals by site and by the staff who took consent, with reasons and from whom consent was sought."},
     {"key": "exclusions", "title": "Exclusions",
      "description": "Women excluded out of all screened (Form A), with reasons, by site."},
     {"key": "completeness", "title": "Form completeness",
@@ -139,8 +142,130 @@ def _with_total(rows_by_site: dict, sites: list, cols: int, total_row):
     return rows
 
 
+FORM_A_FOUND = ("matched", "possible_match")
+CONSENT_NOT_RECORDED = "Consent not yet recorded"
+
+
+def eligible_births(db, sites, date_from: date | None, date_to: date | None) -> list[dict]:
+    """Women whose baby was born at 25+0 to 31+6 weeks (Log of All Births),
+    on or after the trial start, dated by date of birth. One per mother and
+    birth date (twins = one woman); she has a Form A when any of her babies
+    matched one (match_status matched / possible_match, refreshed first as
+    the CONSORT does). No names: the birth-log row numbers only."""
+    from birth_log_matching import _normalize_uid, classify_ga_range, refresh_birth_log_matches
+    from models import BirthLogEntry
+    from trial_dates import trial_start
+    if not sites:
+        return []
+    refresh_birth_log_matches(db, sites)
+    start = max(d for d in (date_from, trial_start()) if d)
+    women: dict = {}
+    for e in db.query(BirthLogEntry).filter(BirthLogEntry.site_name.in_(list(sites))).all():
+        born = e.date_of_birth or (e.created_at.date() if e.created_at else None)
+        if not born or born < start or (date_to and born > date_to):
+            continue
+        if classify_ga_range(e.gestation_weeks, e.gestation_days) != "in_range":
+            continue
+        uid = _normalize_uid(e.mother_uid)
+        w = women.setdefault((e.site_name, uid, born) if uid else ("row", e.id), {
+            "site": e.site_name, "born": born, "rows": [], "ga": [], "form_a": False, "reasons": [], "other": []})
+        w["rows"].append(e.id)
+        w["ga"].append(f"{e.gestation_weeks}+{e.gestation_days or 0}")
+        w["form_a"] |= e.match_status in FORM_A_FOUND
+        for x in _split(e.reason_not_approached):
+            if x not in w["reasons"]:
+                w["reasons"].append(x)
+        other = (e.reason_not_approached_other or "").strip().rstrip(".").strip()
+        if other and other.lower() not in (o.lower() for o in w["other"]):
+            w["other"].append(other)
+    return sorted(women.values(), key=lambda w: (w["site"] or "", w["born"], w["rows"][0]))
+
+
+def not_asked_reasons(r) -> list[str]:
+    """Why a woman with a Form A was not asked for consent."""
+    return exclusion_reasons(r) or _split(getattr(r, "reason_not_approached", None)) or [CONSENT_NOT_RECORDED]
+
+
+def births_to_consent_sections(births, rows, sites) -> list[dict]:
+    """Eligible births with no Form A, then screened women not asked, asked,
+    consented and refused (PI 2026-11-09)."""
+    missed = [w for w in births if not w["form_a"]]
+    not_asked = [r for r in rows if r.consent_given not in ("Yes", "No")]
+    present = {w["site"] for w in births} | {r.site_name for r in rows}
+    order = _site_order(present, sites)
+
+    def site_row(label, b, rs):
+        miss = sum(not w["form_a"] for w in b)
+        asked = [r for r in rs if r.consent_given in ("Yes", "No")]
+        ref = sum(r.consent_given == "No" for r in asked)
+        return [label, len(b), miss, pct(miss, len(b)), len(rs), len(rs) - len(asked), len(asked),
+                len(asked) - ref, ref, pct(ref, len(asked))]
+
+    by_site = {s: site_row(site_label(s), [w for w in births if w["site"] == s],
+                           [r for r in rows if r.site_name == s]) for s in order}
+    show_sites = len(order) > 1
+    sections = [{
+        "title": "From eligible births to consent",
+        "note": "Eligible births = women whose baby was born at 25+0 to 31+6 weeks (Log of All Births, from the "
+                "trial start, by date of birth; twins = one woman). No Form A = none of her babies matched a "
+                "Form A. Screened = Form A, by screening date, so the two groups overlap but are not the same "
+                "women. Asked = consent Yes or No.",
+        "columns": ["Site", "Eligible births", "No Form A", "% missed", "Screened (Form A)", "Not asked",
+                    "Asked for consent", "Consented", "Refused", "% refused"],
+        "rows": _with_total(by_site, order, 10, site_row("All sites", births, rows)),
+        "chart": {"title": "Lost before consent, and consent answers (n)", "unit": "n",
+                  "labels": [site_label(s) for s in order],
+                  "series": [{"name": name, "values": [by_site[s][i] for s in order]}
+                             for name, i in (("No Form A", 2), ("Not asked", 5), ("Refused", 8), ("Consented", 7))]},
+    }]
+
+    def reason_section(title, note, items, reasons_of, site_of, total_label):
+        n_by, by_site_n = Counter(), defaultdict(Counter)
+        for it in items:
+            for x in reasons_of(it):
+                n_by[x] += 1
+                by_site_n[x][site_of(it)] += 1
+        return {
+            "title": title, "note": note,
+            "columns": ["Reason", "n", f"% of {total_label}"] + ([site_label(s) for s in order] if show_sites else []),
+            "rows": [[x, n, pct(n, len(items))] + ([by_site_n[x][s] for s in order] if show_sites else [])
+                     for x, n in n_by.most_common()],
+            "chart": {"title": f"{title} (n)", "unit": "n", "labels": [x for x, _ in n_by.most_common()],
+                      "series": [{"name": "Women", "values": [n for _, n in n_by.most_common()]}]},
+        }
+
+    sections.append(reason_section(
+        "Eligible births with no Form A: reasons",
+        "Reason not approached, from the Log of All Births. A woman may have more than one reason.",
+        missed, lambda w: w["reasons"] or [NOT_RECORDED], lambda w: w["site"], "missed"))
+    sections.append(reason_section(
+        "Screened but not asked for consent: reasons",
+        "Form A exclusion (A4, or gestation outside 25+0 to 31+6), else the reason not approached; "
+        f"\"{CONSENT_NOT_RECORDED}\" = no consent answer and no reason yet.",
+        not_asked, not_asked_reasons, lambda r: r.site_name, "not asked"))
+    sections.append({
+        "title": f"List of eligible births with no Form A ({len(missed)})",
+        "note": "Log of All Births row numbers (no names). Gestation at birth; twins show each baby.",
+        "columns": ["Birth log no.", "Site", "Date of birth", "Gestation (wk+d)", "Reason(s)", "Other reason"],
+        "rows": [[", ".join(str(i) for i in w["rows"]), site_label(w["site"]), w["born"].strftime("%d-%m-%Y"),
+                  ", ".join(w["ga"]), ", ".join(w["reasons"]) or NOT_RECORDED, "; ".join(w["other"])]
+                 for w in missed],
+    })
+    sections.append({
+        "title": f"List of screened women not asked for consent ({len(not_asked)})",
+        "note": "Screening IDs only.",
+        "columns": ["Screening ID", "Site", "Screened on", "Gestation (wk+d)", "Reason(s)"],
+        "rows": [[r.screening_id, site_label(r.site_name),
+                  _screened_on(r).strftime("%d-%m-%Y") if _screened_on(r) else "",
+                  f"{r.gestation_weeks}+{r.gestation_days or 0}" if r.gestation_weeks is not None else "",
+                  ", ".join(not_asked_reasons(r))]
+                 for r in not_asked],
+    })
+    return sections
+
+
 # ------------------------------------------------------------------ reports
-def consent_report(rows, sites):
+def consent_report(rows, sites, births=None):
     asked = [r for r in rows if r.consent_given in ("Yes", "No")]
     refused = [r for r in asked if r.consent_given == "No"]
     by_site = defaultdict(lambda: [0, 0])
@@ -149,7 +274,8 @@ def consent_report(rows, sites):
         by_site[r.site_name][1] += r.consent_given == "No"
     order = _site_order(by_site, sites)
     site_rows = {s: [site_label(s), by_site[s][0], by_site[s][1], pct(by_site[s][1], by_site[s][0])] for s in order}
-    sections = [{
+    sections = births_to_consent_sections(births, rows, sites) if births is not None else []
+    sections += [{
         "title": "Refusals by site",
         "note": "Asked = women whose consent answer is Yes or No (Form A).",
         "columns": ["Site", "Asked for consent", "Refused", "% refused"],
@@ -399,7 +525,7 @@ def build(key, db, sites, date_from=None, date_to=None, *, status_for=None, comp
         return _report(key, sites, period, sections)
     rows = screenings(db, sites, date_from, date_to)
     if key == "consent":
-        sections = consent_report(rows, sites)
+        sections = consent_report(rows, sites, eligible_births(db, sites, date_from, date_to))
     elif key == "exclusions":
         sections = exclusions_report(rows, sites)
     elif key == "completeness":
