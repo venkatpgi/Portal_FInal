@@ -59,6 +59,9 @@ const ACRONYMS = {
   pma: "PMA",
   nicu: "NICU",
   hr: "HR",
+  sbp: "SBP",
+  dbp: "DBP",
+  map: "MAP",
   spo2: "SpO₂",
   bpd: "BPD",
   ivh: "IVH",
@@ -128,6 +131,10 @@ const FIELD_LABELS = {
   glucose: "Glucose",
   volume_ml: "Volume",
   axillary_temp: "Temperature",
+  sbp: "SBP",
+  dbp: "DBP",
+  map_value: "MAP",
+  respiratory_time: "Respiratory time",
 };
 
 export function auditActionLabel(action) {
@@ -209,10 +216,22 @@ function looksLikeReading(row) {
   );
 }
 
+function formatDay(ymd) {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return ymd || "";
+  const [y, m, d] = ymd.split("-").map(Number);
+  const local = new Date(y, m - 1, d);
+  if (Number.isNaN(local.getTime())) return ymd;
+  return local.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function formatReadingRow(row) {
   if (row == null) return "";
   if (typeof row !== "object" || Array.isArray(row)) return formatAuditValue(row);
-  const date = row.date ? String(row.date).slice(0, 10) : "";
+  const date = formatDay(row.date ? String(row.date).slice(0, 10) : "");
   const time = (row.time || row.slot_time || "").toString().trim();
   const when = [date, time].filter(Boolean).join(" ");
   const bits = [];
@@ -358,12 +377,55 @@ function readingWhenKey(row) {
   return `${String(row.date || "").slice(0, 10)}|${row.slot_time || row.time || ""}`;
 }
 
+function readingWhenLabel(row) {
+  if (!row || typeof row !== "object") return "";
+  const date = formatDay(row.date ? String(row.date).slice(0, 10) : "");
+  const time = (row.slot_time || row.time || "").toString().trim();
+  return [date, time].filter(Boolean).join(", ");
+}
+
+function formatFieldValue(fieldKey, value) {
+  if (isEmpty(value)) return "empty";
+  const shown = formatAuditValue(value);
+  if (shown === "empty" || shown === "hidden") return shown;
+  const unit = READING_UNITS[fieldKey];
+  return unit ? `${shown} ${unit}` : shown;
+}
+
+function fieldDiffsForReading(block, index, fromRow, toRow) {
+  const sample = toRow || fromRow || {};
+  const group = [humanizeField(block), readingWhenLabel(sample)].filter(Boolean).join(" · ");
+  const keys = [...new Set([
+    ...Object.keys(fromRow || {}),
+    ...Object.keys(toRow || {}),
+  ])].filter((k) => !READING_META_KEYS.has(k));
+  const changes = [];
+  keys.forEach((fieldKey) => {
+    const from = fromRow ? fromRow[fieldKey] : undefined;
+    const to = toRow ? toRow[fieldKey] : undefined;
+    if (valuesEqual(from, to)) return;
+    if (isEmpty(from) && isEmpty(to)) return;
+    let kind = "changed";
+    if (isEmpty(from) && !isEmpty(to)) kind = "added";
+    else if (!isEmpty(from) && isEmpty(to)) kind = "removed";
+    changes.push({
+      key: `${block}[${index}].${fieldKey}`,
+      fieldKey,
+      label: humanizeField(fieldKey),
+      group,
+      from: isEmpty(from) ? undefined : from,
+      to: isEmpty(to) ? undefined : to,
+      kind,
+    });
+  });
+  return changes;
+}
+
 function diffReadingArrays(block, oldArr, newArr) {
   const oldRows = (oldArr || []).filter((r) => r && typeof r === "object");
   const newRows = (newArr || []).filter((r) => r && typeof r === "object");
   const usedOld = new Set();
   const changes = [];
-  const label = humanizeField(block);
 
   newRows.forEach((nr, ni) => {
     if (isBlankReading(nr)) return;
@@ -376,37 +438,19 @@ function diffReadingArrays(block, oldArr, newArr) {
       oi = oldRows.findIndex((or, i) => !usedOld.has(i) && valuesEqual(or, nr));
     }
     if (oi < 0) {
-      changes.push({
-        key: `${block}[${ni}]`,
-        label,
-        from: undefined,
-        to: nr,
-        kind: "added",
-      });
+      fieldDiffsForReading(block, ni, undefined, nr).forEach((row) => changes.push(row));
       return;
     }
     usedOld.add(oi);
     const or = oldRows[oi];
     if (valuesEqual(or, nr)) return;
-    const addedFromBlank = isBlankReading(or);
-    changes.push({
-      key: `${block}[${ni}]`,
-      label,
-      from: addedFromBlank ? undefined : or,
-      to: nr,
-      kind: addedFromBlank ? "added" : "changed",
-    });
+    fieldDiffsForReading(block, ni, isBlankReading(or) ? undefined : or, nr)
+      .forEach((row) => changes.push(row));
   });
 
   oldRows.forEach((or, i) => {
     if (usedOld.has(i) || isBlankReading(or)) return;
-    changes.push({
-      key: `${block}[removed-${i}]`,
-      label,
-      from: or,
-      to: undefined,
-      kind: "removed",
-    });
+    fieldDiffsForReading(block, `removed-${i}`, or, undefined).forEach((row) => changes.push(row));
   });
   return changes;
 }
@@ -427,15 +471,35 @@ function expandEntriesDiff(from, to) {
  *   unchanged: Array<{key: string, label: string, from: any, to: any, kind: string}>,
  * }}
  */
+/** DMS also copies flowsheet values onto flat columns. Hide those when entries_json is present. */
+const DMS_MIRROR_KEYS = new Set([
+  "axillary_temp", "sbp", "dbp", "map_value",
+  "fluid_bolus_given",
+  "vasoactive_drugs", "vasoactive_dose", "vasoactive_unit",
+  "pda_agent", "pda_dose",
+  "respiratory_time", "respiratory_modes", "max_map_cpap", "max_map_cpap_secondary", "max_fio2",
+  "ph", "pao2", "paco2",
+  "apnea_shift", "apnea_episodes", "desaturation_episodes", "severe_desaturation_episodes",
+  "postnatal_steroids", "steroid_dose", "steroid_other",
+  "glucose", "alp", "total_calcium", "phosphorus",
+  "feed_shift", "cumulative_feed_volume", "direct_bilirubin",
+  "imaging_date", "ventriculomegaly_severity", "vi", "ahw",
+  "tod", "aca_ri", "mca_ri",
+  "transfusion_products", "transfusion_count", "prbc_volume",
+  "record_date", "shift",
+]);
+
 export function diffAuditValues(oldValues, newValues, { hideKeys = [] } = {}) {
   const hide = new Set([...AUDIT_NOISE_KEYS, ...hideKeys]);
   const oldV = oldValues && typeof oldValues === "object" ? oldValues : {};
   const newV = newValues && typeof newValues === "object" ? newValues : {};
   const changes = [];
   const unchanged = [];
+  const hasEntries = oldV.entries_json != null || newV.entries_json != null;
 
   for (const key of collectKeys(oldV, newV)) {
     if (hide.has(key)) continue;
+    if (hasEntries && DMS_MIRROR_KEYS.has(key)) continue;
     const from = Object.prototype.hasOwnProperty.call(oldV, key) ? oldV[key] : undefined;
     const to = Object.prototype.hasOwnProperty.call(newV, key) ? newV[key] : undefined;
     if ((key === "entries_json" || key.endsWith("_json")) && (isEntriesMap(from) || isEntriesMap(to))) {
@@ -468,8 +532,11 @@ export function describeAuditChange(row) {
   if (row?.kind === "hidden" || (isHiddenValue(row?.from) && isHiddenValue(row?.to))) {
     return { was: "hidden", now: "changed (details not shown)" };
   }
-  const from = formatAuditValue(row?.from);
-  const to = formatAuditValue(row?.to);
+  const fmt = (value) => (
+    row?.fieldKey ? formatFieldValue(row.fieldKey, value) : formatAuditValue(value)
+  );
+  const from = fmt(row?.from);
+  const to = fmt(row?.to);
   if (row?.kind === "added") return { was: "empty (not filled)", now: to };
   if (row?.kind === "removed") return { was: from, now: "cleared" };
   return { was: from, now: to };
@@ -528,6 +595,66 @@ export function pairSaveRows(rows) {
   return rows
     .filter((row) => !usedIds.has(row.id))
     .map((row) => patched.get(row.id) || row);
+}
+
+function closeInTime(a, b, ms = 4000) {
+  const ta = parseApiUtcDate(a?.created_at)?.getTime() ?? 0;
+  const tb = parseApiUtcDate(b?.created_at)?.getTime() ?? 0;
+  return Math.abs(ta - tb) <= ms;
+}
+
+function mergeTwinSnapshots(twins) {
+  const ordered = [...twins].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+  const oldValues = {};
+  const newValues = {};
+  ordered.forEach((row) => {
+    Object.entries(row.old_values || {}).forEach(([k, v]) => {
+      if (!(k in oldValues)) oldValues[k] = v;
+    });
+    Object.assign(newValues, row.new_values || {});
+  });
+  const newest = [...twins].sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0))[0];
+  return { ...newest, old_values: oldValues, new_values: newValues };
+}
+
+/** One user save can write several UPDATE rows (entries_json + flat columns). */
+export function collapseTwinUpdates(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows || [];
+  const used = new Set();
+  const collapsed = [];
+  rows.forEach((row, i) => {
+    if (used.has(row.id)) return;
+    const act = String(row.action || "").toUpperCase();
+    if (act !== "UPDATE" && act !== "SAVE") {
+      collapsed.push(row);
+      return;
+    }
+    const twins = [row];
+    rows.slice(i + 1).forEach((other) => {
+      if (used.has(other.id)) return;
+      if (String(other.action || "").toUpperCase() !== act) return;
+      if (!sameAuditRecord(row, other) || !closeInTime(row, other)) return;
+      twins.push(other);
+      used.add(other.id);
+    });
+    collapsed.push(twins.length === 1 ? row : mergeTwinSnapshots(twins));
+  });
+  return collapsed.filter((row) => {
+    const { changes } = diffAuditValues(row.old_values, row.new_values);
+    if (changes.length > 0) return true;
+    const act = String(row.action || "").toUpperCase();
+    if (act !== "UPDATE") return true;
+    return !collapsed.some((other) => (
+      other.id !== row.id
+      && sameAuditRecord(row, other)
+      && closeInTime(row, other, 5000)
+      && diffAuditValues(other.old_values, other.new_values).changes.length > 0
+    ));
+  });
+}
+
+export function tidyAuditRows(rows) {
+  return sortAuditRowsNewestFirst(collapseTwinUpdates(pairSaveRows(rows)));
 }
 
 /** Newest first using the same IST/UTC parse as the When column. */

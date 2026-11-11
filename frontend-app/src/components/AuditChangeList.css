@@ -19,10 +19,23 @@
 }
 
 .audit-changes-story-label {
-  margin: 0 0 8px;
-  font-size: 14px;
+  margin: 0 0 10px;
+  font-size: 13px;
   font-weight: 700;
   color: #0f172a;
+}
+
+.audit-changes-fieldblock + .audit-changes-fieldblock {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.audit-changes-fieldname {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 4px;
 }
 
 .audit-changes-story-line {

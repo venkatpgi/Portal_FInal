@@ -9,9 +9,8 @@ import { auditTableLabel, AUDIT_ACTIONS, AUDIT_TABLE_LABELS } from "./utils/audi
 import {
   auditActionLabel,
   diffAuditValues,
-  pairSaveRows,
-  sortAuditRowsNewestFirst,
   summarizeAuditChanges,
+  tidyAuditRows,
 } from "./utils/auditDiff";
 import { siteShortCode } from "./utils/siteNames";
 import { formatAuditDateTime } from "./utils/datetime";
@@ -146,7 +145,7 @@ export default function AuditTrail() {
   );
 
   const displayRows = useMemo(
-    () => sortAuditRowsNewestFirst(pairSaveRows(rows)),
+    () => tidyAuditRows(rows),
     [rows],
   );
 
@@ -231,6 +230,21 @@ export default function AuditTrail() {
             <span>To</span>
             <input type="date" value={dateTo} onChange={(e) => { setPage(0); setDateTo(e.target.value); }} />
           </label>
+          <button
+            type="button"
+            className="audit-btn-link"
+            style={{ marginBottom: 8 }}
+            onClick={() => {
+              const n = new Date();
+              const p = (x) => String(x).padStart(2, "0");
+              const ymd = `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`;
+              setPage(0);
+              setDateFrom(ymd);
+              setDateTo(ymd);
+            }}
+          >
+            Today
+          </button>
           <label className="audit-filter">
             <span>Action</span>
             <select value={action} onChange={(e) => { setPage(0); setAction(e.target.value); }}>
@@ -318,7 +332,15 @@ export default function AuditTrail() {
                         </td>
                         <td>{auditTableLabel(row.table_name)}</td>
                         <td className="audit-ref">
-                          {row.enrollment_id || row.screening_id || row.record_id || "—"}
+                          {row.enrollment_id ? (
+                            <button
+                              type="button"
+                              className="audit-btn-link"
+                              onClick={() => { setPage(0); setEnrollmentId(row.enrollment_id); }}
+                            >
+                              {row.enrollment_id}
+                            </button>
+                          ) : (row.screening_id || row.record_id || "—")}
                         </td>
                         <td className="audit-summary">{changeSummary(row)}</td>
                         <td>

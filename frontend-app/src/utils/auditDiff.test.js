@@ -6,6 +6,7 @@ import {
   pairSaveRows,
   sortAuditRowsNewestFirst,
   summarizeAuditChanges,
+  tidyAuditRows,
 } from "./auditDiff";
 
 test("urine field labels are readable", () => {
@@ -111,14 +112,12 @@ test("adding a DMS weight entry shows the grams not a reading count", () => {
   expect(changes.map((c) => c.key)).not.toContain("saved_at");
   expect(changes).toHaveLength(1);
   expect(changes[0].kind).toBe("added");
+  expect(changes[0].fieldKey).toBe("weight_g");
   expect(changes[0].label).toMatch(/Weight/);
-  const shown = formatAuditValue(changes[0].to);
-  expect(shown).toContain("400");
-  expect(shown).toContain("g");
-  expect(shown).not.toMatch(/1 reading/);
   const described = describeAuditChange(changes[0]);
   expect(described.was).toMatch(/empty/i);
   expect(described.now).toContain("400");
+  expect(described.now).toContain("g");
 });
 
 test("describeAuditChange uses was/now language", () => {
@@ -135,6 +134,67 @@ test("describeAuditChange uses was/now language", () => {
     to: "[updated]",
   });
   expect(hidden.now).toMatch(/details not shown/);
+});
+
+test("DMS vitals are not repeated as SBP/DBP/MAP plus the reading", () => {
+  const { changes } = diffAuditValues(
+    {
+      sbp: null,
+      dbp: null,
+      map_value: null,
+      entries_json: JSON.stringify({
+        cv_a: [{ id: "1", date: "2026-11-11", slot_time: "06:00", axillary_temp: "4" }],
+      }),
+    },
+    {
+      sbp: 31,
+      dbp: 13,
+      map_value: 33,
+      entries_json: JSON.stringify({
+        cv_a: [{
+          id: "1", date: "2026-11-11", slot_time: "06:00",
+          axillary_temp: "4", sbp: "31", dbp: "13", map_value: "33",
+        }],
+      }),
+    },
+  );
+  expect(changes.map((c) => c.fieldKey).sort()).toEqual(["dbp", "map_value", "sbp"]);
+  expect(changes.every((c) => /Vitals/.test(c.group))).toBe(true);
+  expect(describeAuditChange(changes.find((c) => c.fieldKey === "sbp")).now).toMatch(/31/);
+  expect(changes.some((c) => c.fieldKey === "axillary_temp")).toBe(false);
+});
+
+test("empty twin UPDATE is dropped when the same save has real changes", () => {
+  const tidied = tidyAuditRows([
+    {
+      id: 3,
+      action: "UPDATE",
+      table_name: "minimal_monitoring_day_logs",
+      enrollment_id: "01-D-039",
+      created_at: "2026-11-11T11:37:02Z",
+      old_values: { saved_at: "2026-11-11T11:37:00Z" },
+      new_values: { saved_at: "2026-11-11T11:37:02Z" },
+    },
+    {
+      id: 2,
+      action: "UPDATE",
+      table_name: "minimal_monitoring_day_logs",
+      enrollment_id: "01-D-039",
+      created_at: "2026-11-11T11:37:01Z",
+      old_values: {
+        entries_json: JSON.stringify({ cv_a: [{ id: "1", date: "2026-11-11", slot_time: "06:00", axillary_temp: "4" }] }),
+      },
+      new_values: {
+        entries_json: JSON.stringify({
+          cv_a: [{ id: "1", date: "2026-11-11", slot_time: "06:00", axillary_temp: "4", sbp: "31" }],
+        }),
+      },
+    },
+  ]);
+  expect(tidied).toHaveLength(1);
+  const { changes } = diffAuditValues(tidied[0].old_values, tidied[0].new_values);
+  expect(changes.length).toBeGreaterThan(0);
+  expect(summarizeAuditChanges(changes, { action: "UPDATE" })).not.toMatch(/No answers changed/);
 });
 
 test("15:52 IST wall-clock sorts after a later 16:54 UTC save", () => {
