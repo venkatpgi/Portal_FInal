@@ -17,6 +17,7 @@ import { formatMotherFirstName, formatParticipantListName } from "./utils/babyNa
 import { resolveConsentSignatureFromRecord } from "./utils/consentSignature";
 import { formatSiteName, formatSiteShort, canonicalSiteKey, isKnownTrialSite } from "./components/dashboard/siteLabels";
 import { SITE_ORDER } from "./utils/siteNames";
+import { babyIdLabel } from "./utils/enrollmentId";
 import { formatDateTimeDisplay24 } from "./utils/datetime";
 import { SCREENING_TILES, RANDOMISATION_TILES, PARTICIPANT_TILES } from "./utils/participantCounts";
 
@@ -186,6 +187,7 @@ const TILE_ICON = {
   consented: <FileText size={20}/>, consent_refused: <UserX size={20}/>,
   awaiting_delivery: <Hourglass size={20}/>, delivered: <Baby size={20}/>, needed_ppv: <Activity size={20}/>,
   randomised: <Shuffle size={20}/>, not_randomised: <AlertTriangle size={20}/>, no_ppv: <CheckCircle2 size={20}/>,
+  randomised_in_error: <AlertTriangle size={20}/>,
 };
 
 /* Same tiles and counts as the Dashboard (server: /screenings/summary). */
@@ -1037,7 +1039,7 @@ export default function ViewEntries() {
                         {(stageByScreening[entry.screening_id]?.babies || []).length > 1
                           ? stageByScreening[entry.screening_id].babies.map(b => (
                               <div key={b.enrollment_id} title={`Baby ${b.baby_number} of this mother`}>
-                                <small>B{b.baby_number}</small> {String(b.enrollment_id).startsWith("NR-") ? "not randomised" : b.enrollment_id}
+                                <small>B{b.baby_number}</small> {babyIdLabel(b)}
                               </div>))
                           : (entry.enrollment_id || "—")}
                       </td>

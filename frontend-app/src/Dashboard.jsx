@@ -41,6 +41,7 @@ const TILE_ICON = {
   screened: Users, eligible: UserCheck, not_eligible: XCircle, screen_failures: Ban,
   pending: Clock, drafts: ClipboardList, consented: FileText, consent_refused: UserX, awaiting_delivery: Hourglass, delivered: Baby,
   needed_ppv: Activity, randomised: Shuffle, not_randomised: AlertTriangle, no_ppv: CheckCircle2,
+  randomised_in_error: AlertTriangle,
 };
 
 const C = {

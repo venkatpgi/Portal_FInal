@@ -65,6 +65,7 @@ from ae_terms import duplicate_of
 import audit_trail
 audit_trail.install()   # every form table audited when AUDIT_ALL_FORMS=1 (PI 2026-10-26)
 import composite_suggestion as cs
+import randomised_in_error
 import ready_reports
 from brain_injury_suggestion import suggest_brain_injury, grade_rank as bi_grade_rank, record as bi_record
 from nec_suggestion import suggest_nec, stage_rank as nec_stage_rank, finding as nec_finding, highest_stage as nec_highest_stage
@@ -563,6 +564,15 @@ def resolve_birth_enrollment_id(data) -> str | None:
     ):
         return nr_enrollment_id(data.screening_id, getattr(data, "baby_number", None))
     return None
+
+
+def _apply_in_error_rules(data, prior, enrollment_id, user):
+    """Randomised in error (randomised_in_error.py): check the save and
+    store randomised = False + the blender letter for such a baby."""
+    try:
+        return randomised_in_error.apply_to_model(data, prior, enrollment_id, getattr(user, "role", None))
+    except randomised_in_error.RuleError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 def _check_baby_number(baby_number, number_of_babies) -> None:
@@ -1102,7 +1112,8 @@ def get_screening_stages(
             out[r.screening_id] = stage_payload(key)
         if b is not None:
             babies.setdefault(r.screening_id, []).append(
-                {"enrollment_id": b.enrollment_id, "baby_number": b.baby_number})
+                {"enrollment_id": b.enrollment_id, "baby_number": b.baby_number,
+                 "randomised_in_error": randomised_in_error.is_in_error(b)})
     for sid, mine in babies.items():
         if len(mine) > 1:   # twins / triplets: every baby, for the list and its search
             out[sid] = {**out.get(sid, {}), "babies": mine}
@@ -1660,6 +1671,7 @@ def list_babies_of_screening(
             "label": baby_label(baby_no(b), total),
             "randomised": b.randomised,
             "required_resuscitation": b.required_resuscitation,
+            "randomised_in_error": randomised_in_error.is_in_error(b),
             "date_of_birth": b.date_of_birth,
             "is_complete": b.is_complete,
         } for b in rows],
@@ -1798,6 +1810,9 @@ def create_birth_resuscitation(
             detail=enrollment_id_conflict_message(enrollment_id, eid_conflict),
         )
     _assert_baby_uid_unique(db, data.baby_uid, data.screening_id, enrollment_id)
+    prior = (db.query(BirthResuscitation).filter(BirthResuscitation.enrollment_id == enrollment_id).first()
+             or next((b for b in babies_of(db, data.screening_id) if baby_no(b) == this_baby), None))
+    data = _apply_in_error_rules(data, prior, enrollment_id, current_user)
     # FIX: this had no try/except at all. enrollment_id is typed in by hand
     # on Form B (there's no backend generator for it, unlike screening_id),
     # and birth_resuscitation.enrollment_id IS unique at the DB level ? so a
@@ -2071,6 +2086,7 @@ def update_birth_resuscitation(
                 detail=f"Baby {baby_no(new_baby)} of this mother is already saved as {taken[0]}.",
             )
 
+    updated_data = _apply_in_error_rules(updated_data, entry, enrollment_id, current_user)
     try:
         update_data = updated_data.model_dump(exclude_unset=True)
         update_data.pop("enrollment_id", None)
@@ -7163,6 +7179,7 @@ def get_enrollment_status(
         "form_e": form_e,
         "form_e_started": nicu is not None,
         "no_ppv": no_ppv,
+        "randomised_in_error": randomised_in_error.is_in_error(birth),
         "next_form": next_form,
     }
 #  - 

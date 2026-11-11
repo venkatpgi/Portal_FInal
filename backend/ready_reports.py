@@ -45,6 +45,9 @@ REPORTS = [
      "description": "Randomised babies: forms complete and not yet complete, by form and site."},
     {"key": "glance", "title": "At a glance",
      "description": "Per site: screened, excluded, refused, eligible, randomised, follow-up and outcomes."},
+    {"key": "blender_check", "title": "Blender check",
+     "description": "Enrollment IDs used on each blender (randomised and randomised in error), with gaps "
+                    "that may be activations never entered."},
     {"key": "ae_summary", "title": "AE summary for IEC / DSMB",
      "description": "Monthly: AEs and SAEs by term and site, pooled (blinded), with the literature baseline. "
                     "Dates = AE start date."},
@@ -404,6 +407,78 @@ def randomised_babies(db, rows):
     return sorted((site_of[sid], eid) for sid, eid in q if eid)
 
 
+def in_error_babies(db, sites):
+    """Form B rows of babies randomised in error (randomised_in_error.py) at these sites."""
+    from models import BirthResuscitation, Screening
+    if not sites:
+        return []
+    return (db.query(BirthResuscitation, Screening.site_name)
+            .join(Screening, Screening.screening_id == BirthResuscitation.screening_id)
+            .filter(Screening.site_name.in_(list(sites)), Screening.is_deleted.isnot(True),
+                    BirthResuscitation.blender_activated.is_(True),
+                    BirthResuscitation.required_resuscitation.is_(False))
+            .all())
+
+
+def _in_error_reason(b) -> str:
+    r = b.blender_activation_reason or NOT_RECORDED
+    return f"{r}: {b.blender_activation_reason_other}" if r == "Other" and b.blender_activation_reason_other else r
+
+
+def _ranges(numbers) -> str:
+    """[1, 2, 3, 7] -> '001–003, 007'."""
+    out, run = [], []
+    for n in sorted(numbers):
+        if run and n != run[-1] + 1:
+            out.append(run)
+            run = []
+        run.append(n)
+    if run:
+        out.append(run)
+    return ", ".join(f"{r[0]:03d}" if len(r) == 1 else f"{r[0]:03d}–{r[-1]:03d}" for r in out)
+
+
+def blender_check_report(db, sites):
+    """Enrollment IDs used per site and blender (PI 2026-11-11). Every
+    activation uses the next allocation, so a missing number may be an
+    activation never entered on Form B."""
+    import re
+
+    from models import BirthResuscitation, Screening
+    pat = re.compile(r"^(\d{2})-([A-D])-(\d{3})$", re.IGNORECASE)
+    used = defaultdict(dict)      # (site, letter) -> {number: in_error}
+    for b, site in (db.query(BirthResuscitation, Screening.site_name)
+                    .join(Screening, Screening.screening_id == BirthResuscitation.screening_id)
+                    .filter(Screening.site_name.in_(list(sites)), Screening.is_deleted.isnot(True)).all()):
+        m = pat.match((b.enrollment_id or "").strip())
+        in_error = b.blender_activated is True and b.required_resuscitation is False
+        if m and (b.randomised is True or in_error):
+            used[(site, m.group(2).upper())][int(m.group(3))] = in_error
+    keys = sorted(used, key=lambda k: (sites.index(k[0]) if k[0] in sites else 99, k[1]))
+    gaps = {k: [n for n in range(1, max(used[k]) + 1) if n not in used[k]] for k in keys}
+    rows = [[site_label(s), letter, len(used[(s, letter)]), sum(used[(s, letter)].values()),
+             f"{min(used[(s, letter)]):03d}", f"{max(used[(s, letter)]):03d}",
+             _ranges(gaps[(s, letter)]) or "none"] for s, letter in keys]
+    errors = sorted(in_error_babies(db, sites), key=lambda x: (x[1] or "", x[0].enrollment_id or ""))
+    return [{
+        "title": "Enrollment IDs used, by blender",
+        "note": "All Form B to date: randomised babies and babies randomised in error. A gap is a number "
+                "below the highest one with no Form B; it may be an activation never entered. The number "
+                "in the ID is the blender's own allocation number (PI 2026-11-11). An ID can be saved "
+                "only once, so duplicates cannot occur.",
+        "columns": ["Site", "Blender", "IDs used", "Of these, in error", "Lowest", "Highest", "Missing numbers"],
+        "rows": rows,
+    }, {
+        "title": f"Randomised in error ({len(errors)})",
+        "note": "Blender activated, PPV not required. Not counted as randomised, not followed, excluded "
+                "from analysis (PI 2026-11-11). Site PI confirms in Data queries; Global PI signs off.",
+        "columns": ["Enrollment ID", "Site", "Date of birth", "Activated at", "Reason", "Activated by"],
+        "rows": [[b.enrollment_id, site_label(site), b.date_of_birth.strftime("%d-%m-%Y") if b.date_of_birth else "",
+                  b.blender_activation_time.strftime("%H:%M") if b.blender_activation_time else "",
+                  _in_error_reason(b), b.blender_activated_by or NOT_RECORDED] for b, site in errors],
+    }]
+
+
 def completeness_report(babies, sites, status_for):
     ticks = {eid: status_for(eid) or {} for _, eid in babies}
     per_site = defaultdict(list)
@@ -447,6 +522,8 @@ def glance_report(db, rows, sites, composite_for, followup_for):
     babies = randomised_babies(db, rows)
     order = _site_order({r.site_name for r in rows} | {s for s, _ in babies}, sites)
     cols_sites = order + (["ALL"] if len(order) > 1 else [])
+    sids = {r.screening_id for r in rows}
+    in_error = in_error_babies(db, sites)
 
     def women(s):
         return rows if s == "ALL" else [r for r in rows if r.site_name == s]
@@ -472,6 +549,8 @@ def glance_report(db, rows, sites, composite_for, followup_for):
             lambda s: frac(sum(1 for r in women(s) if not exclusion_reasons(r)), len(women(s)))),
         row("Consented", lambda s: frac(sum(1 for r in women(s) if r.consent_given == "Yes"), len(women(s)))),
         row("Randomised (babies)", lambda s: len(kids(s))),
+        row("Randomised in error (babies; not counted above, not followed)",
+            lambda s: sum(1 for b, site in in_error if b.screening_id in sids and (s == "ALL" or site == s))),
     ]
     fu, why = {}, {}
     for _, eid in babies:
@@ -523,6 +602,8 @@ def build(key, db, sites, date_from=None, date_to=None, *, status_for=None, comp
         period = ("AEs starting " + " to ".join(d.strftime("%d-%m-%Y") for d in (date_from, date_to) if d)
                   + " · cumulative to the end date" if date_from or date_to else "all AEs to date")
         return _report(key, sites, period, sections)
+    if key == "blender_check":
+        return _report(key, sites, "all Form B to date", blender_check_report(db, sites))
     rows = screenings(db, sites, date_from, date_to)
     if key == "consent":
         sections = consent_report(rows, sites, eligible_births(db, sites, date_from, date_to))

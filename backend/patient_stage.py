@@ -23,6 +23,8 @@ STAGES = {
     "no_ppv": ("Delivered, no PPV (A-B only)", "complete"),
     "not_randomised": ("PPV, not randomised", "complete"),
     "randomised": ("Randomised", "eligible"),
+    # Blender activated, PPV not needed (randomised_in_error.py): not followed
+    "randomised_in_error": ("Randomised in error (A-B only)", "failure"),
     # From Form A pregnancy follow-up (pregnancy_followup.py)
     "consent_withdrawn": ("Consent withdrawn", "failure"),
     "discharged_undelivered": ("Discharged home undelivered", "pending"),
@@ -41,7 +43,7 @@ def _ga_in_window(weeks, days):
 
 
 def patient_stage(screening_status, consent_given, gestation_weeks, gestation_days,
-                  has_form_b, required_resuscitation=None, randomised=None):
+                  has_form_b, required_resuscitation=None, randomised=None, blender_activated=None):
     """Return a STAGES key for one Form A (+ its Form B, if any)."""
     if screening_status == "Screen Failure":
         return "excluded"
@@ -60,7 +62,7 @@ def patient_stage(screening_status, consent_given, gestation_weeks, gestation_da
     if randomised is True:
         return "randomised"
     if required_resuscitation is False:
-        return "no_ppv"
+        return "randomised_in_error" if blender_activated is True else "no_ppv"
     if required_resuscitation is True and randomised is False:
         return "not_randomised"
     return "form_b_incomplete"

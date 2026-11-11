@@ -258,6 +258,14 @@ class BirthResuscitation(Base):
     blender_letter = Column(String, nullable=True)
     enrollment_reason_not_randomized = Column(String, nullable=True)
     enrollment_reason_not_randomized_other = Column(String, nullable=True)
+    # Randomised in error (PI 2026-11-11, randomised_in_error.py): PPV not
+    # required, yet the PORTAL blender was activated and used an allocation.
+    # The enrollment ID the blender showed is kept; randomised stays False.
+    blender_activated = Column(Boolean, nullable=True)
+    blender_activation_time = Column(Time, nullable=True)
+    blender_activation_reason = Column(String, nullable=True)
+    blender_activation_reason_other = Column(String, nullable=True)
+    blender_activated_by = Column(String, nullable=True)
     ppv_required = Column(Boolean)
     device_ppv = Column(String)
     sib_peep_with = Column(String, nullable=True)

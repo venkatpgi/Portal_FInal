@@ -12,7 +12,7 @@ import { useFormProgress } from './context/FormProgressContext';
 import { useActiveFormSessionRegistry } from './context/ActiveFormSessionContext';
 import { useAuth } from './context/AuthContext';
 import api from './api/axios';
-import { isUsableEnrollmentId, pageEnrollmentId, pageScreeningId } from './utils/enrollmentId';
+import { babyIdLabel, isUsableEnrollmentId, pageEnrollmentId, pageScreeningId } from './utils/enrollmentId';
 import { realCalendarDateYmd, NICU_DAY_GRACE_HOUR } from './utils/datetime';
 import './Sidebar.css';
 
@@ -562,7 +562,7 @@ export default function Sidebar({ currentForm }) {
               <div className="sidebar-babies-row">
                 {Array.from({ length: family.total }, (_, i) => i + 1).map(n => {
                   const b = family.babies.find(x => x.baby_number === n);
-                  const label = !b ? 'no Form B' : String(b.enrollment_id).startsWith('NR-') ? 'not randomised' : b.enrollment_id;
+                  const label = babyIdLabel(b);
                   return (
                     <button key={n} type="button"
                       className={`sidebar-baby-btn${n === currentBaby ? ' is-current' : ''}${b ? '' : ' is-missing'}`}

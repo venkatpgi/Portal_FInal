@@ -110,6 +110,25 @@ The sidebar shows the same switcher on every form of a twin.
   sidebar opens only Forms A and B and the server refuses Form C
   (`main._refuse_form_c_without_ppv`). A baby who needed PPV but was not
   randomised keeps all forms (followed for major outcomes).
+- **Randomised in error** (PI 2026-11-11, `randomised_in_error.py`): with PPV
+  not required, Form B asks "Was the PORTAL blender activated (allocation
+  used)?" (default No = the `NR-` path above). Yes needs the enrollment ID the
+  blender showed (`01-B-007`), time activated (HH:MM), reason (activated in
+  error / wrong baby or twin / baby breathing, PPV not needed / other) and who
+  activated it; columns `blender_activated`, `blender_activation_time`,
+  `blender_activation_reason`(`_other`), `blender_activated_by`. Only an
+  explicit Save sends the flag (autosave leaves it). The server
+  (`apply_rules`, create and update) stores `randomised = False` and the
+  blender letter, refuses an `NR-` or incomplete ID, refuses changing the ID
+  or answering No once saved (the Global PI corrects a wrong entry), and lets
+  only the site PI or Global PI (`site_pi`, `superadmin`) reclassify to PPV
+  Yes (a baby who needed PPV at activation, then breathed, is not an error).
+  Enrolment ends at Form B (sidebar no_ppv lock, Form C refused). Data query
+  `RANDOMISED_IN_ERROR` (site confirms, Global PI / Project Scientist signs
+  off; resolves itself on reclassification) and one email per baby to the site
+  and all-site recipients (run from `data_checks.run_checks`). Analysis plan:
+  excluded from all analyses, reported in CONSORT (Box 8 sub-row), protocol
+  deviation to the IEC and DSMB. Stage / tile "Randomised in error".
 - Randomised = Yes needs enrollment id (`01-A-001` format on Save), randomisation
   date, strata. Randomised = No needs "Reason not randomised" (feeds CONSORT
   Box 7, chapter 08).

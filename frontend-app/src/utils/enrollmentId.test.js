@@ -1,4 +1,4 @@
-import { pageEnrollmentId, pageScreeningId, urlEnrollmentId } from "./enrollmentId";
+import { babyIdLabel, pageEnrollmentId, pageScreeningId, urlEnrollmentId } from "./enrollmentId";
 
 const at = (path) => window.history.pushState({}, "", path);
 
@@ -27,4 +27,11 @@ test("same baby keeps its screening id", () => {
   localStorage.setItem("current_screening_id", "01-0901");
   at("/vs6-1/01-D-901");
   expect(pageScreeningId()).toBe("01-0901");
+});
+
+test("baby label: in error, not randomised, randomised, missing", () => {
+  expect(babyIdLabel({ enrollment_id: "01-B-007", randomised_in_error: true })).toBe("01-B-007 (in error)");
+  expect(babyIdLabel({ enrollment_id: "NR-01-0140-2" })).toBe("not randomised");
+  expect(babyIdLabel({ enrollment_id: "01-A-003" })).toBe("01-A-003");
+  expect(babyIdLabel(null)).toBe("no Form B");
 });

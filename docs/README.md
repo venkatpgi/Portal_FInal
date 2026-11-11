@@ -138,8 +138,14 @@ nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
 - **Form completeness**: randomised babies, sidebar green tick per form
   (`enrollment-status`), per site; per-baby list of forms not complete. Forms
   due later count as not complete. (Which items are blank: to follow.)
+- **Blender check** (PI 2026-11-11): all Form B to date; per site and blender,
+  the enrollment IDs used (randomised + randomised in error), lowest, highest
+  and missing numbers (a gap may be an activation never entered; the number
+  is the blender's own allocation number, PI 2026-11-11); list of
+  babies randomised in error with time, reason and who activated.
 - **At a glance**: per site, screened / excluded / not approached / refused /
-  eligible (Box 5) / consented / randomised babies; Form I status at 36 / 40 /
+  eligible (Box 5) / consented / randomised babies / randomised in error
+  (not counted as randomised); Form I status at 36 / 40 /
   44 wk (`followup_by_baby`, as Boxes 9-11); outcomes from the Form L
   composite suggestion (`components`): death by 36 / 44 wk, BPD, ROP-Rx, NEC
   ≥ IIA, brain injury, composites 1 and 2 (Yes of known). Reason for loss to

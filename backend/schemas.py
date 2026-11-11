@@ -573,6 +573,12 @@ class BirthResuscitationCreate(BaseModel):
     blender_letter: Optional[str] = None
     enrollment_reason_not_randomized: Optional[str] = None
     enrollment_reason_not_randomized_other: Optional[str] = None
+    # Randomised in error (randomised_in_error.py)
+    blender_activated: Optional[bool] = None
+    blender_activation_time: Optional[time] = None
+    blender_activation_reason: Optional[str] = None
+    blender_activation_reason_other: Optional[str] = None
+    blender_activated_by: Optional[str] = None
 
     ppv_required: Optional[bool] = None
     device_ppv: Optional[str] = None
@@ -634,6 +640,7 @@ class BirthResuscitationCreate(BaseModel):
     @field_validator(
         "time_of_birth",
         "cord_clamp_timestamp",
+        "blender_activation_time",
         "date_of_birth",
         "gestation_weeks",
         "gestation_days",

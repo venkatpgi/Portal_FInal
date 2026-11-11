@@ -21,6 +21,7 @@ export const RANDOMISATION_TILES = [
   { key: "randomised",        label: "Randomised",          tone: "success" },
   { key: "not_randomised",    label: "PPV, not randomised", tone: "danger"  },
   { key: "no_ppv",            label: "No PPV (A–B only)",   tone: "muted"   },
+  { key: "randomised_in_error", label: "Randomised in error", tone: "danger" },
 ];
 
 export const PARTICIPANT_TILES = [...SCREENING_TILES, ...RANDOMISATION_TILES];

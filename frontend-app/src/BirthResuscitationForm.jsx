@@ -15,7 +15,7 @@ import { printPatientPdf } from "./utils/printPatientPdf";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import { relativeTime, toDateOnlyValue, parseDateOnly, normalizeClockTimeHms } from "./utils/datetime";
-import { isUsableEnrollmentId, nrEnrollmentId } from "./utils/enrollmentId";
+import { babyIdLabel, isUsableEnrollmentId, nrEnrollmentId } from "./utils/enrollmentId";
 import { classifyVeryPretermCentile } from "./data/intergrowthVeryPreterm";
 import {
   ArrowLeft, ArrowRight, Save, Home, User, Baby, Pencil,
@@ -439,6 +439,9 @@ export default function BirthResuscitationForm() {
     initial_steps:"", required_resuscitation:"",
     randomised:"", randomisation_date:"", strata:"", blender_letter:"",
     enrollment_reason_not_randomized:"", enrollment_reason_not_randomized_other:"",
+    /* Randomised in error (backend randomised_in_error.py, PI 2026-11-11) */
+    blender_activated:"", blender_activation_time:"", blender_activation_reason:"",
+    blender_activation_reason_other:"", blender_activated_by:"",
     /* B4 */
     ppv_required:"",
     // SIB fields
@@ -918,6 +921,18 @@ export default function BirthResuscitationForm() {
         ? String(fd.randomisation_date).slice(0, 10) : null,
       enrollment_reason_not_randomized: fd.enrollment_reason_not_randomized || null,
       enrollment_reason_not_randomized_other: fd.enrollment_reason_not_randomized_other || null,
+      /* Randomised in error: only an explicit Save records the activation
+         (the server needs the blender's complete enrollment ID); autosave
+         leaves the saved answer as it is. PPV required -> never in error. */
+      blender_activated: fd.required_resuscitation === "Yes" ? false
+        : fd.required_resuscitation !== "No" ? null
+        : fd.blender_activated === "Yes" ? (explicitlySaved ? true : null)
+        : false,
+      blender_activation_time: fd.blender_activated === "Yes" ? (fd.blender_activation_time || null) : null,
+      blender_activation_reason: fd.blender_activated === "Yes" ? (fd.blender_activation_reason || null) : null,
+      blender_activation_reason_other: fd.blender_activated === "Yes" && fd.blender_activation_reason === "Other"
+        ? (fd.blender_activation_reason_other || null) : null,
+      blender_activated_by: fd.blender_activated === "Yes" ? (fd.blender_activated_by || null) : null,
       resus_failure:       yn(fd.resus_failure),
       cord_blood_done:     yn(fd.cord_blood_done),
       cord_blood_within_1hr: yn(fd.cord_blood_within_1hr),
@@ -1024,6 +1039,18 @@ export default function BirthResuscitationForm() {
     // Q23 only when initial steps = Required
     if(!birthConditionAllNormal && formData.initial_steps==="Yes" && !formData.required_resuscitation)
       add("B3. Does baby require ventilation (PPV)?", "required_resuscitation");
+    if(formData.required_resuscitation==="No" && formData.blender_activated==="Yes"){
+      if(!isCompleteEnrollmentId(formData.enrollment_id))
+        add(`B3. Enrollment ID shown by the blender (${siteCode}-A-001)`, "enrollment_id");
+      if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(formData.blender_activation_time||""))
+        add("B3. Time the blender was activated (HH:MM)", "blender_activation_time");
+      if(!formData.blender_activation_reason)
+        add("B3. Why the blender was activated", "blender_activation_reason");
+      if(formData.blender_activation_reason==="Other" && !formData.blender_activation_reason_other)
+        add("B3. Other reason the blender was activated", "blender_activation_reason_other");
+      if(!(formData.blender_activated_by||"").trim())
+        add("B3. Who activated the blender", "blender_activated_by");
+    }
     if(formData.required_resuscitation==="Yes"){
       if(!formData.randomised)       add("B3. Randomised?",           "randomised");
       if(formData.randomised==="Yes"){
@@ -1487,6 +1514,11 @@ export default function BirthResuscitationForm() {
           fluid_bolus:       d.fluid_bolus===true?"Yes":d.fluid_bolus===false?"No":"",
           placental_transfusion: d.placental_transfusion===true?"Yes":d.placental_transfusion===false?"No":"",
           randomised:        d.randomised===true?"Yes":d.randomised===false?"No":"",
+          blender_activated: d.blender_activated===true?"Yes":d.blender_activated===false?"No":"",
+          blender_activation_time: d.blender_activation_time ? String(d.blender_activation_time).slice(0, 5) : "",
+          blender_activation_reason: d.blender_activation_reason || "",
+          blender_activation_reason_other: d.blender_activation_reason_other || "",
+          blender_activated_by: d.blender_activated_by || "",
           resus_failure:     d.resus_failure===true?"Yes":d.resus_failure===false?"No":"",
           cord_blood_done:   d.cord_blood_done===true?"Yes":d.cord_blood_done===false?"No":"",
           cord_blood_within_1hr: d.cord_blood_within_1hr===true?"Yes":d.cord_blood_within_1hr===false?"No":"",
@@ -1859,7 +1891,7 @@ export default function BirthResuscitationForm() {
                               className={`baby-switch-btn${here ? " is-current" : ""}${b ? "" : " is-missing"}`}
                               title={b ? `Open baby ${n}'s Form B` : `Baby ${n}'s Form B is not entered yet`}
                               onClick={() => navigate(n === 1 ? `/form-b/${screeningId}` : `/form-b/${screeningId}/${n}`)}>
-                              Baby {n}: {b ? (String(b.enrollment_id).startsWith("NR-") ? "not randomised" : b.enrollment_id)
+                              Baby {n}: {b ? babyIdLabel(b)
                                 : (here ? "this form" : "+ add Form B")}
                             </button>
                           );
@@ -2196,8 +2228,95 @@ export default function BirthResuscitationForm() {
                 {(birthConditionAllNormal || formData.required_resuscitation==="No") && (
                   <div className="alert-danger">
                     <AlertTriangle size={16}/>
-                    Resuscitation (PPV) not required — enrolment ends with this form.
-                    Forms C and later are not filled.
+                    {formData.blender_activated === "Yes"
+                      ? <>Randomised in error: the blender used an allocation, but the baby did not need PPV.
+                          Enrolment ends with this form; the baby is not followed. The site PI will be asked to
+                          confirm. Do not change PPV to Yes to account for the allocation.</>
+                      : <>Resuscitation (PPV) not required — enrolment ends with this form.
+                          Forms C and later are not filled.</>}
+                  </div>
+                )}
+
+                {(birthConditionAllNormal || formData.required_resuscitation==="No") && (
+                  <div className="followup-box">
+                    <span className="followup-label">PORTAL blender</span>
+                    <YesNoToggle label={<>Was the PORTAL blender activated (allocation used)?</>}
+                      name="blender_activated" value={formData.blender_activated || "No"}
+                      onChange={e => {
+                        const yes = e.target.value === "Yes";
+                        const cur = formData.enrollment_id || "";
+                        set({
+                          blender_activated: e.target.value,
+                          // the blender's ID when Yes; back to the NR- placeholder when No
+                          enrollment_id: yes ? (cur && !cur.startsWith("NR-") ? cur : `${siteCode}-`) : "",
+                        });
+                      }}
+                      disabled={!isFieldEditable}/>
+                    {formData.blender_activated === "Yes" && (<>
+                      <div className="form-grid-3">
+                        <div className="form-group">
+                          <label>Enrollment ID shown by the blender<span className="required">*</span></label>
+                          <input
+                            name="enrollment_id"
+                            value={formData.enrollment_id||""}
+                            onChange={e=>{
+                              const enrollment_id = formatEnrollmentId(e.target.value);
+                              set({ enrollment_id, blender_letter: blenderLetterFromEnrollmentId(enrollment_id) });
+                              setErrors(p => ({ ...p, enrollment_id: "" }));
+                            }}
+                            className={errors.enrollment_id || enrollmentDuplicateWarn ? "input-error" : ""}
+                            placeholder={`${siteCode}-A-001`}
+                            maxLength={8} autoComplete="off" spellCheck={false}
+                            style={{ letterSpacing: "0.06em", fontWeight: 600 }}
+                            readOnly={!isFieldEditable}/>
+                          {enrollmentDuplicateWarn && !errors.enrollment_id && (
+                            <div className="duplicate-warn">{enrollmentDuplicateWarn}</div>
+                          )}
+                          <span className="field-note">Kept for good: this allocation is used.</span>
+                        </div>
+                        <div className="form-group">
+                          <label>Time activated (24 h)<span className="required">*</span></label>
+                          <input name="blender_activation_time" value={formData.blender_activation_time||""}
+                            onChange={e=>{
+                              const d = e.target.value.replace(/\D/g, "").slice(0, 4);
+                              set({ blender_activation_time: d.length > 2 ? `${d.slice(0, 2)}:${d.slice(2)}` : d });
+                            }}
+                            placeholder="HH:MM" inputMode="numeric" maxLength={5}
+                            readOnly={!isFieldEditable}/>
+                        </div>
+                        <div className="form-group">
+                          <label>Activated by<span className="required">*</span></label>
+                          <input name="blender_activated_by" value={formData.blender_activated_by||""}
+                            onChange={handleChange} placeholder="Name of the staff member"
+                            readOnly={!isFieldEditable}/>
+                        </div>
+                      </div>
+                      <div className="form-grid-2">
+                        <div className="form-group">
+                          <label>Why was the blender activated?<span className="required">*</span></label>
+                          <select name="blender_activation_reason" value={formData.blender_activation_reason||""}
+                            disabled={!isFieldEditable} onChange={handleChange}>
+                            <option value="">-- Select --</option>
+                            <option value="Blender activated in error">Blender activated in error</option>
+                            <option value="Wrong baby or twin">Wrong baby or twin</option>
+                            <option value="Baby breathing, PPV not needed">Baby breathing, PPV not needed</option>
+                            <option value="Other">Other</option>
+                          </select>
+                          {formData.blender_activation_reason==="Other" && (
+                            <input type="text" name="blender_activation_reason_other"
+                              value={formData.blender_activation_reason_other||""}
+                              onChange={handleChange} placeholder="Specify other reason *"
+                              readOnly={!isFieldEditable} style={{marginTop:8}}/>
+                          )}
+                        </div>
+                        <div/>
+                      </div>
+                      <span className="field-note">
+                        If the baby did need PPV when the blender was activated (and then breathed), this is not
+                        an error: answer PPV required = Yes instead. Once saved, only the site PI or Global PI can
+                        change that.
+                      </span>
+                    </>)}
                   </div>
                 )}
 

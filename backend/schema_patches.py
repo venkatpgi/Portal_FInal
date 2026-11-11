@@ -78,6 +78,12 @@ BIRTH_RESUSCITATION_COLUMN_PATCHES = [
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS cord_ph DOUBLE PRECISION",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS cord_sbe DOUBLE PRECISION",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS cord_pco2 DOUBLE PRECISION",
+    # Randomised in error (PI 2026-11-11, randomised_in_error.py)
+    "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS blender_activated BOOLEAN",
+    "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS blender_activation_time TIME",
+    "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS blender_activation_reason VARCHAR",
+    "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS blender_activation_reason_other VARCHAR",
+    "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS blender_activated_by VARCHAR",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS interventions JSON",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS fluid_bolus_doses INTEGER",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS fluid_bolus_cumulative DOUBLE PRECISION",

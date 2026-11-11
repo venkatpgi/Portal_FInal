@@ -56,3 +56,12 @@ export function pageScreeningId() {
   if (fromUrl && isUsableEnrollmentId(stored) && String(stored).trim() !== fromUrl) return null;
   return sid;
 }
+
+/** Short label for one baby in twin lists: its ID, "not randomised" for an
+ *  NR- placeholder, or "<ID> (in error)" for a baby randomised in error
+ *  (backend randomised_in_error.py: blender activated, PPV not needed). */
+export const babyIdLabel = (b) => {
+  if (!b) return "no Form B";
+  if (b.randomised_in_error) return `${b.enrollment_id} (in error)`;
+  return isNrEnrollmentId(b.enrollment_id) ? "not randomised" : b.enrollment_id;
+};
