@@ -124,6 +124,7 @@ def generate_temp_password(length: int = 12) -> str:
 from audit_service import (
     record_audit,
     row_snapshot,
+    snapshot_diff,
     stamp_created,
     stamp_updated,
     soft_delete_record,
@@ -1340,7 +1341,6 @@ def create_screening(
                     record_id=db_screening.id,
                     enrollment_id=enrollment_id,
                     screening_id=screening_id,
-                    new_values={"form": "Form A — Screening", "explicitly_saved": True},
                 )
             # Link a same-CR Gestation Log entry (Form A opened directly; ga_log_link.py)
             link_screening_to_log(db, db_screening.screening_id, db_screening.site_name)
@@ -1490,29 +1490,33 @@ def update_screening(
         clear_screening_pii_columns(entry)
         stamp_updated(entry, current_user)
 
-        record_audit(
-            db,
-            user_id=current_user.id,
-            username=current_user.username,
-            action="UPDATE",
-            table_name="screenings",
-            record_id=entry.id,
-            enrollment_id=entry.enrollment_id,
-            screening_id=screening_id,
-            old_values=old_snapshot,
-            new_values=row_snapshot(entry),
-        )
+        changer = current_user.full_name or current_user.username
+        old_d, new_d = snapshot_diff(old_snapshot, row_snapshot(entry))
         if update_data.get("explicitly_saved") is True:
             record_audit(
                 db,
                 user_id=current_user.id,
-                username=current_user.full_name or current_user.username,
+                username=changer,
                 action="SAVE",
                 table_name="screenings",
                 record_id=entry.id,
                 enrollment_id=entry.enrollment_id,
                 screening_id=screening_id,
-                new_values={"form": "Form A — Screening", "explicitly_saved": True},
+                old_values=old_d,
+                new_values=new_d,
+            )
+        else:
+            record_audit(
+                db,
+                user_id=current_user.id,
+                username=changer,
+                action="UPDATE",
+                table_name="screenings",
+                record_id=entry.id,
+                enrollment_id=entry.enrollment_id,
+                screening_id=screening_id,
+                old_values=old_d,
+                new_values=new_d,
             )
         if not entry.screening_id:
             raise HTTPException(status_code=400, detail="Screening ID lost")

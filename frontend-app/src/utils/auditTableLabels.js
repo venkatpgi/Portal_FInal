@@ -29,4 +29,4 @@ export function auditTableLabel(tableName) {
   return AUDIT_TABLE_LABELS[tableName] || tableName.replace(/_/g, " ");
 }
 
-export const AUDIT_ACTIONS = ["INSERT", "UPDATE", "SOFT_DELETE", "OVERRIDE_UNLOCK"];
+export const AUDIT_ACTIONS = ["INSERT", "UPDATE", "SAVE", "SOFT_DELETE", "OVERRIDE_UNLOCK"];

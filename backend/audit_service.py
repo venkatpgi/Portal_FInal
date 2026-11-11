@@ -13,6 +13,47 @@ def utc_now():
     return datetime.now(timezone.utc)
 
 
+def utc_now_naive():
+    """UTC clock with tzinfo stripped.
+
+    AuditLog.created_at is TIMESTAMP WITHOUT TIME ZONE. Passing an aware
+    UTC datetime lets psycopg2 convert it to the machine's local zone
+    (IST on Windows laptops), so a 15:47 IST save was stored as 15:47
+    and then shown as 21:17 IST. Naive UTC numbers stay 10:17 → 15:47 IST.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+AUDIT_SNAPSHOT_NOISE = frozenset({
+    "id",
+    "created_at",
+    "updated_at",
+    "created_by",
+    "updated_by",
+    "deleted_at",
+    "deleted_by",
+    "explicitly_saved",
+    "is_deleted",
+    "form",
+})
+
+
+def snapshot_diff(old: dict | None, new: dict | None) -> tuple[dict | None, dict | None]:
+    """Only the columns whose values actually changed (no bookkeeping keys)."""
+    old = old or {}
+    new = new or {}
+    old_out, new_out = {}, {}
+    for key in set(old) | set(new):
+        if key in AUDIT_SNAPSHOT_NOISE:
+            continue
+        ov, nv = old.get(key), new.get(key)
+        if _serialize(ov) == _serialize(nv):
+            continue
+        old_out[key] = ov
+        new_out[key] = nv
+    return (old_out or None), (new_out or None)
+
+
 def _serialize(value: Any) -> Any:
     if value is None:
         return None
@@ -58,7 +99,7 @@ def record_audit(
         screening_id=screening_id,
         old_values=old_values,
         new_values=new_values,
-        created_at=utc_now(),
+        created_at=utc_now_naive(),
     )
     db.add(entry)
     return entry

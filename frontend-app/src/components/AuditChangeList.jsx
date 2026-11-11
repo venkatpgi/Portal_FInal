@@ -1,5 +1,5 @@
 import React from "react";
-import { diffAuditValues, formatAuditValue } from "../utils/auditDiff";
+import { describeAuditChange, diffAuditValues } from "../utils/auditDiff";
 import "./AuditChangeList.css";
 
 export default function AuditChangeList({
@@ -9,6 +9,7 @@ export default function AuditChangeList({
   compact = false,
   showUnchanged = false,
   filterText = "",
+  emptyMessage = "",
 }) {
   const { changes, unchanged } = diffAuditValues(oldValues, newValues, { hideKeys });
   const q = String(filterText || "").trim().toLowerCase();
@@ -22,7 +23,7 @@ export default function AuditChangeList({
       <p className="audit-changes-empty">
         {q
           ? "No fields match that search."
-          : (showUnchanged ? "No fields recorded." : "No field values changed.")}
+          : (emptyMessage || (showUnchanged ? "No fields recorded." : "No answers on this form changed."))}
       </p>
     );
   }
@@ -30,36 +31,47 @@ export default function AuditChangeList({
   if (compact) {
     return (
       <ul className="audit-changes-compact">
-        {rows.map((row) => (
-          <li key={row.key} className={`audit-changes-compact-item audit-changes-compact-item--${row.kind}`}>
-            <span className="audit-changes-compact-label">{row.label}</span>
-            <span className="audit-changes-compact-vals">
-              <span className="audit-changes-from">{formatAuditValue(row.from)}</span>
-              <span className="audit-changes-arrow" aria-hidden="true">→</span>
-              <span className="audit-changes-to">{formatAuditValue(row.to)}</span>
-            </span>
-          </li>
-        ))}
+        {rows.map((row) => {
+          const { was, now } = describeAuditChange(row);
+          return (
+            <li key={row.key} className={`audit-changes-compact-item audit-changes-compact-item--${row.kind}`}>
+              <span className="audit-changes-compact-label">{row.label}</span>
+              <span className="audit-changes-compact-vals">
+                <span className="audit-changes-side">
+                  <span className="audit-changes-side-label">Was</span>
+                  <span className="audit-changes-from">{was}</span>
+                </span>
+                <span className="audit-changes-arrow" aria-hidden="true">→</span>
+                <span className="audit-changes-side">
+                  <span className="audit-changes-side-label">Now</span>
+                  <span className="audit-changes-to">{now}</span>
+                </span>
+              </span>
+            </li>
+          );
+        })}
       </ul>
     );
   }
 
   return (
-    <div className="audit-changes-table-wrap">
-      <div className="audit-changes-table" role="table">
-        <div className="audit-changes-thead" role="row">
-          <span>Field</span>
-          <span>Before</span>
-          <span>After</span>
-        </div>
-        {rows.map((row) => (
-          <div key={row.key} className={`audit-changes-row audit-changes-row--${row.kind}`} role="row">
-            <span className="audit-changes-field" title={row.key}>{row.label}</span>
-            <span className="audit-changes-from">{formatAuditValue(row.from)}</span>
-            <span className="audit-changes-to">{formatAuditValue(row.to)}</span>
-          </div>
-        ))}
-      </div>
+    <div className="audit-changes-story">
+      {rows.map((row) => {
+        const { was, now } = describeAuditChange(row);
+        return (
+          <article key={row.key} className={`audit-changes-story-item audit-changes-story-item--${row.kind}`}>
+            <h4 className="audit-changes-story-label">{row.label}</h4>
+            <p className="audit-changes-story-line">
+              <span className="audit-changes-story-k">Was</span>
+              <span className="audit-changes-from">{was}</span>
+            </p>
+            <p className="audit-changes-story-line">
+              <span className="audit-changes-story-k">Now</span>
+              <span className="audit-changes-to">{now}</span>
+            </p>
+          </article>
+        );
+      })}
     </div>
   );
 }

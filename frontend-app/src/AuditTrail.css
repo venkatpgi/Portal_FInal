@@ -16,6 +16,9 @@
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
+  overflow: visible;
+  position: relative;
+  z-index: 2;
 }
 
 .audit-filter {
@@ -224,6 +227,11 @@
 .audit-action-pill--update {
   background: #e0f2fe;
   color: #075985;
+}
+
+.audit-action-pill--save {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .audit-action-pill--soft_delete {

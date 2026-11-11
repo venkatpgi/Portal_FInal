@@ -1,5 +1,64 @@
 /** Shared MML → helper mirror sync (set + clear when MML data removed). */
 
+/** Helper 4 GI / Helper 5 renal: latest DMS 5.7.A kg only once ≥ birth kg. */
+export function effectiveFeedWeightKg({ dmsWeightKg, birthWeightGrams } = {}) {
+  const birthKg =
+    birthWeightGrams != null && Number(birthWeightGrams) > 0
+      ? Number(birthWeightGrams) / 1000
+      : null;
+  const dms =
+    dmsWeightKg != null && Number.isFinite(Number(dmsWeightKg))
+      ? Number(dmsWeightKg)
+      : null;
+  if (dms != null && birthKg != null) {
+    return dms >= birthKg ? dms : birthKg;
+  }
+  return birthKg ?? dms;
+}
+
+export const URINE_WINDOW_HOURS_8AM_2PM = 6;
+export const URINE_WINDOW_HOURS_2PM_8PM = 6;
+export const URINE_WINDOW_HOURS_8PM_8AM = 12;
+
+/** ml/kg/hr = volume_ml ÷ (effective kg × window hours), 2 decimals. */
+export function urineMlPerKgHr(volumeMl, effectiveWeightKg, hours) {
+  const ml = volumeMl === null || volumeMl === undefined || volumeMl === ""
+    ? NaN
+    : Number(volumeMl);
+  const kg = Number(effectiveWeightKg);
+  const h = Number(hours);
+  if (!Number.isFinite(ml) || !Number.isFinite(kg) || !(kg > 0) || !Number.isFinite(h) || !(h > 0)) {
+    return null;
+  }
+  return Math.round((ml / (kg * h)) * 100) / 100;
+}
+
+/** Daily urine rate over recorded windows only (skips blank / Not Recorded). */
+export function urineTotalMlPerKgHr(amMl, pmMl, nightMl, effectiveWeightKg) {
+  let ml = 0;
+  let hours = 0;
+  const add = (v, h) => {
+    if (v === null || v === undefined || v === "") return;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return;
+    ml += n;
+    hours += h;
+  };
+  add(amMl, URINE_WINDOW_HOURS_8AM_2PM);
+  add(pmMl, URINE_WINDOW_HOURS_2PM_8PM);
+  add(nightMl, URINE_WINDOW_HOURS_8PM_8AM);
+  if (!(hours > 0)) return null;
+  return urineMlPerKgHr(ml, effectiveWeightKg, hours);
+}
+
+export function formatUrineMlPerKgHr(v) {
+  if (v == null || !Number.isFinite(Number(v))) return null;
+  const hundredths = Math.round(Number(v) * 100);
+  if (hundredths % 100 === 0) return String(hundredths / 100);
+  if (hundredths % 10 === 0) return (hundredths / 100).toFixed(1);
+  return (hundredths / 100).toFixed(2);
+}
+
 export function mmlIsEmptyField(v) {
   return v === null || v === undefined || v === "";
 }

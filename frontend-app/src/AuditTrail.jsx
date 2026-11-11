@@ -9,20 +9,17 @@ import { auditTableLabel, AUDIT_ACTIONS, AUDIT_TABLE_LABELS } from "./utils/audi
 import {
   auditActionLabel,
   diffAuditValues,
+  pairSaveRows,
   summarizeAuditChanges,
 } from "./utils/auditDiff";
 import { siteShortCode } from "./utils/siteNames";
+import { formatAuditDateTime } from "./utils/datetime";
 import "./AuditTrail.css";
 
 const PAGE_SIZE = 50;
 
 function formatTs(iso) {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return String(iso);
-  }
+  return formatAuditDateTime(iso) || "—";
 }
 
 function DiffModal({ row, onClose }) {
@@ -48,18 +45,26 @@ function DiffModal({ row, onClose }) {
 
   if (!row) return null;
 
+  const formName = auditTableLabel(row.table_name);
+  const who = row.username || "Someone";
+  const when = formatTs(row.created_at);
+  const act = String(row.action || "").toUpperCase();
+  const verb = act === "SAVE" ? "saved" : act === "INSERT" ? "created" : act === "SOFT_DELETE" ? "deleted" : "updated";
+  const emptyMessage = act === "SAVE"
+    ? `${who} saved ${formName}. None of the answers on this form changed.`
+    : `No answers on ${formName} changed.`;
+
   return (
     <div className="audit-modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="audit-modal" onClick={(e) => e.stopPropagation()}>
         <div className="audit-modal-head">
           <div>
-            <strong>What changed — {auditTableLabel(row.table_name)}</strong>
+            <strong>What changed on {formName}</strong>
             <div className="audit-modal-meta">
               <span className={`audit-action-pill audit-action-pill--${(row.action || "").toLowerCase()}`}>
                 {auditActionLabel(row.action)}
               </span>
-              {row.username && <span>by {row.username}</span>}
-              <span>{formatTs(row.created_at)}</span>
+              <span>{who} {verb} this form{when ? ` · ${when}` : ""}</span>
             </div>
           </div>
           <button type="button" className="audit-btn-link" onClick={onClose}>Close</button>
@@ -71,16 +76,20 @@ function DiffModal({ row, onClose }) {
           </p>
           <div className="audit-modal-toolbar">
             <span className="audit-change-count">
-              {changes.length} field{changes.length === 1 ? "" : "s"} changed
+              {changes.length === 0
+                ? "No answers changed"
+                : `${changes.length} answer${changes.length === 1 ? "" : "s"} changed`}
               {unchanged.length > 0 && ` · ${unchanged.length} unchanged`}
             </span>
-            <input
-              type="search"
-              className="audit-diff-search"
-              placeholder="Find a field…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+            {changes.length + unchanged.length > 6 && (
+              <input
+                type="search"
+                className="audit-diff-search"
+                placeholder="Find a field…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            )}
             {unchanged.length > 0 && (
               <label className="audit-toggle">
                 <input
@@ -97,6 +106,7 @@ function DiffModal({ row, onClose }) {
             newValues={row.new_values}
             showUnchanged={showUnchanged}
             filterText={query}
+            emptyMessage={emptyMessage}
           />
         </div>
       </div>
@@ -134,6 +144,8 @@ export default function AuditTrail() {
     [],
   );
 
+  const displayRows = useMemo(() => pairSaveRows(rows), [rows]);
+
   const load = useCallback(async () => {
     if (!allowed) return;
     setLoading(true);
@@ -166,6 +178,18 @@ export default function AuditTrail() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    window.addEventListener("focus", load);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("focus", load);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [load]);
 
   const resetFilters = () => {
@@ -245,6 +269,9 @@ export default function AuditTrail() {
               onChange={(v) => { setPage(0); setApiSite(v); }}
             />
           )}
+          <button type="button" className="audit-btn-link" style={{ marginBottom: 8 }} onClick={() => load()}>
+            Refresh
+          </button>
           <button type="button" className="audit-btn-link" style={{ marginBottom: 8 }} onClick={resetFilters}>
             Reset filters
           </button>
@@ -261,7 +288,7 @@ export default function AuditTrail() {
                   <tr>
                     <th>When</th>
                     {isGlobal && <th>Site</th>}
-                    <th>User</th>
+                    <th>Changed by</th>
                     <th>Action</th>
                     <th>Form</th>
                     <th>Record</th>
@@ -270,12 +297,12 @@ export default function AuditTrail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 ? (
+                  {displayRows.length === 0 ? (
                     <tr>
                       <td colSpan={colSpan} className="audit-state">No audit entries match these filters.</td>
                     </tr>
                   ) : (
-                    rows.map((row) => (
+                    displayRows.map((row) => (
                       <tr key={row.id}>
                         <td>{formatTs(row.created_at)}</td>
                         {isGlobal && <td>{row.site ? siteShortCode(row.site) : "—"}</td>}

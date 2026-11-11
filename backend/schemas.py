@@ -2,7 +2,7 @@
 
 from mobile_numbers import mobile_pair_errors
 from typing import Optional, List, Dict
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone
 
 
 
@@ -256,6 +256,16 @@ class AuditLogOut(BaseModel):
     new_values: Optional[dict] = None
     created_at: Optional[datetime] = None
     site: Optional[str] = None
+
+    @field_serializer("created_at")
+    def _audit_created_at_utc(self, v):
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        else:
+            v = v.astimezone(timezone.utc)
+        return v.isoformat().replace("+00:00", "Z")
 
     class Config:
         from_attributes = True
@@ -2740,7 +2750,7 @@ class MetabRenalVascEyeDayCreate(BaseModel):
     urine_output_2pm_8pm_status: Optional[str] = None  # "Not Recorded / Not Done"
     urine_output_8pm_8am:   Optional[float] = None
     urine_output_8pm_8am_status: Optional[str] = None  # "Not Recorded / Not Done"
-    urine_output_total:     Optional[str]   = None  # #13 summary (sum)
+    urine_output_total:     Optional[str]   = None  # #13 derived ml/kg/hr
     dialysis_crrt:          Optional[bool]  = None  # #14
 
     # Legacy

@@ -89,6 +89,32 @@ def test_row_snapshot_serializes_columns():
 
 
 # ---------------------------------------------------------------------------
+# snapshot_diff
+# ---------------------------------------------------------------------------
+
+
+def test_snapshot_diff_drops_bookkeeping_and_unchanged():
+    old_d, new_d = audit.snapshot_diff(
+        {
+            "id": 1,
+            "updated_at": "old",
+            "explicitly_saved": False,
+            "expected_delivery_date": "2026-03-20",
+            "consent_given": "Yes",
+        },
+        {
+            "id": 1,
+            "updated_at": "new",
+            "explicitly_saved": True,
+            "expected_delivery_date": "2026-03-21",
+            "consent_given": "Yes",
+        },
+    )
+    assert old_d == {"expected_delivery_date": "2026-03-20"}
+    assert new_d == {"expected_delivery_date": "2026-03-21"}
+
+
+# ---------------------------------------------------------------------------
 # record_audit
 # ---------------------------------------------------------------------------
 
@@ -116,6 +142,7 @@ def test_record_audit_persists_entry(db):
     assert stored.action == "UPDATE"
     assert stored.old_values == {"x": 1}
     assert stored.new_values == {"x": 2}
+    assert entry.created_at.tzinfo is None
 
 
 def test_record_audit_none_record_id_stays_none(db):

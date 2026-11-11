@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "./api/axios";
 import { getMmlSheet } from "./utils/mmlSheetFetch";
 import { helperLastRequiredDay, isHelperLogComplete } from "./utils/formCompletion";
-import { toDateOnlyValue, formatIsoDateMedium, formatStampShort, NICU_DAY_GRACE_HOUR, nicuDayNumberFromDay1, nicuDayForCalendarYmd, helperDayStripLength } from "./utils/datetime";
+import { toDateOnlyValue, formatIsoDateMedium, formatStampShort, formatAuditDateTime, NICU_DAY_GRACE_HOUR, nicuDayNumberFromDay1, nicuDayForCalendarYmd, helperDayStripLength } from "./utils/datetime";
 import DayOfLifeNote from "./components/helper/DayOfLifeNote";
 import "./styles/RespCVNeuro.css";
 import "./styles/MinimalMonitoring.css";
@@ -13,10 +13,19 @@ import { useFormProgress } from "./context/FormProgressContext";
 import { useAuth } from "./context/AuthContext";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import AuditChangeList from "./components/AuditChangeList";
-import { auditActionLabel } from "./utils/auditDiff";
+import { auditActionLabel, AUDIT_HELPER_HIDE_KEYS } from "./utils/auditDiff";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import { normalizeHelperDob } from "./hooks/useHelperDobSyncDay1";
-import { mmlSyncGlucoseFieldFromMml } from "./utils/mmlHelperSync";
+import {
+  mmlSyncGlucoseFieldFromMml,
+  effectiveFeedWeightKg,
+  urineMlPerKgHr,
+  urineTotalMlPerKgHr,
+  formatUrineMlPerKgHr,
+  URINE_WINDOW_HOURS_8AM_2PM,
+  URINE_WINDOW_HOURS_2PM_8PM,
+  URINE_WINDOW_HOURS_8PM_8AM,
+} from "./utils/mmlHelperSync";
 import { rememberActiveDay, HELPER_SESSION_KEY_METAB_RENAL_VASC_EYE } from "./utils/helperSession";
 import { apiDetailMessage, expectedUpdatedAtConfig, isStaleWrite, STALE_WRITE_MESSAGE } from "./utils/staleWrite";
 import { BLANK_HELPER_DAY_CLIENT_MESSAGE, isBlankHelperDay, isBlankHelperDayRefusal } from "./utils/blankHelperDay";
@@ -78,9 +87,9 @@ const TABLE_VIEW_FIELD_GROUPS = [
     rows: [
       { key: "aki_suspected",         label: "AKI Suspected", bool: true },
       { key: "creatinine_value",      label: "Serum Creatinine" },
-      { key: "urine_output_8am_2pm",  label: "UO 8am–2pm", suffix: " ml/kg/hr", statusKey: "urine_output_8am_2pm_status" },
-      { key: "urine_output_2pm_8pm",  label: "UO 2pm–8pm", suffix: " ml/kg/hr", statusKey: "urine_output_2pm_8pm_status" },
-      { key: "urine_output_8pm_8am",  label: "UO 8pm–8am", suffix: " ml/kg/hr", statusKey: "urine_output_8pm_8am_status" },
+      { key: "urine_output_8am_2pm",  label: "UO 8am–2pm", suffix: " ml", statusKey: "urine_output_8am_2pm_status" },
+      { key: "urine_output_2pm_8pm",  label: "UO 2pm–8pm", suffix: " ml", statusKey: "urine_output_2pm_8pm_status" },
+      { key: "urine_output_8pm_8am",  label: "UO 8pm–8am", suffix: " ml", statusKey: "urine_output_8pm_8am_status" },
       { key: "urine_output_total",    label: "Urine Output Total", suffix: " ml/kg/hr" },
       { key: "dialysis_crrt",         label: "Dialysis/CRRT", bool: true },
     ],
@@ -230,7 +239,8 @@ function StatusToggleGroup({
 }
 
 function NumRow({ label, value, onChange, disabled, unit, placeholder="0",
-  status = null, onStatusChange = null, allowAwaited = false, autofilled = false }) {
+  status = null, onStatusChange = null, allowAwaited = false, autofilled = false,
+  computedRate = null, computedUnit = null }) {
   const isAwaited  = status === STATUS_AWAITED;
   const isNotDone  = status === STATUS_NOT_DONE;
   const isSentinel = isAwaited || isNotDone;
@@ -250,19 +260,27 @@ function NumRow({ label, value, onChange, disabled, unit, placeholder="0",
           <StatusToggleGroup status={status} onChange={toggle} disabled={disabled} allowAwaited={allowAwaited} />
         )}
       </div>
-      <div className={`rcn-num-input${autofilled ? " rcn-num-input--autofill" : ""}${isSentinel ? ` rcn-num-input--sentinel ${isAwaited ? "rcn-num-input--awaited" : "rcn-num-input--notdone"}` : ""}`} style={{ width:160 }}>
-        {isSentinel ? (
-          <span className="rcn-num-sentinel-text">{status}</span>
-        ) : (
-          <>
-            <input type="number" min="0" step="0.01"
-              placeholder={placeholder}
-              value={value ?? ""}
-              onChange={e => !disabled && onChange(e.target.value === "" ? null : Number(e.target.value))}
-              readOnly={disabled}
-            />
-            {unit && <span className="rcn-num-unit">{unit}</span>}
-          </>
+      <div className="rcn-urine-row-values">
+        <div className={`rcn-num-input${autofilled ? " rcn-num-input--autofill" : ""}${isSentinel ? ` rcn-num-input--sentinel ${isAwaited ? "rcn-num-input--awaited" : "rcn-num-input--notdone"}` : ""}`} style={{ width:160 }}>
+          {isSentinel ? (
+            <span className="rcn-num-sentinel-text">{status}</span>
+          ) : (
+            <>
+              <input type="number" min="0" step="0.01"
+                placeholder={placeholder}
+                value={value ?? ""}
+                onChange={e => !disabled && onChange(e.target.value === "" ? null : Number(e.target.value))}
+                readOnly={disabled}
+              />
+              {unit && <span className="rcn-num-unit">{unit}</span>}
+            </>
+          )}
+        </div>
+        {computedUnit && (
+          <div className="rcn-readonly-value rcn-urine-rate-side">
+            {computedRate == null || computedRate === "" ? "—" : computedRate}
+            {` ${computedUnit}`}
+          </div>
         )}
       </div>
     </div>
@@ -412,13 +430,8 @@ function isNumericHighGlucose(v) {
   return Number.isFinite(n) && n > 125;
 }
 
-function computeUrineTotal(a, b, c) {
-  const nums = [a, b, c]
-    .map(v => (v === null || v === undefined || v === "" ? null : Number(v)))
-    .filter(n => Number.isFinite(n));
-  if (!nums.length) return null;
-  const sum = nums.reduce((s, n) => s + n, 0);
-  return String(Math.round(sum * 1000) / 1000);
+function computeUrineTotal(a, b, c, weightKg) {
+  return formatUrineMlPerKgHr(urineTotalMlPerKgHr(a, b, c, weightKg));
 }
 
 function migrateAkiFromLegacy(d) {
@@ -813,9 +826,11 @@ export default function MetabRenalVascEyeLog() {
     urine_output_2pm_8pm_status: null,
     urine_output_8pm_8am:   null,
     urine_output_8pm_8am_status: null,
-    urine_output_total:     null, // derived sum
+    urine_output_total:     null, // derived ml/kg/hr
     dialysis_crrt:          null, // #14
   });
+  const [birthWeightGrams, setBirthWeightGrams] = useState(null);
+  const [dmsWeightByDate, setDmsWeightByDate] = useState({ date: null, kg: null });
 
   // 🌡️ THERMOREGULATION (4.3, item 15)
   const [thermoData, setThermoData] = useState({
@@ -882,6 +897,88 @@ export default function MetabRenalVascEyeLog() {
   }, [day1Date, activeDay]);
   const activeDayDateRef = useRef(activeDayDate);
   activeDayDateRef.current = activeDayDate;
+
+  const dmsWeightKg = dmsWeightByDate.date === activeDayDate ? dmsWeightByDate.kg : null;
+  const urineWeightKg = effectiveFeedWeightKg({ dmsWeightKg, birthWeightGrams });
+  const urineWeightKgRef = useRef(urineWeightKg);
+  urineWeightKgRef.current = urineWeightKg;
+
+  const urineRates = useMemo(() => {
+    const am = renalData.urine_output_8am_2pm_status ? null : renalData.urine_output_8am_2pm;
+    const pm = renalData.urine_output_2pm_8pm_status ? null : renalData.urine_output_2pm_8pm;
+    const night = renalData.urine_output_8pm_8am_status ? null : renalData.urine_output_8pm_8am;
+    return {
+      am: formatUrineMlPerKgHr(urineMlPerKgHr(am, urineWeightKg, URINE_WINDOW_HOURS_8AM_2PM)),
+      pm: formatUrineMlPerKgHr(urineMlPerKgHr(pm, urineWeightKg, URINE_WINDOW_HOURS_2PM_8PM)),
+      night: formatUrineMlPerKgHr(urineMlPerKgHr(night, urineWeightKg, URINE_WINDOW_HOURS_8PM_8AM)),
+      total: formatUrineMlPerKgHr(urineTotalMlPerKgHr(am, pm, night, urineWeightKg)),
+    };
+  }, [
+    renalData.urine_output_8am_2pm,
+    renalData.urine_output_8am_2pm_status,
+    renalData.urine_output_2pm_8pm,
+    renalData.urine_output_2pm_8pm_status,
+    renalData.urine_output_8pm_8am,
+    renalData.urine_output_8pm_8am_status,
+    urineWeightKg,
+  ]);
+
+  const urineWeightHint = useMemo(() => {
+    if (!(urineWeightKg > 0)) {
+      return "ml/kg/hr needs Form B birth weight or a DMS 5.7.A weight";
+    }
+    const birthKg = birthWeightGrams != null && Number(birthWeightGrams) > 0
+      ? Number(birthWeightGrams) / 1000
+      : null;
+    const fmt = kg => {
+      const t = Math.round(kg * 1000) / 1000;
+      return t === Math.round(t) ? String(Math.round(t)) : String(t);
+    };
+    if (dmsWeightKg != null && birthKg != null) {
+      if (dmsWeightKg >= birthKg) return `Weight ${fmt(urineWeightKg)} kg from DMS 5.7.A`;
+      return `Weight ${fmt(urineWeightKg)} kg (birth — DMS still below birth)`;
+    }
+    if (birthKg != null) return `Weight ${fmt(urineWeightKg)} kg (birth)`;
+    return `Weight ${fmt(urineWeightKg)} kg from DMS 5.7.A`;
+  }, [urineWeightKg, dmsWeightKg, birthWeightGrams]);
+
+  useEffect(() => {
+    if (!enrollmentId || !activeDayDate) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getMmlSheet(`/minimal-monitoring/${enrollmentId}/latest-weight-kg/${activeDayDate}`);
+        if (cancelled || activeDayDateRef.current !== activeDayDate) return;
+        const kg = typeof res?.data?.weight_kg === "number" ? res.data.weight_kg : null;
+        setDmsWeightByDate({ date: activeDayDate, kg });
+      } catch (_) {
+        if (cancelled || activeDayDateRef.current !== activeDayDate) return;
+        setDmsWeightByDate({ date: activeDayDate, kg: null });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [enrollmentId, activeDayDate]);
+
+  useEffect(() => {
+    setRenalData(p => {
+      const next = computeUrineTotal(
+        p.urine_output_8am_2pm_status ? null : p.urine_output_8am_2pm,
+        p.urine_output_2pm_8pm_status ? null : p.urine_output_2pm_8pm,
+        p.urine_output_8pm_8am_status ? null : p.urine_output_8pm_8am,
+        urineWeightKg,
+      );
+      if (p.urine_output_total === next) return p;
+      return { ...p, urine_output_total: next };
+    });
+  }, [
+    urineWeightKg,
+    renalData.urine_output_8am_2pm,
+    renalData.urine_output_8am_2pm_status,
+    renalData.urine_output_2pm_8pm,
+    renalData.urine_output_2pm_8pm_status,
+    renalData.urine_output_8pm_8am,
+    renalData.urine_output_8pm_8am_status,
+  ]);
 
   /** Autofill / "Refresh from Daily Monitoring Sheet" only when this NICU day is the
    *  server's current MM sheet — GET /today `record_date` from
@@ -1135,11 +1232,18 @@ export default function MetabRenalVascEyeLog() {
         k === "urine_output_8am_2pm"
         || k === "urine_output_2pm_8pm"
         || k === "urine_output_8pm_8am"
+        || k === "urine_output_8am_2pm_status"
+        || k === "urine_output_2pm_8pm_status"
+        || k === "urine_output_8pm_8am_status"
       ) {
+        const amStatus = k === "urine_output_8am_2pm_status" ? v : next.urine_output_8am_2pm_status;
+        const pmStatus = k === "urine_output_2pm_8pm_status" ? v : next.urine_output_2pm_8pm_status;
+        const nightStatus = k === "urine_output_8pm_8am_status" ? v : next.urine_output_8pm_8am_status;
         next.urine_output_total = computeUrineTotal(
-          k === "urine_output_8am_2pm" ? v : p.urine_output_8am_2pm,
-          k === "urine_output_2pm_8pm" ? v : p.urine_output_2pm_8pm,
-          k === "urine_output_8pm_8am" ? v : p.urine_output_8pm_8am,
+          amStatus ? null : next.urine_output_8am_2pm,
+          pmStatus ? null : next.urine_output_2pm_8pm,
+          nightStatus ? null : next.urine_output_8pm_8am,
+          urineWeightKgRef.current,
         );
       }
       return next;
@@ -1272,6 +1376,10 @@ export default function MetabRenalVascEyeLog() {
         if (b.date_of_birth) {
           setDay1Date(normalizeHelperDob(b.date_of_birth));
           setBirthTime(b.time_of_birth ? String(b.time_of_birth).slice(0, 5) : "");
+        }
+        if (b.birth_weight != null && b.birth_weight !== "") {
+          const n = Number(b.birth_weight);
+          if (Number.isFinite(n) && n > 0) setBirthWeightGrams(n);
         }
 
         // Load gestation with NBS correction check (same logic as FiO2 form)
@@ -1449,8 +1557,12 @@ export default function MetabRenalVascEyeLog() {
             urine_output_2pm_8pm_status: d.urine_output_2pm_8pm_status ?? null,
             urine_output_8pm_8am:   d.urine_output_8pm_8am ?? null,
             urine_output_8pm_8am_status: d.urine_output_8pm_8am_status ?? null,
-            urine_output_total:     d.urine_output_total
-              ?? computeUrineTotal(d.urine_output_8am_2pm, d.urine_output_2pm_8pm, d.urine_output_8pm_8am),
+            urine_output_total:     computeUrineTotal(
+              d.urine_output_8am_2pm,
+              d.urine_output_2pm_8pm,
+              d.urine_output_8pm_8am,
+              urineWeightKgRef.current,
+            ) ?? d.urine_output_total ?? null,
             dialysis_crrt:          d.dialysis_crrt      ?? null,
           });
           setThermoData({
@@ -1589,9 +1701,10 @@ export default function MetabRenalVascEyeLog() {
     const kSum = isStatusSentinel(metabData.potassium_value) ? metabData.potassium_value : latestReadingSummary(kReadings);
     const caSum = isStatusSentinel(metabData.ionized_calcium_value) ? metabData.ionized_calcium_value : latestReadingSummary(caReadings);
     const urineTotal = computeUrineTotal(
-      renalData.urine_output_8am_2pm,
-      renalData.urine_output_2pm_8pm,
-      renalData.urine_output_8pm_8am,
+      renalData.urine_output_8am_2pm_status ? null : renalData.urine_output_8am_2pm,
+      renalData.urine_output_2pm_8pm_status ? null : renalData.urine_output_2pm_8pm,
+      renalData.urine_output_8pm_8am_status ? null : renalData.urine_output_8pm_8am,
+      urineWeightKgRef.current,
     );
     const creatVal = renalData.creatinine_value;
     const creatNum = (() => {
@@ -2532,24 +2645,31 @@ export default function MetabRenalVascEyeLog() {
                   allowAwaited={true}
                   allowNotDone={true}
                 />
-                <NumRow label="13a. Urine output 8am → 2pm" value={renalData.urine_output_8am_2pm}
+                <NumRow label="13a. Urine output 8am → 2pm (6 h)" value={renalData.urine_output_8am_2pm}
                   onChange={v=>setRenal("urine_output_8am_2pm",v)} disabled={!isFieldEditable}
-                  unit="ml/kg/hr"
+                  unit="ml"
+                  computedRate={urineRates.am}
+                  computedUnit="ml/kg/hr"
                   status={renalData.urine_output_8am_2pm_status}
                   onStatusChange={v=>setRenal("urine_output_8am_2pm_status",v)}/>
-                <NumRow label="13b. Urine output 2pm → 8pm" value={renalData.urine_output_2pm_8pm}
+                <NumRow label="13b. Urine output 2pm → 8pm (6 h)" value={renalData.urine_output_2pm_8pm}
                   onChange={v=>setRenal("urine_output_2pm_8pm",v)} disabled={!isFieldEditable}
-                  unit="ml/kg/hr"
+                  unit="ml"
+                  computedRate={urineRates.pm}
+                  computedUnit="ml/kg/hr"
                   status={renalData.urine_output_2pm_8pm_status}
                   onStatusChange={v=>setRenal("urine_output_2pm_8pm_status",v)}/>
-                <NumRow label="13c. Urine output 8pm → 8am" value={renalData.urine_output_8pm_8am}
+                <NumRow label="13c. Urine output 8pm → 8am (12 h)" value={renalData.urine_output_8pm_8am}
                   onChange={v=>setRenal("urine_output_8pm_8am",v)} disabled={!isFieldEditable}
-                  unit="ml/kg/hr"
+                  unit="ml"
+                  computedRate={urineRates.night}
+                  computedUnit="ml/kg/hr"
                   status={renalData.urine_output_8pm_8am_status}
                   onStatusChange={v=>setRenal("urine_output_8pm_8am_status",v)}/>
+                <div className="rcn-field-hint">{urineWeightHint}</div>
                 <ReadonlyAutoField
-                  label="13. Urine output total (sum)"
-                  value={renalData.urine_output_total}
+                  label="13. Urine output total"
+                  value={urineRates.total}
                   unit="ml/kg/hr"
                 />
                 <YNRow label="14. Dialysis/CRRT" value={renalData.dialysis_crrt}
@@ -2757,10 +2877,10 @@ export default function MetabRenalVascEyeLog() {
                       <div className="rcn-audit-entry-top">
                         <span className="rcn-audit-action">{auditActionLabel(e.action)}</span>
                         <span className="rcn-audit-time">
-                          {e.created_at ? new Date(e.created_at).toLocaleString("en-GB") : ""}
+                          {formatAuditDateTime(e.created_at)}
                         </span>
                       </div>
-                      <span className="rcn-audit-user">by {e.username || "unknown"}</span>
+                      <span className="rcn-audit-user">Changed by {e.username || "unknown"}</span>
                       {e.new_values?.reason && (
                         <p className="rcn-audit-reason">"{e.new_values.reason}"</p>
                       )}
@@ -2768,7 +2888,7 @@ export default function MetabRenalVascEyeLog() {
                         oldValues={e.old_values}
                         newValues={e.new_values}
                         compact
-                        hideKeys={["reason", "nicu_day"]}
+                        hideKeys={AUDIT_HELPER_HIDE_KEYS}
                       />
                     </div>
                   ))}
