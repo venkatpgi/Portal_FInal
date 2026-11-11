@@ -89,3 +89,8 @@ def test_not_asked_reason_uses_reason_not_approached():
     w = woman("01-9")
     w.reason_not_approached = "Mother in active labour"
     assert rr.not_asked_reasons(w) == ["Mother in active labour"]
+
+
+def test_gap_ranges():
+    assert rr._ranges([1, 2, 3, 7, 9, 10]) == "001–003, 007, 009–010"
+    assert rr._ranges([]) == ""

@@ -425,6 +425,19 @@ def _in_error_reason(b) -> str:
     return f"{r}: {b.blender_activation_reason_other}" if r == "Other" and b.blender_activation_reason_other else r
 
 
+def _ranges(numbers) -> str:
+    """[1, 2, 3, 7] -> '001–003, 007'."""
+    out, run = [], []
+    for n in sorted(numbers):
+        if run and n != run[-1] + 1:
+            out.append(run)
+            run = []
+        run.append(n)
+    if run:
+        out.append(run)
+    return ", ".join(f"{r[0]:03d}" if len(r) == 1 else f"{r[0]:03d}–{r[-1]:03d}" for r in out)
+
+
 def blender_check_report(db, sites):
     """Enrollment IDs used per site and blender (PI 2026-11-11). Every
     activation uses the next allocation, so a missing number may be an
@@ -445,7 +458,7 @@ def blender_check_report(db, sites):
     gaps = {k: [n for n in range(1, max(used[k]) + 1) if n not in used[k]] for k in keys}
     rows = [[site_label(s), letter, len(used[(s, letter)]), sum(used[(s, letter)].values()),
              f"{min(used[(s, letter)]):03d}", f"{max(used[(s, letter)]):03d}",
-             ", ".join(f"{n:03d}" for n in gaps[(s, letter)]) or "none"] for s, letter in keys]
+             _ranges(gaps[(s, letter)]) or "none"] for s, letter in keys]
     errors = sorted(in_error_babies(db, sites), key=lambda x: (x[1] or "", x[0].enrollment_id or ""))
     return [{
         "title": "Enrollment IDs used, by blender",
