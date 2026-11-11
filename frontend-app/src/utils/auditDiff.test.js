@@ -2,6 +2,7 @@ import {
   describeAuditChange,
   diffAuditValues,
   formatAuditValue,
+  groupAuditRowsByIstDate,
   humanizeField,
   pairSaveRows,
   sortAuditRowsNewestFirst,
@@ -195,6 +196,18 @@ test("empty twin UPDATE is dropped when the same save has real changes", () => {
   const { changes } = diffAuditValues(tidied[0].old_values, tidied[0].new_values);
   expect(changes.length).toBeGreaterThan(0);
   expect(summarizeAuditChanges(changes, { action: "UPDATE" })).not.toMatch(/No answers changed/);
+});
+
+test("baby timeline groups rows by IST calendar day", () => {
+  const groups = groupAuditRowsByIstDate([
+    { id: 2, created_at: "2026-11-11T11:37:00Z" },
+    { id: 1, created_at: "2026-11-10T10:00:00Z" },
+  ]);
+  expect(groups).toHaveLength(2);
+  expect(groups[0].label).toMatch(/11 Nov 2026/);
+  expect(groups[1].label).toMatch(/10 Nov 2026/);
+  expect(groups[0].rows.map((r) => r.id)).toEqual([2]);
+  expect(groups[1].rows.map((r) => r.id)).toEqual([1]);
 });
 
 test("15:52 IST wall-clock sorts after a later 16:54 UTC save", () => {

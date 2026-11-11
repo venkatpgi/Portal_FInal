@@ -245,6 +245,27 @@ export function formatAuditDateTime(value) {
   return `${stamp} IST`;
 }
 
+/** Clock only, IST (17:07 IST). */
+export function formatAuditClock(value) {
+  const d = parseApiUtcDate(value);
+  if (!d) return "";
+  const stamp = d.toLocaleTimeString("en-GB", IST_CLOCK);
+  return `${stamp} IST`;
+}
+
+/** IST calendar day label for grouping a baby timeline. */
+export function formatAuditDay(value) {
+  const d = parseApiUtcDate(value);
+  if (!d) return "Unknown date";
+  return d.toLocaleDateString("en-GB", {
+    timeZone: IST_TZ,
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 /**
  * Open the OS date picker from a styled control. Windows Chrome's
  * <input type="date"> ignores opacity and has a large min-width, so the

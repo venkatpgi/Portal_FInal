@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import DashboardWorkspaceLayout from "./components/dashboard/DashboardWorkspaceLayout";
@@ -9,11 +10,12 @@ import { auditTableLabel, AUDIT_ACTIONS, AUDIT_TABLE_LABELS } from "./utils/audi
 import {
   auditActionLabel,
   diffAuditValues,
+  groupAuditRowsByIstDate,
   summarizeAuditChanges,
   tidyAuditRows,
 } from "./utils/auditDiff";
 import { siteShortCode } from "./utils/siteNames";
-import { formatAuditDateTime } from "./utils/datetime";
+import { formatAuditClock, formatAuditDateTime } from "./utils/datetime";
 import "./AuditTrail.css";
 
 const PAGE_SIZE = 50;
@@ -119,10 +121,64 @@ function changeSummary(row) {
   return summarizeAuditChanges(changes, { action: row.action });
 }
 
+const BABY_PAGE_SIZE = 200;
+
+function BabyTimeline({ enrollmentId, screeningId, groups, onOpen, onClose }) {
+  return (
+    <div className="audit-timeline">
+      <div className="audit-timeline-head">
+        <div>
+          <h2 className="audit-timeline-title">Baby timeline · {enrollmentId}</h2>
+          <p className="audit-timeline-meta">
+            {screeningId ? `Screening ${screeningId} · ` : ""}
+            Newest first, grouped by IST date
+          </p>
+        </div>
+        <button type="button" className="audit-btn-link" onClick={onClose}>
+          All babies
+        </button>
+      </div>
+      {groups.length === 0 ? (
+        <div className="audit-state">No changes recorded for this baby yet.</div>
+      ) : (
+        groups.map((group) => (
+          <section key={group.label} className="audit-timeline-day">
+            <h3 className="audit-timeline-day-label">{group.label}</h3>
+            <ol className="audit-timeline-list">
+              {group.rows.map((row) => (
+                <li key={row.id} className="audit-timeline-item">
+                  <div className="audit-timeline-dot" aria-hidden="true" />
+                  <div className="audit-timeline-card">
+                    <div className="audit-timeline-card-top">
+                      <span className="audit-timeline-time">{formatAuditClock(row.created_at) || "—"}</span>
+                      <span className={`audit-action-pill audit-action-pill--${(row.action || "").toLowerCase()}`}>
+                        {auditActionLabel(row.action)}
+                      </span>
+                    </div>
+                    <div className="audit-timeline-form">{auditTableLabel(row.table_name)}</div>
+                    <div className="audit-timeline-who">
+                      {row.username ? `${row.username} · ` : ""}
+                      {changeSummary(row)}
+                    </div>
+                    <button type="button" className="audit-btn-link" onClick={() => onOpen(row)}>
+                      View details
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        ))
+      )}
+    </div>
+  );
+}
+
 export default function AuditTrail() {
   const { user } = useAuth();
   const isGlobal = isGlobalUser(user);
   const allowed = canViewAudit(user);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -136,8 +192,9 @@ export default function AuditTrail() {
   const [dateTo, setDateTo] = useState("");
   const [action, setAction] = useState("");
   const [tableName, setTableName] = useState("");
-  const [enrollmentId, setEnrollmentId] = useState("");
-  const [screeningId, setScreeningId] = useState("");
+  const [enrollmentId, setEnrollmentId] = useState(() => searchParams.get("enrollment") || "");
+  const [screeningId, setScreeningId] = useState(() => searchParams.get("screening") || "");
+  const [babyMode, setBabyMode] = useState(() => Boolean(searchParams.get("enrollment")));
 
   const tableOptions = useMemo(
     () => Object.keys(AUDIT_TABLE_LABELS).sort(),
@@ -149,15 +206,63 @@ export default function AuditTrail() {
     [rows],
   );
 
+  const timelineGroups = useMemo(
+    () => groupAuditRowsByIstDate(displayRows),
+    [displayRows],
+  );
+
+  const openBaby = (enr, scr) => {
+    const enrollment = (enr || "").trim();
+    if (!enrollment) return;
+    setPage(0);
+    setEnrollmentId(enrollment);
+    setScreeningId(scr || "");
+    setBabyMode(true);
+    const next = new URLSearchParams(searchParams);
+    next.set("enrollment", enrollment);
+    if (scr) next.set("screening", scr);
+    else next.delete("screening");
+    setSearchParams(next);
+  };
+
+  const closeBaby = () => {
+    setBabyMode(false);
+    setEnrollmentId("");
+    setScreeningId("");
+    setPage(0);
+    const next = new URLSearchParams(searchParams);
+    next.delete("enrollment");
+    next.delete("screening");
+    setSearchParams(next);
+  };
+
   const load = useCallback(async () => {
     if (!allowed) return;
     setLoading(true);
     setError(null);
     try {
+      const site = siteQueryParams(apiSite);
+      if (babyMode && enrollmentId.trim()) {
+        const enr = enrollmentId.trim();
+        const byId = new Map();
+        const addRows = (res) => {
+          (Array.isArray(res.data) ? res.data : []).forEach((row) => byId.set(row.id, row));
+        };
+        addRows(await api.get("/audit/", { params: { enrollment_id: enr, limit: BABY_PAGE_SIZE, ...site } }));
+        const scr = screeningId.trim()
+          || [...byId.values()].find((row) => row.screening_id)?.screening_id
+          || "";
+        if (scr) {
+          addRows(await api.get("/audit/", { params: { screening_id: scr, limit: BABY_PAGE_SIZE, ...site } }));
+        }
+        setRows([...byId.values()]);
+        setHasMore(false);
+        return;
+      }
       const params = {
         skip: page * PAGE_SIZE,
         limit: PAGE_SIZE,
-        ...siteQueryParams(apiSite),
+        ...site,
       };
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
@@ -177,7 +282,7 @@ export default function AuditTrail() {
     } finally {
       setLoading(false);
     }
-  }, [allowed, page, apiSite, dateFrom, dateTo, action, tableName, enrollmentId, screeningId]);
+  }, [allowed, page, apiSite, dateFrom, dateTo, action, tableName, enrollmentId, screeningId, babyMode]);
 
   useEffect(() => {
     load();
@@ -203,7 +308,12 @@ export default function AuditTrail() {
     setTableName("");
     setEnrollmentId("");
     setScreeningId("");
+    setBabyMode(false);
     setPage(0);
+    const next = new URLSearchParams(searchParams);
+    next.delete("enrollment");
+    next.delete("screening");
+    setSearchParams(next);
   };
 
   if (!allowed) {
@@ -267,11 +377,20 @@ export default function AuditTrail() {
             <span>Enrollment ID</span>
             <input
               type="search"
-              placeholder="Filter…"
+              placeholder="01-D-039"
               value={enrollmentId}
-              onChange={(e) => { setPage(0); setEnrollmentId(e.target.value); }}
+              onChange={(e) => { setPage(0); setEnrollmentId(e.target.value); setBabyMode(false); }}
             />
           </label>
+          <button
+            type="button"
+            className="audit-btn-link"
+            style={{ marginBottom: 8 }}
+            disabled={!enrollmentId.trim()}
+            onClick={() => openBaby(enrollmentId, screeningId)}
+          >
+            View timeline
+          </button>
           <label className="audit-filter audit-filter--wide">
             <span>Screening ID</span>
             <input
@@ -298,7 +417,17 @@ export default function AuditTrail() {
         {loading && <div className="audit-state">Loading audit trail…</div>}
         {error && !loading && <div className="audit-state audit-state--error">{error}</div>}
 
-        {!loading && !error && (
+        {!loading && !error && babyMode && (
+          <BabyTimeline
+            enrollmentId={enrollmentId.trim()}
+            screeningId={screeningId.trim()}
+            groups={timelineGroups}
+            onOpen={setDetailRow}
+            onClose={closeBaby}
+          />
+        )}
+
+        {!loading && !error && !babyMode && (
           <>
             <div className="audit-table-wrap">
               <table className="audit-table">
@@ -336,7 +465,7 @@ export default function AuditTrail() {
                             <button
                               type="button"
                               className="audit-btn-link"
-                              onClick={() => { setPage(0); setEnrollmentId(row.enrollment_id); }}
+                              onClick={() => openBaby(row.enrollment_id, row.screening_id)}
                             >
                               {row.enrollment_id}
                             </button>

@@ -1,6 +1,6 @@
 /** Compare audit old/new snapshots so reviewers can see what actually changed. */
 
-import { formatAuditDateTime, parseApiUtcDate } from "./datetime";
+import { formatAuditDateTime, formatAuditDay, parseApiUtcDate } from "./datetime";
 
 export const AUDIT_NOISE_KEYS = new Set([
   "id",
@@ -655,6 +655,20 @@ export function collapseTwinUpdates(rows) {
 
 export function tidyAuditRows(rows) {
   return sortAuditRowsNewestFirst(collapseTwinUpdates(pairSaveRows(rows)));
+}
+
+export function groupAuditRowsByIstDate(rows) {
+  const groups = [];
+  const map = new Map();
+  (rows || []).forEach((row) => {
+    const label = formatAuditDay(row.created_at);
+    if (!map.has(label)) {
+      map.set(label, []);
+      groups.push(label);
+    }
+    map.get(label).push(row);
+  });
+  return groups.map((label) => ({ label, rows: map.get(label) }));
 }
 
 /** Newest first using the same IST/UTC parse as the When column. */

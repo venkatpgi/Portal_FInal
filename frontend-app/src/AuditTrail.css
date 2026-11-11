@@ -259,3 +259,103 @@
 .audit-state--error {
   color: #dc2626;
 }
+
+.audit-timeline {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px 8px;
+}
+
+.audit-timeline-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.audit-timeline-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.audit-timeline-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.audit-timeline-day {
+  margin: 0 0 18px;
+}
+
+.audit-timeline-day-label {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.audit-timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 12px;
+  border-left: 2px solid #e2e8f0;
+}
+
+.audit-timeline-item {
+  position: relative;
+  padding: 0 0 14px 18px;
+}
+
+.audit-timeline-dot {
+  position: absolute;
+  left: -7px;
+  top: 14px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #0284c7;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #bae6fd;
+}
+
+.audit-timeline-card {
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.audit-timeline-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 4px;
+}
+
+.audit-timeline-time {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.audit-timeline-form {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.audit-timeline-who {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.4;
+}
