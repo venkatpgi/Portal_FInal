@@ -141,6 +141,12 @@ Helpers 2 and 5 are scored **after** the DMS overlay (§3a), so a day can reach
   last — age < 14 d: > 2% either way; age ≥ 14 d: any loss, or gain ≥ 2%
   (`MinimalMonitoringLog.jsx weightChangeWarning`).
 
+
+**Urine output, Helper 5 item 13 (PI 2026-11-11).** Nurses type the **ml** passed in each window (8am–2pm 6 h, 2pm–8pm 6 h, 8pm–8am 12 h). The screen shows each window as ml/kg/hr using the latest DMS weight on or before that day, or the birth weight while the DMS weight is still below it. The total is ml/kg/hr over the windows that have a value, and the server works it out again on every save (`value_ranges.check_urine_save`). Until 11 Nov the screen labelled the windows ml/kg/hr and the total was their sum; the stored values were millilitres all along (median 2.5 ml/kg/hr when read as ml).
+- Above **15 ml/kg/hr**: refused on save (422) when that window's value is being typed or changed. A value saved earlier never blocks saving the rest of the day.
+- Above **6** or below **0.5 ml/kg/hr**: saved, with a warning under the box; data query `URINE_OUT_OF_RANGE` (one per window; facts carry the ml, so a later weight does not reopen a confirmed value).
+- A window left blank without "Not Recorded / Not Done": data query `URINE_WINDOW_MISSING` (one per baby, listing the days), raised 24 h after the day's last window ends.
+
 **DMS Edit (PI 2026-11-03).** Each saved reading in a block's Readings table has **Edit**: it opens in the form above ("Editing reading of …", **Done editing**) and saves automatically; the audit trail keeps the old value. The hourly tables (vitals, glucose, feeds, weight) were already editable in place. On an earlier sheet the blank "new reading" form, **Log another reading** and "tap to add" on empty slots are hidden. A sheet remembered from an earlier visit reopens only if it still takes new readings.
 
 ## 6. Locking, override, concurrent edits

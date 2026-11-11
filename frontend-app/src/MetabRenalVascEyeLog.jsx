@@ -22,6 +22,7 @@ import {
   urineMlPerKgHr,
   urineTotalMlPerKgHr,
   formatUrineMlPerKgHr,
+  urineRateWarning,
   URINE_WINDOW_HOURS_8AM_2PM,
   URINE_WINDOW_HOURS_2PM_8PM,
   URINE_WINDOW_HOURS_8PM_8AM,
@@ -240,7 +241,7 @@ function StatusToggleGroup({
 
 function NumRow({ label, value, onChange, disabled, unit, placeholder="0",
   status = null, onStatusChange = null, allowAwaited = false, autofilled = false,
-  computedRate = null, computedUnit = null }) {
+  computedRate = null, computedUnit = null, rateWarning = null }) {
   const isAwaited  = status === STATUS_AWAITED;
   const isNotDone  = status === STATUS_NOT_DONE;
   const isSentinel = isAwaited || isNotDone;
@@ -283,6 +284,11 @@ function NumRow({ label, value, onChange, disabled, unit, placeholder="0",
           </div>
         )}
       </div>
+      {rateWarning && !isSentinel && (
+        <div className={`rcn-range-warning rcn-range-warning--${rateWarning.level}`} role="alert">
+          {rateWarning.text}
+        </div>
+      )}
     </div>
   );
 }
@@ -2649,6 +2655,7 @@ export default function MetabRenalVascEyeLog() {
                   onChange={v=>setRenal("urine_output_8am_2pm",v)} disabled={!isFieldEditable}
                   unit="ml"
                   computedRate={urineRates.am}
+                  rateWarning={urineRateWarning(urineRates.am)}
                   computedUnit="ml/kg/hr"
                   status={renalData.urine_output_8am_2pm_status}
                   onStatusChange={v=>setRenal("urine_output_8am_2pm_status",v)}/>
@@ -2656,6 +2663,7 @@ export default function MetabRenalVascEyeLog() {
                   onChange={v=>setRenal("urine_output_2pm_8pm",v)} disabled={!isFieldEditable}
                   unit="ml"
                   computedRate={urineRates.pm}
+                  rateWarning={urineRateWarning(urineRates.pm)}
                   computedUnit="ml/kg/hr"
                   status={renalData.urine_output_2pm_8pm_status}
                   onStatusChange={v=>setRenal("urine_output_2pm_8pm_status",v)}/>
@@ -2663,6 +2671,7 @@ export default function MetabRenalVascEyeLog() {
                   onChange={v=>setRenal("urine_output_8pm_8am",v)} disabled={!isFieldEditable}
                   unit="ml"
                   computedRate={urineRates.night}
+                  rateWarning={urineRateWarning(urineRates.night)}
                   computedUnit="ml/kg/hr"
                   status={renalData.urine_output_8pm_8am_status}
                   onStatusChange={v=>setRenal("urine_output_8pm_8am_status",v)}/>

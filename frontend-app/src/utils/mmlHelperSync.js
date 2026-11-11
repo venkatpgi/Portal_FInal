@@ -51,6 +51,28 @@ export function urineTotalMlPerKgHr(amMl, pmMl, nightMl, effectiveWeightKg) {
   return urineMlPerKgHr(ml, effectiveWeightKg, hours);
 }
 
+// Plausible range, same as backend/value_ranges.py (PI 2026-11-11).
+export const URINE_REFUSE_ABOVE = 15;
+export const URINE_HIGH_ABOVE = 6;
+export const URINE_LOW_BELOW = 0.5;
+
+/** Warning text for one window's ml/kg/hr, or null when in range. */
+export function urineRateWarning(rate) {
+  if (rate === null || rate === undefined || rate === "") return null;
+  const r = Number(rate);
+  if (!Number.isFinite(r)) return null;
+  if (r > URINE_REFUSE_ABOVE) {
+    return { level: "impossible", text: `More than ${URINE_REFUSE_ABOVE} ml/kg/hr is not possible: enter the ml passed in this window. This value will not save.` };
+  }
+  if (r > URINE_HIGH_ABOVE) {
+    return { level: "high", text: `High (over ${URINE_HIGH_ABOVE} ml/kg/hr): check the bedside chart. If it is right, it will be confirmed in Data queries.` };
+  }
+  if (r < URINE_LOW_BELOW) {
+    return { level: "low", text: `Low (under ${URINE_LOW_BELOW} ml/kg/hr): check the bedside chart. If it is right, it will be confirmed in Data queries.` };
+  }
+  return null;
+}
+
 export function formatUrineMlPerKgHr(v) {
   if (v == null || !Number.isFinite(Number(v))) return null;
   const hundredths = Math.round(Number(v) * 100);
