@@ -33,6 +33,7 @@ COUNT_KEYS = (
     "consent_refused", "drafts",
     # Delivery and randomisation (Form B)
     "awaiting_delivery", "delivered", "needed_ppv", "randomised", "not_randomised", "no_ppv",
+    "randomised_in_error",
 )
 
 
@@ -66,7 +67,7 @@ def stage_items(db, rows):
     if sids:
         for b in (db.query(BirthResuscitation.id, BirthResuscitation.screening_id, BirthResuscitation.enrollment_id,
                            BirthResuscitation.required_resuscitation, BirthResuscitation.randomised,
-                           BirthResuscitation.baby_number)
+                           BirthResuscitation.baby_number, BirthResuscitation.blender_activated)
                   .filter(BirthResuscitation.screening_id.in_(sids)).all()):
             form_b[b.screening_id].append(b)
     out = []
@@ -77,10 +78,11 @@ def stage_items(db, rows):
             b = None if row is None else SimpleNamespace(
                 screening_id=row.screening_id, enrollment_id=row.enrollment_id,
                 required_resuscitation=row.required_resuscitation,
-                randomised=row.randomised, baby_number=baby_no(row), first=i == 0)
+                randomised=row.randomised, baby_number=baby_no(row), first=i == 0,
+                blender_activated=row.blender_activated)
             key = patient_stage(status, r.consent_given, r.gestation_weeks, r.gestation_days,
                                 b is not None, b.required_resuscitation if b else None,
-                                b.randomised if b else None)
+                                b.randomised if b else None, b.blender_activated if b else None)
             if key == "awaiting_delivery":
                 key = followup_stage(r.pregnancy_episodes, r.pregnancy_outcome, r.consent_withdrawn) or key
             out.append((r, status, key, b))
@@ -118,7 +120,8 @@ def _form_b_keys(b):
         if b.randomised is False:
             keys.append("not_randomised")
     elif b.required_resuscitation is False:
-        keys.append("no_ppv")
+        # Randomised in error (randomised_in_error.py): its own tile, never "randomised"
+        keys.append("randomised_in_error" if getattr(b, "blender_activated", None) is True else "no_ppv")
     return keys
 
 

@@ -282,6 +282,29 @@ def check_entries_after_stay_end(ctx):
             for r in ctx["after_stay"]]
 
 
+def check_randomised_in_error(ctx):
+    """Blender activated for a baby who did not need PPV (randomised_in_error.py):
+    the site PI confirms ("Confirm correct"), the Global PI signs off. Resolves
+    by itself if the site PI or Global PI reclassifies the baby (PPV Yes)."""
+    out = []
+    for r in ctx["formb"]:
+        if not (r.get("blender_activated") is True and r.get("required_resuscitation") is False):
+            continue
+        reason = r.get("blender_activation_reason") or "not recorded"
+        if reason == "Other" and r.get("blender_activation_reason_other"):
+            reason = f"Other: {r['blender_activation_reason_other']}"
+        at = r.get("blender_activation_time")
+        out.append(finding(
+            r["site_name"], "enrollment", r["enrollment_id"], "Randomised in error: site PI to confirm",
+            f"{r['enrollment_id']} (screening {r['screening_id']}): the PORTAL blender was activated "
+            f"({at.strftime('%H:%M') if at else 'time not recorded'}) but Form B says PPV was not required. "
+            f"Reason: {reason}. Confirm the baby did not need PPV at activation, judged blind to the arm; "
+            "if the baby did need PPV, change Form B (PPV required = Yes) instead. Report as a protocol "
+            "deviation to the IEC and the DSMB.",
+            {"eid": r["enrollment_id"], "reason": r.get("blender_activation_reason")}, ctx["now"]))
+    return out
+
+
 CHECKS = [
     Check("GA_ELIGIBLE_NO_FORM_A", "Gestation Log", "Eligible woman, still pregnant, with no Form A", check_ga_eligible_no_form_a),
     Check("GA_NOW_ELIGIBLE", "Gestation Log", "Logged before 25 weeks, now in the window, no Form A", check_ga_now_eligible),
@@ -294,6 +317,8 @@ CHECKS = [
     Check("FORMB_NO_FORM_A", "Identity", "Form B pointing to a Form A that does not exist", check_formb_no_form_a, second_signoff=True),
     Check("FORMA_DUPLICATE_ID", "Identity", "Same CR or hospital number on two Form A", check_formA_duplicate_identifier, second_signoff=True),
     Check("FORMA_POSSIBLE_SAME_WOMAN", "Identity", "Two Form A with nearly the same CR, matching name and GA", check_formA_possible_same_woman, second_signoff=True),
+    Check("RANDOMISED_IN_ERROR", "Consent / eligibility", "Blender activated for a baby who did not need PPV",
+          check_randomised_in_error, second_signoff=True),
     Check("FORMB_NOT_ELIGIBLE", "Consent / eligibility", "Form B saved for a screening that is not Eligible", check_formb_not_eligible, second_signoff=True),
     Check("DAY1_DATE_MISMATCH", "Clinical consistency", "Form E Day 1 date differs from Form B date of birth", check_day1_date_mismatch),
     Check("LOG_AFTER_STAY_END", "Clinical consistency", "DMS or Helper entries after death or discharge", check_entries_after_stay_end),
@@ -354,6 +379,8 @@ def _context(db, now: datetime, today: date) -> dict:
     refresh_birth_log_matches(db)
     formb = [dict(r) for r in db.execute(text("""
         SELECT b.id, b.enrollment_id, b.screening_id, b.date_of_birth, b.randomised, b.baby_number,
+               b.blender_activated, b.required_resuscitation, b.blender_activation_reason,
+               b.blender_activation_reason_other, b.blender_activation_time,
                s.consent_given, s.screening_status, s.site_name
         FROM birth_resuscitation b LEFT JOIN screenings s ON s.screening_id = b.screening_id
     """)).mappings()]
@@ -450,6 +477,11 @@ def run_checks(db, now: Optional[datetime] = None, today: Optional[date] = None,
             counts["death_alerts"] = send_alerts(db)
         except Exception:
             logger.exception("death alerts failed")
+        try:
+            from randomised_in_error import send_alerts as send_in_error_alerts
+            counts["randomised_in_error_alerts"] = send_in_error_alerts(db)
+        except Exception:
+            logger.exception("randomised-in-error alerts failed")
     db.commit()
     counts["open_total"] = db.query(DataQuery).filter(DataQuery.status.in_(OPEN_STATES)).count()
     return dict(counts)

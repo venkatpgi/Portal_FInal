@@ -148,6 +148,8 @@ ALL_SITES = ["PGIMER", "GMCH", "IOG", "AFMC", "GMCH-A", "AMC"]
 # log entry and so are counted in Box 1 as "orphans" -- which keeps
 # Approached >= Screened. The logs themselves are never filtered or edited.
 from trial_dates import TRIAL_START_DATE  # noqa: E402
+# Randomised in error (randomised_in_error.py). IS TRUE / IS FALSE never give NULL.
+_IN_ERROR_SQL = "(br.blender_activated IS TRUE AND br.required_resuscitation IS FALSE)"
 _BIRTH_LOG_IN_TRIAL_SQL = "COALESCE(date_of_birth, CAST(created_at AS DATE)) >= CAST(:trial_start AS DATE)"
 
 
@@ -320,16 +322,21 @@ SCREENING_QUERY = text(f"""
         -- BirthResuscitationForm.jsx always blanks
         -- enrollment_reason_not_randomized for this population -- it
         -- could never appear in the dynamic reason breakdown below.
+        -- Randomised in error (randomised_in_error.py: blender activated, PPV
+        -- not needed) is left out of Box 7 and shown under Box 8 instead.
         SUM(CASE WHEN s.consent_given = 'Yes'
-                 AND COALESCE(br.randomised, FALSE) = FALSE
+                 AND COALESCE(br.randomised, FALSE) = FALSE AND NOT {_IN_ERROR_SQL}
             THEN 1 ELSE 0 END) AS box7,
         SUM(CASE WHEN s.consent_given = 'Yes'
                  AND COALESCE(br.randomised, FALSE) = FALSE
-                 AND br.required_resuscitation = FALSE
+                 AND br.required_resuscitation = FALSE AND NOT {_IN_ERROR_SQL}
             THEN 1 ELSE 0 END) AS box7_vigorous,
         SUM(CASE WHEN s.consent_given = 'Yes' AND br.id IS NULL THEN 1 ELSE 0 END) AS box7_no_form_b,
         COUNT(DISTINCT CASE WHEN s.consent_given = 'Yes' AND COALESCE(br.randomised, FALSE) = FALSE
+                                 AND NOT {_IN_ERROR_SQL}
                             THEN s.screening_id END) AS box7_mothers,
+        SUM(CASE WHEN COALESCE(br.randomised, FALSE) = FALSE AND {_IN_ERROR_SQL}
+            THEN 1 ELSE 0 END) AS box8_in_error,
 
         -- Box 8: randomised. Denominator for Boxes 9-11.
         SUM(CASE WHEN br.randomised = TRUE THEN 1 ELSE 0 END) AS box8,
@@ -434,7 +441,7 @@ def _blank_screening_counts():
         "box3": 0,
         "box4a": 0, "box4b": 0, "box4b_anomaly": 0, "box4b_hydrops": 0,
         "box4b_forgo_resus": 0, "box4b_insufficient_time": 0, "box4b_iufd_legacy": 0,
-        "box5": 0, "box6": 0, "box7": 0, "box7_vigorous": 0, "box7_no_form_b": 0, "box7_mothers": 0,
+        "box5": 0, "box6": 0, "box7": 0, "box7_vigorous": 0, "box8_in_error": 0, "box7_no_form_b": 0, "box7_mothers": 0,
         "box8": 0, "box8_mothers": 0,
     }
 
@@ -730,6 +737,10 @@ def _build_rows(ga_counts_by_site, never_checked_by_site, never_checked_reasons_
         _row(None, "Extra babies from twins / triplets", box8_extra, sites,
              source="Randomised babies minus their mothers. Eligible counts mothers, so Refused + Consented not "
                     "randomised + Randomised is more than Eligible by this number."),
+        _row(None, "Randomised in error (did not need PPV): not counted above, excluded from analysis",
+             m("box8_in_error"), sites,
+             source="Form B: PPV not required, but the PORTAL blender was activated and used an allocation. "
+                    "Not followed; not in Box 7 or in the Randomised count. Not by arm (blinded)."),
     ]
 
     rows = [
