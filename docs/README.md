@@ -140,8 +140,8 @@ nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
   due later count as not complete. (Which items are blank: to follow.)
 - **Blender check** (PI 2026-11-11): all Form B to date; per site and blender,
   the enrollment IDs used (randomised + randomised in error), lowest, highest
-  and missing numbers (a gap may be an activation never entered; assumes the
-  number is the blender's own counter, to confirm with the engineer); list of
+  and missing numbers (a gap may be an activation never entered; the number
+  is the blender's own allocation number, PI 2026-11-11); list of
   babies randomised in error with time, reason and who activated.
 - **At a glance**: per site, screened / excluded / not approached / refused /
   eligible (Box 5) / consented / randomised babies / randomised in error

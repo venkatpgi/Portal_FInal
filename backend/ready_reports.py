@@ -463,9 +463,9 @@ def blender_check_report(db, sites):
     return [{
         "title": "Enrollment IDs used, by blender",
         "note": "All Form B to date: randomised babies and babies randomised in error. A gap is a number "
-                "below the highest one with no Form B; it may be an activation never entered. This "
-                "assumes the number in the ID is the blender's own allocation counter (to be confirmed "
-                "with the blender engineer). An ID can be saved only once, so duplicates cannot occur.",
+                "below the highest one with no Form B; it may be an activation never entered. The number "
+                "in the ID is the blender's own allocation number (PI 2026-11-11). An ID can be saved "
+                "only once, so duplicates cannot occur.",
         "columns": ["Site", "Blender", "IDs used", "Of these, in error", "Lowest", "Highest", "Missing numbers"],
         "rows": rows,
     }, {
