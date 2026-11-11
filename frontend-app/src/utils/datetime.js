@@ -162,25 +162,87 @@ export function formatIsoDateMedium(iso) {
 }
 
 /**
- * Short local timestamp for "Saved by X · 02 Sep, 14:30" provenance.
+ * API datetimes are UTC. Naive ISO ("2026-09-26T04:26:17", no Z) must not be
+ * read as local time — that showed 04:26 for a 09:56 IST save.
+ * @param {string|Date|null|undefined} value
+ * @returns {Date|null}
+ */
+const IST_OFFSET_MS = (5 * 60 + 30) * 60 * 1000;
+
+function parseNaiveIsoAsUtc(s) {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return null;
+  return new Date(Date.UTC(
+    Number(m[1]), Number(m[2]) - 1, Number(m[3]),
+    Number(m[4]), Number(m[5]), Number(m[6] || 0),
+  ));
+}
+
+function parseNaiveIsoAsIst(s) {
+  const utc = parseNaiveIsoAsUtc(s);
+  if (!utc) return null;
+  return new Date(utc.getTime() - IST_OFFSET_MS);
+}
+
+export function parseApiUtcDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const s = String(value).trim();
+  if (!s) return null;
+  const isNaiveIso = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(s)
+    && !/(Z|[+-]\d{2}:?\d{2})$/.test(s);
+  let d;
+  if (isNaiveIso) {
+    d = parseNaiveIsoAsUtc(s);
+  } else {
+    d = new Date(s);
+  }
+  if (!d || Number.isNaN(d.getTime())) return null;
+  // Aware UTC written through PG on an IST Windows machine is stored as
+  // local wall-clock. Treating those numbers as UTC (or tagging them Z)
+  // shows ~5.5h in the future (15:47 save → 21:17 IST).
+  const aheadMs = d.getTime() - Date.now();
+  if (aheadMs > 2 * 60 * 1000 && aheadMs < 8 * 3600 * 1000) {
+    return parseNaiveIsoAsIst(s) || d;
+  }
+  return d;
+}
+
+const IST_TZ = "Asia/Kolkata";
+
+const IST_CLOCK = {
+  timeZone: IST_TZ,
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+};
+
+/**
+ * Short IST timestamp for "Saved by X · 02 Sep, 14:30 IST" provenance.
  * @param {string|Date|null|undefined} value
  */
 export function formatStampShort(value) {
-  if (!value) return "";
-  // The API returns saved_at / submitted_at as naive UTC ("2026-09-26T04:26:17"),
-  // which the browser would read as local time — the helpers showed 04:26 for
-  // a 09:56 IST save. No timezone suffix => treat as UTC.
-  const isNaiveIso = typeof value === "string"
-    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)
-    && !/(Z|[+-]\d{2}:?\d{2})$/.test(value);
-  const d = value instanceof Date ? value : new Date(isNaiveIso ? `${value}Z` : value);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("en-GB", {
+  const d = parseApiUtcDate(value);
+  if (!d) return "";
+  const stamp = d.toLocaleString("en-GB", {
+    ...IST_CLOCK,
     day: "2-digit",
     month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
   });
+  return `${stamp} IST`;
+}
+
+/** Full IST timestamp for audit "when" (11 Nov 2026, 15:26 IST). */
+export function formatAuditDateTime(value) {
+  const d = parseApiUtcDate(value);
+  if (!d) return "";
+  const stamp = d.toLocaleString("en-GB", {
+    ...IST_CLOCK,
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+  return `${stamp} IST`;
 }
 
 /**

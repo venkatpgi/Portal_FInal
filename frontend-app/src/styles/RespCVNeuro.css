@@ -1141,6 +1141,18 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.rcn-urine-row-values {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+.rcn-urine-rate-side {
+  min-width: 110px;
+  white-space: nowrap;
+}
 .rcn-conditional-block {
   padding: 8px 10px;
   border-radius: 10px;
@@ -2598,7 +2610,12 @@
   letter-spacing: 0.04em;
 }
 .rcn-audit-time { color: #64748B; font-size: 11px; }
-.rcn-audit-user { color: #475569; }
+.rcn-audit-user {
+  display: block;
+  color: #0F172A;
+  font-size: 13px;
+  font-weight: 700;
+}
 .rcn-audit-reason {
   margin: 6px 0 0;
   padding: 8px 10px;

@@ -26,6 +26,7 @@ Switched on by AUDIT_ALL_FORMS=1 in the backend env file (training 2026-10-26, t
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 
 from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
@@ -52,7 +53,7 @@ REDACTED = "[redacted]"
 
 
 def enabled() -> bool:
-    return os.getenv("AUDIT_ALL_FORMS", "").strip().lower() in ("1", "true", "yes")
+    return os.getenv("AUDIT_ALL_FORMS", "1").strip().lower() in ("1", "true", "yes")
 
 
 def _redacted(table: str, col) -> bool:
@@ -87,6 +88,11 @@ def _changes(obj, action: str):
         after = hist.added[0] if hist.added else None
         if _serialize(before) == _serialize(after):
             continue
+        if _redacted(table, col):
+            # Values are PII: record that they changed, not what they were.
+            old[col.name] = "[previous]"
+            new[col.name] = "[updated]"
+            continue
         old[col.name] = _value(table, col, before)
         new[col.name] = _value(table, col, after)
     return old, new
@@ -112,6 +118,7 @@ def _after_flush(session: Session, flush_context) -> None:
             pk = [st.dict.get(st.mapper.get_property_by_column(c).key) for c in st.mapper.primary_key]
             rows.append({
                 "user_id": user_id, "username": username, "action": action, "table_name": table,
+                "created_at": datetime.now(timezone.utc).replace(tzinfo=None),
                 "record_id": (str(pk[0]) if len(pk) == 1 else str(tuple(pk))) if any(v is not None for v in pk) else None,
                 "enrollment_id": getattr(obj, "enrollment_id", None)
                 if isinstance(getattr(obj, "enrollment_id", None), str) else None,

@@ -4,7 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "./api/axios";
 import { getMmlSheet } from "./utils/mmlSheetFetch";
 import { helperLastRequiredDay, isHelperLogComplete } from "./utils/formCompletion";
-import { toDateOnlyValue, formatIsoDateMedium, formatStampShort, nicuDayNumberFromDay1, nicuDayForCalendarYmd, calendarDateForNicuDay, NICU_DAY_GRACE_HOUR, helperDayStripLength } from "./utils/datetime";
+import { toDateOnlyValue, formatIsoDateMedium, formatStampShort, formatAuditDateTime, nicuDayNumberFromDay1, nicuDayForCalendarYmd, calendarDateForNicuDay, NICU_DAY_GRACE_HOUR, helperDayStripLength } from "./utils/datetime";
 import DayOfLifeNote from "./components/helper/DayOfLifeNote";
 // ✅ Reuses RespCVNeuro.css — same design system, same class names
 import "./styles/RespCVNeuro.css";
@@ -20,7 +20,7 @@ import { useFormProgress } from "./context/FormProgressContext";
 import { useAuth } from "./context/AuthContext";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import AuditChangeList from "./components/AuditChangeList";
-import { auditActionLabel } from "./utils/auditDiff";
+import { auditActionLabel, AUDIT_HELPER_HIDE_KEYS } from "./utils/auditDiff";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import { normalizeHelperDob } from "./hooks/useHelperDobSyncDay1";
 import { mmlSyncAggregateFieldFromMml } from "./utils/mmlHelperSync";
@@ -2777,10 +2777,10 @@ export default function InfectGIHemaLog() {
                       <div className="rcn-audit-entry-top">
                         <span className="rcn-audit-action">{auditActionLabel(e.action)}</span>
                         <span className="rcn-audit-time">
-                          {e.created_at ? new Date(e.created_at).toLocaleString("en-GB") : ""}
+                          {formatAuditDateTime(e.created_at)}
                         </span>
                       </div>
-                      <span className="rcn-audit-user">by {e.username || "unknown"}</span>
+                      <span className="rcn-audit-user">Changed by {e.username || "unknown"}</span>
                       {e.new_values?.reason && (
                         <p className="rcn-audit-reason">"{e.new_values.reason}"</p>
                       )}
@@ -2788,7 +2788,7 @@ export default function InfectGIHemaLog() {
                         oldValues={e.old_values}
                         newValues={e.new_values}
                         compact
-                        hideKeys={["reason", "nicu_day"]}
+                        hideKeys={AUDIT_HELPER_HIDE_KEYS}
                       />
                     </div>
                   ))}

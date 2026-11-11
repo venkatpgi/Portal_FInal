@@ -2068,13 +2068,13 @@ class MetabRenalVascEyeDayLog(Base):
     aki_stage              = Column(String,  nullable=True)  # KDIGO Stage 1/2/3 (when #11 Yes)
     creatinine             = Column(Float,   nullable=True)  # legacy numeric mg/dL
     creatinine_value       = Column(String,  nullable=True)  # #12 numeric | "Result Awaited" | "Not Recorded / Not Done"
-    urine_output_8am_2pm   = Column(Float,   nullable=True)  # #13 window
+    urine_output_8am_2pm   = Column(Float,   nullable=True)  # #13a nurse-entered ml (6h)
     urine_output_8am_2pm_status = Column(String, nullable=True)  # "Not Recorded / Not Done"
-    urine_output_2pm_8pm   = Column(Float,   nullable=True)
+    urine_output_2pm_8pm   = Column(Float,   nullable=True)  # #13b nurse-entered ml (6h)
     urine_output_2pm_8pm_status = Column(String, nullable=True)  # "Not Recorded / Not Done"
-    urine_output_8pm_8am   = Column(Float,   nullable=True)
+    urine_output_8pm_8am   = Column(Float,   nullable=True)  # #13c nurse-entered ml (12h)
     urine_output_8pm_8am_status = Column(String, nullable=True)  # "Not Recorded / Not Done"
-    urine_output_total     = Column(String,  nullable=True)  # #13 summary (sum of windows)
+    urine_output_total     = Column(String,  nullable=True)  # #13 derived ml/kg/hr over recorded hours
     dialysis_crrt          = Column(Boolean, nullable=True)                      # 14
 
     # Legacy — superseded by urine window columns / creatinine_value above

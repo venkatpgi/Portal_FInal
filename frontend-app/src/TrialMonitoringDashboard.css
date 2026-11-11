@@ -101,10 +101,11 @@
 }
 
 .global-site-filter__menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 30;
+  position: fixed;
+  top: auto;
+  right: auto;
+  left: auto;
+  z-index: 400;
   box-sizing: border-box;
   width: max-content;
   min-width: 100%;

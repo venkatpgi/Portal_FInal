@@ -1,6 +1,7 @@
 """Audit log read API — global roles (all sites) and site_pi (own site only)."""
 
 from datetime import date, datetime, time, timezone
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, or_
@@ -58,9 +59,10 @@ def list_audit_logs(
         raise HTTPException(status_code=403, detail="Not authorized to view audit logs")
 
     site_col, scr_by_sid, scr_by_enr = _audit_site_column()
+    changer = aliased(User)
 
     query = (
-        db.query(AuditLog, site_col.label("resolved_site"))
+        db.query(AuditLog, site_col.label("resolved_site"), changer)
         .outerjoin(scr_by_sid, scr_by_sid.screening_id == AuditLog.screening_id)
         .outerjoin(
             scr_by_enr,
@@ -70,6 +72,7 @@ def list_audit_logs(
                 scr_by_enr.enrollment_id == AuditLog.enrollment_id,
             ),
         )
+        .outerjoin(changer, changer.id == AuditLog.user_id)
         .order_by(AuditLog.created_at.desc())
     )
 
@@ -100,12 +103,12 @@ def list_audit_logs(
 
     rows = query.offset(skip).limit(limit).all()
     out: list[AuditLogOut] = []
-    for log, resolved_site in rows:
+    for log, resolved_site, changer_row in rows:
         out.append(
             AuditLogOut(
                 id=log.id,
                 user_id=log.user_id,
-                username=log.username,
+                username=_person_display_name(log, changer_row),
                 action=log.action,
                 table_name=log.table_name,
                 record_id=log.record_id,
@@ -118,6 +121,16 @@ def list_audit_logs(
             )
         )
     return out
+
+
+def _person_display_name(log: AuditLog, user_row: Optional[User]) -> Optional[str]:
+    """Prefer the staff member's full name over their login id."""
+    if user_row is not None:
+        name = (user_row.full_name or user_row.username or "").strip()
+        if name:
+            return name
+    fallback = (log.username or "").strip()
+    return fallback or None
 
 
 _FORM_LABELS = {
