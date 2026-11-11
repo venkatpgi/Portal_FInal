@@ -17,6 +17,9 @@ export const AUDIT_NOISE_KEYS = new Set([
   "override_unlocked_until",
   "form",
   "explicitly_saved",
+  "saved_at",
+  "submitted_at",
+  "submission_status",
 ]);
 
 /** Extra keys the helper-day History modal already shows in the header. */
@@ -114,6 +117,17 @@ const FIELD_LABELS = {
   saved_at: "Saved at",
   submitted_at: "Submitted at",
   submission_status: "Submission status",
+  growth_a: "Weight (5.7.A)",
+  weight_g: "Weight",
+  cv_a: "Vitals (5.2.A)",
+  met_a: "Glucose (5.3.A)",
+  gi_a: "Feed volume (5.4.A)",
+  gi_b: "Direct bilirubin (5.4.B)",
+  resp_a: "Respiratory support (5.1.A)",
+  heme_a: "Transfusion (5.6.A)",
+  glucose: "Glucose",
+  volume_ml: "Volume",
+  axillary_temp: "Temperature",
 };
 
 export function auditActionLabel(action) {
@@ -157,6 +171,44 @@ function looksLikeIsoDateTime(str) {
   return /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(str);
 }
 
+const READING_META_KEYS = new Set(["id", "date", "time", "slot_time"]);
+const READING_UNITS = {
+  weight_g: "g",
+  glucose: "mg/dL",
+  volume_ml: "ml",
+  axillary_temp: "°C",
+  sbp: "mm Hg",
+  dbp: "mm Hg",
+  map_value: "mm Hg",
+  max_fio2: "%",
+  ph: "",
+};
+
+function isBlankReading(row) {
+  if (row == null) return true;
+  if (typeof row !== "object" || Array.isArray(row)) return isEmpty(row);
+  return Object.entries(row).every(([k, v]) => (
+    READING_META_KEYS.has(k) || isEmpty(v) || v === false
+  ));
+}
+
+function looksLikeReading(row) {
+  return Boolean(
+    row
+    && typeof row === "object"
+    && !Array.isArray(row)
+    && (
+      "weight_g" in row
+      || "slot_time" in row
+      || "glucose" in row
+      || "volume_ml" in row
+      || "ph" in row
+      || "axillary_temp" in row
+      || ("date" in row && ("time" in row || "slot_time" in row))
+    ),
+  );
+}
+
 function formatReadingRow(row) {
   if (row == null) return "";
   if (typeof row !== "object" || Array.isArray(row)) return formatAuditValue(row);
@@ -164,13 +216,17 @@ function formatReadingRow(row) {
   const time = (row.time || row.slot_time || "").toString().trim();
   const when = [date, time].filter(Boolean).join(" ");
   const bits = [];
-  if (row.type) bits.push(String(row.type));
-  const val = row.ph ?? row.value ?? row.volume_ml ?? row.result ?? row.glucose
-    ?? row.weight_g ?? row.max_fio2;
-  if (val != null && val !== "") bits.push(String(val));
-  if (row.unit) bits.push(String(row.unit));
-  if (row.status) bits.push(String(row.status));
-  const body = bits.join(" ");
+  for (const [k, v] of Object.entries(row)) {
+    if (READING_META_KEYS.has(k) || isEmpty(v) || v === false) continue;
+    if (k === "type" || k === "status") {
+      bits.push(String(v));
+      continue;
+    }
+    const unit = READING_UNITS[k] ?? row.unit;
+    const label = humanizeField(k);
+    bits.push(unit ? `${label} ${v} ${unit}` : `${label} ${v}`);
+  }
+  const body = bits.join(", ");
   if (when && body) return `${when} · ${body}`;
   return when || body || "empty";
 }
@@ -179,17 +235,11 @@ function formatEntriesMap(obj) {
   const parts = [];
   for (const [block, rows] of Object.entries(obj)) {
     if (!Array.isArray(rows)) continue;
-    const filled = rows.filter((r) => {
-      if (!r || typeof r !== "object") return false;
-      return Object.entries(r).some(([k, v]) => {
-        if (k === "id" || k === "date" || k === "time" || k === "slot_time") return false;
-        return !isEmpty(v) && v !== false;
-      });
-    }).length;
-    if (!filled) continue;
-    parts.push(`${humanizeField(block)}: ${filled} reading${filled === 1 ? "" : "s"}`);
+    const lines = rows.filter((r) => !isBlankReading(r)).map(formatReadingRow).filter(Boolean);
+    if (!lines.length) continue;
+    parts.push(`${humanizeField(block)}: ${lines.join("; ")}`);
   }
-  return parts.length ? parts.join("; ") : "sheet updated";
+  return parts.length ? parts.join("\n") : "empty";
 }
 
 function formatStructured(value) {
@@ -202,6 +252,7 @@ function formatStructured(value) {
     return value.map((v) => formatAuditValue(v)).filter((s) => s && s !== "—").join(", ") || "—";
   }
   if (value && typeof value === "object") {
+    if (looksLikeReading(value)) return formatReadingRow(value) || "empty";
     const keys = Object.keys(value);
     if (keys.length && keys.every((k) => Array.isArray(value[k]) || value[k] == null)) {
       return formatEntriesMap(value);
@@ -227,7 +278,10 @@ export function formatAuditValue(value) {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   const parsed = tryParseJson(value);
   if (parsed !== null) return formatAuditValue(parsed);
-  if (typeof value === "object") return formatStructured(value);
+  if (typeof value === "object") {
+    if (looksLikeReading(value)) return formatReadingRow(value) || "empty";
+    return formatStructured(value);
+  }
   const str = String(value);
   if (looksLikeIsoDateTime(str)) {
     const formatted = formatAuditDateTime(str);
@@ -286,6 +340,87 @@ function collectKeys(oldValues, newValues) {
   ])].sort();
 }
 
+function asObject(value) {
+  const parsed = tryParseJson(value);
+  const v = parsed !== null ? parsed : value;
+  return v && typeof v === "object" ? v : null;
+}
+
+function isEntriesMap(value) {
+  const obj = asObject(value);
+  if (!obj || Array.isArray(obj)) return false;
+  const keys = Object.keys(obj);
+  return keys.length > 0 && keys.every((k) => Array.isArray(obj[k]) || obj[k] == null);
+}
+
+function readingWhenKey(row) {
+  if (!row || typeof row !== "object") return "";
+  return `${String(row.date || "").slice(0, 10)}|${row.slot_time || row.time || ""}`;
+}
+
+function diffReadingArrays(block, oldArr, newArr) {
+  const oldRows = (oldArr || []).filter((r) => r && typeof r === "object");
+  const newRows = (newArr || []).filter((r) => r && typeof r === "object");
+  const usedOld = new Set();
+  const changes = [];
+  const label = humanizeField(block);
+
+  newRows.forEach((nr, ni) => {
+    if (isBlankReading(nr)) return;
+    const when = readingWhenKey(nr);
+    let oi = -1;
+    if (when !== "|") {
+      oi = oldRows.findIndex((or, i) => !usedOld.has(i) && readingWhenKey(or) === when);
+    }
+    if (oi < 0) {
+      oi = oldRows.findIndex((or, i) => !usedOld.has(i) && valuesEqual(or, nr));
+    }
+    if (oi < 0) {
+      changes.push({
+        key: `${block}[${ni}]`,
+        label,
+        from: undefined,
+        to: nr,
+        kind: "added",
+      });
+      return;
+    }
+    usedOld.add(oi);
+    const or = oldRows[oi];
+    if (valuesEqual(or, nr)) return;
+    const addedFromBlank = isBlankReading(or);
+    changes.push({
+      key: `${block}[${ni}]`,
+      label,
+      from: addedFromBlank ? undefined : or,
+      to: nr,
+      kind: addedFromBlank ? "added" : "changed",
+    });
+  });
+
+  oldRows.forEach((or, i) => {
+    if (usedOld.has(i) || isBlankReading(or)) return;
+    changes.push({
+      key: `${block}[removed-${i}]`,
+      label,
+      from: or,
+      to: undefined,
+      kind: "removed",
+    });
+  });
+  return changes;
+}
+
+function expandEntriesDiff(from, to) {
+  const oldMap = asObject(from) || {};
+  const newMap = asObject(to) || {};
+  const blocks = [...new Set([...Object.keys(oldMap), ...Object.keys(newMap)])].sort();
+  return blocks.flatMap((block) => {
+    if (!Array.isArray(oldMap[block]) && !Array.isArray(newMap[block])) return [];
+    return diffReadingArrays(block, oldMap[block], newMap[block]);
+  });
+}
+
 /**
  * @returns {{
  *   changes: Array<{key: string, label: string, from: any, to: any, kind: string}>,
@@ -303,6 +438,11 @@ export function diffAuditValues(oldValues, newValues, { hideKeys = [] } = {}) {
     if (hide.has(key)) continue;
     const from = Object.prototype.hasOwnProperty.call(oldV, key) ? oldV[key] : undefined;
     const to = Object.prototype.hasOwnProperty.call(newV, key) ? newV[key] : undefined;
+    if ((key === "entries_json" || key.endsWith("_json")) && (isEntriesMap(from) || isEntriesMap(to))) {
+      if (valuesEqual(from, to)) continue;
+      expandEntriesDiff(from, to).forEach((row) => changes.push(row));
+      continue;
+    }
     const row = {
       key,
       label: humanizeField(key),
@@ -388,6 +528,16 @@ export function pairSaveRows(rows) {
   return rows
     .filter((row) => !usedIds.has(row.id))
     .map((row) => patched.get(row.id) || row);
+}
+
+/** Newest first using the same IST/UTC parse as the When column. */
+export function sortAuditRowsNewestFirst(rows) {
+  return [...(rows || [])].sort((a, b) => {
+    const tb = parseApiUtcDate(b?.created_at)?.getTime() ?? 0;
+    const ta = parseApiUtcDate(a?.created_at)?.getTime() ?? 0;
+    if (tb !== ta) return tb - ta;
+    return (Number(b?.id) || 0) - (Number(a?.id) || 0);
+  });
 }
 
 export function summarizeAuditChanges(changes, { action, limit = 3 } = {}) {

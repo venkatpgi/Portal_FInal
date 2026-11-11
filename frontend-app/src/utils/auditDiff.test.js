@@ -4,6 +4,7 @@ import {
   formatAuditValue,
   humanizeField,
   pairSaveRows,
+  sortAuditRowsNewestFirst,
   summarizeAuditChanges,
 } from "./auditDiff";
 
@@ -97,6 +98,29 @@ test("dummy SAVE row picks up the paired UPDATE answers", () => {
   expect(summarizeAuditChanges(changes, { action: "SAVE" })).toMatch(/Expected delivery date/);
 });
 
+test("adding a DMS weight entry shows the grams not a reading count", () => {
+  const { changes } = diffAuditValues(
+    { entries_json: JSON.stringify({ growth_a: [] }), saved_at: "2026-11-11T11:20:00Z" },
+    {
+      entries_json: JSON.stringify({
+        growth_a: [{ id: "g1", date: "2026-11-11", slot_time: "16:50", weight_g: "400" }],
+      }),
+      saved_at: "2026-11-11T11:20:30Z",
+    },
+  );
+  expect(changes.map((c) => c.key)).not.toContain("saved_at");
+  expect(changes).toHaveLength(1);
+  expect(changes[0].kind).toBe("added");
+  expect(changes[0].label).toMatch(/Weight/);
+  const shown = formatAuditValue(changes[0].to);
+  expect(shown).toContain("400");
+  expect(shown).toContain("g");
+  expect(shown).not.toMatch(/1 reading/);
+  const described = describeAuditChange(changes[0]);
+  expect(described.was).toMatch(/empty/i);
+  expect(described.now).toContain("400");
+});
+
 test("describeAuditChange uses was/now language", () => {
   const added = describeAuditChange({
     kind: "added",
@@ -111,4 +135,18 @@ test("describeAuditChange uses was/now language", () => {
     to: "[updated]",
   });
   expect(hidden.now).toMatch(/details not shown/);
+});
+
+test("15:52 IST wall-clock sorts after a later 16:54 UTC save", () => {
+  const realNow = Date.now;
+  Date.now = () => Date.UTC(2026, 10, 11, 11, 25, 0); // 16:55 IST
+  try {
+    const sorted = sortAuditRowsNewestFirst([
+      { id: 1, created_at: "2026-11-11T15:52:00" },
+      { id: 2, created_at: "2026-11-11T11:24:00Z" },
+    ]);
+    expect(sorted.map((r) => r.id)).toEqual([2, 1]);
+  } finally {
+    Date.now = realNow;
+  }
 });

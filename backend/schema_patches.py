@@ -1393,6 +1393,17 @@ FORM_I_LTFU_REASON_PATCHES = [
     "ALTER TABLE study_outcomes ADD COLUMN IF NOT EXISTS ltfu44_reason_other VARCHAR",
 ]
 
+# Windows PG stored IST wall-clock in TIMESTAMP WITHOUT TIME ZONE, so a
+# 15:52 IST save sorted after a later 16:54 save stored as 11:24 UTC.
+AUDIT_CREATED_AT_UTC_PATCHES = [
+    """
+    UPDATE audit_log
+    SET created_at = created_at - INTERVAL '5 hours 30 minutes'
+    WHERE created_at IS NOT NULL
+      AND created_at > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+    """,
+]
+
 # Form H H5.4 Miscellaneous: tachycardia / bradycardia (PI 2026-11-06).
 FORM_H_CV_MISC_PATCHES = [
     "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS cv_misc VARCHAR",

@@ -10,6 +10,7 @@ import {
   auditActionLabel,
   diffAuditValues,
   pairSaveRows,
+  sortAuditRowsNewestFirst,
   summarizeAuditChanges,
 } from "./utils/auditDiff";
 import { siteShortCode } from "./utils/siteNames";
@@ -144,7 +145,10 @@ export default function AuditTrail() {
     [],
   );
 
-  const displayRows = useMemo(() => pairSaveRows(rows), [rows]);
+  const displayRows = useMemo(
+    () => sortAuditRowsNewestFirst(pairSaveRows(rows)),
+    [rows],
+  );
 
   const load = useCallback(async () => {
     if (!allowed) return;

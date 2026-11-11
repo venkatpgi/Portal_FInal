@@ -1,12 +1,13 @@
 """Audit log read API — global roles (all sites) and site_pi (own site only)."""
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, aliased
 
+from audit_service import utc_now_naive
 from db import get_db
 from deps import ROLE_SITE_PI, get_current_user, is_global
 from models import AuditLog, BirthResuscitation, Screening, User
@@ -73,8 +74,13 @@ def list_audit_logs(
             ),
         )
         .outerjoin(changer, changer.id == AuditLog.user_id)
-        .order_by(AuditLog.created_at.desc())
     )
+    utc = utc_now_naive()
+    when_utc = case(
+        (AuditLog.created_at > utc, AuditLog.created_at - timedelta(hours=5, minutes=30)),
+        else_=AuditLog.created_at,
+    )
+    query = query.order_by(when_utc.desc(), AuditLog.id.desc())
 
     if is_global(current_user):
         if site and site in _VALID_SITES:
