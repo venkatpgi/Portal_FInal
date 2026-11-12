@@ -1,6 +1,6 @@
 # 10 — Plausible ranges for typed numbers (PI 2026-11-12)
 
-Approved by the Global PI on 12 Nov 2026 in `PORTAL_value_ranges_review_2026-11-12.xlsx` (17 limits changed from the draft, self-inflating bag PEEP dropped, the rest approved). The table lives in **`backend/range_rules.py` `RULES`** and **`frontend-app/src/utils/valueRanges.js`**; `test_range_rules.test_frontend_table_matches_backend` fails if the two drift apart.
+Approved by the Global PI on 12 Nov 2026 in `PORTAL_value_ranges_review_2026-11-12.xlsx` (17 limits changed from the draft, self-inflating bag PEEP dropped, the rest approved). Later the same day the PI lowered the DMS confirm range: diastolic from 10, mean BP from 15. The table lives in **`backend/range_rules.py` `RULES`** and **`frontend-app/src/utils/valueRanges.js`**; `test_range_rules.test_frontend_table_matches_backend` fails if the two drift apart.
 
 ## Two limits per field
 | | What happens |
@@ -32,7 +32,7 @@ The server check (`range_rules.install()`, a SQLAlchemy `before_flush` listener)
 | E | MAP (HFO) | cmH₂O | 6–18 | 0–30 |
 | DMS | Weight | g | — (10% change query) | 300–6000 |
 | DMS | Axillary temperature | °C | 35–37.8 | 24–42 |
-| DMS | SBP / DBP / MAP | mmHg | 30–90 / 15–60 / 20–60 | 15–140 / 5–100 / 10–100 |
+| DMS | SBP / DBP / MAP | mmHg | 30–90 / 10–60 / 15–60 | 15–140 / 5–100 / 10–100 |
 | DMS | Glucose | mg/dL | 20–200 | 5–600 |
 | DMS, Helper 2 | pH / PaCO₂ / PaO₂ | , mmHg | 6.8–7.6 / 20–100 / 25–200 | 6.5–7.9 / 10–150 / 10–600 |
 | Helper 2 | Max FiO₂ / max flow | %, L/min | — / up to 20 | 21–100 / 0–30 |
