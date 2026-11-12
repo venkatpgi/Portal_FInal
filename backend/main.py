@@ -5241,7 +5241,11 @@ def get_composite_suggestion(
 # PI 2026-11-09: the IEC / DSMB AE summary only for the Global PI, the
 # Project Scientist ("global scientist") and site PIs (their own site).
 from deps import ROLE_PROJECT_SCIENTIST  # noqa: E402
-READY_REPORT_ROLES = {"ae_summary": {ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_SITE_PI}}
+READY_REPORT_ROLES = {
+    "ae_summary": {ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_SITE_PI},
+    # same people as the Data queries page (routers/data_queries.py)
+    "data_queries": {ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, "global_scientist", ROLE_SITE_PI, "site_scientist"},
+}
 
 
 def _may_see_ready(key, user) -> bool:
@@ -5256,7 +5260,7 @@ def _ready_report(key, site, date_from, date_to, db, current_user):
         raise HTTPException(status_code=404, detail="No such report")
     sites = _scope_sites(current_user, site)
     if not _may_see_ready(key, current_user):
-        raise HTTPException(status_code=403, detail="This report is for the Global PI, the Project Scientist and Site PIs.")
+        raise HTTPException(status_code=403, detail="This report is not available for your role.")
     follow = {}
 
     def status_for(eid):
