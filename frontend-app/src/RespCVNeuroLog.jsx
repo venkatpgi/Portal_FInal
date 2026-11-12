@@ -3690,7 +3690,7 @@ export default function RespCVNeuroLog() {
             editable until a user clicks "Lock" and confirms in the modal. */}
         {isOverrideActiveDay ? (
           <>
-            <div className="rcn-locked-badge rcn-locked-badge--override" title="Temporarily reopened by a site monitor">
+            <div className="rcn-locked-badge rcn-locked-badge--override" title="Temporarily reopened by the site PI or Global PI">
               <Unlock size={13} /> Day {activeDay} Reopened (Override)
             </div>
             {canSubmit ? (
@@ -3709,7 +3709,7 @@ export default function RespCVNeuroLog() {
             <div className="rcn-locked-badge">
               <Lock size={13} /> Day {activeDay} Locked
             </div>
-            {isSuperadmin && (
+            {(isSuperadmin || isPI) && (
               <button
                 type="button"
                 className="rcn-override-btn"

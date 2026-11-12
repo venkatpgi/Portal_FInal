@@ -12,7 +12,7 @@ helpers (and, separately, Form H — chapter 04).
 | Working day | before **08:00 IST** = previous day | `clinical_time.py`, `form_completion.nicu_day_today`, frontend `nicuDayNumberFromDay1` |
 | DMS sheet date | new readings: today; or **yesterday until 08:00**. Earlier sheets, from the date of birth to the end of stay, open for **corrections only** (edit or remove a saved reading; a save that adds one is refused, 422) until any of that day's Helper 2 / 4 / 5 days is locked (then view only, 403; an active Override & Unlock reopens it) (PI 2026-11-03) | `main._mml_sheet_date`, `dms_sheets.py` (`GET /minimal-monitoring/{id}/sheet-dates`: open / correction / closed + reason) |
 | Day of life | from Form B date **and time** of birth: birth to < 24 h = Day 1 of life. Display only: the DMS shows it under the sheet date with a divider row in the hourly tables where it changes; Helpers 2, 4, 5 show it under "Day N" for that 08:00-to-08:00 day (Day 1 from birth). Helper day numbers and DMS dates are unchanged (PI 2026-11-03) | `utils/dayOfLife.js`, `components/helper/DayOfLifeNote.jsx` |
-| Helper "today" | the working day; future days are not editable; past days lock | helper pages (`useNicuWorkingDay`) |
+| Helper "today" | the working day; future days are not editable; past days stay editable until someone presses Lock (any site staff, day 100% filled) | helper pages (`useNicuWorkingDay`) |
 | End-of-stay lock | DMS and Helpers 2, 4, 5 take **nothing after the end of stay**: the earliest of the Form H discharge date and the first Helper 5 "did not survive" day (PI 2026-10-31). That day itself stays open. Enforced on the server (422), so an old tablet app cannot get round it; helper pages and the DMS go read-only. `GET /birth-resuscitation/{id}` returns the end as `discharge_date`, plus `died`. Form H outcome Died with no date locks nothing | `stay_end.py`, `get_birth_resuscitation`, helper `setDischargeDay`, DMS `stayClosed` |
 
 **Recording the end of stay (PI 2026-10-31).** "Survived the day" comes late in the day's work, so the DMS has **Record death or discharge** at the top (`POST /enrollment/{id}/end-of-stay`, any site staff): outcome, date, and time for a death. It saves to Form H at once, creating the record if needed, and the logs close. A wrong entry is corrected on Form H. On the day of death the DMS refuses new readings timed after the time of death, and Helper 5 shows "Survived the day" as No until saved. Helper days stay open on the day of death. Entries that got in first raise the data query `LOG_AFTER_STAY_END`; saving "did not survive" warns about later days. A Helper day with nothing entered is refused (422), so no blank row is created.
@@ -153,7 +153,7 @@ Helpers 2 and 5 are scored **after** the DMS overlay (§3a), so a day can reach
 - **Lock** = `PATCH …/{day}/submit` → `submission_status = submitted`.
   A past day stays editable ("Past day — still editable") until it is locked. Locked days reject edits (403) unless an
   override is active.
-- **Override & Unlock** (superadmin only, `main._override_unlock_day`):
+- **Override & Unlock** (Global PI, or the site PI for own-site babies — PI 2026-11-12; not scientists, nurses, Project Scientist or tech support; `deps.can_override_helper_day`, `main._override_unlock_day`):
   reason ≥ 5 chars, 1–24 h window, recorded on the row
   (`override_unlocked_until`, `override_reason`, `override_by`) and in
   `audit_log`. The page shows "Day N reopened by override …" only while the

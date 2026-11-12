@@ -67,3 +67,11 @@ def test_who_sees_participant_identity():
     # placeholder roles being retired no longer see identity
     assert not can_view_pii_for_site(user("deo", "GMCH"), "GMCH")
     assert not can_view_pii_for_site(user("monitor", "GMCH"), "GMCH")
+
+
+def test_helper_day_override_global_pi_and_site_pi_only():
+    from types import SimpleNamespace as NS
+    from deps import can_override_helper_day
+    allowed = {r for r in ("superadmin", "site_pi", "site_scientist", "project_scientist", "global_scientist",
+                           "nurse", "tech_support", "pii_officer") if can_override_helper_day(NS(role=r))}
+    assert allowed == {"superadmin", "site_pi"}

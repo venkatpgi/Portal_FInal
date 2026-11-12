@@ -7863,7 +7863,7 @@ def _override_unlock_day(
 ):
     """Shared logic behind the /override-unlock endpoints on Helper Forms
     2/3/4 (Resp-CV-Neuro, Infect-GI-Hema, Metab-Renal-Vasc-Eye) —
-    superadmin-only, time-boxed reopen of a locked day (past-calendar OR
+    Global PI or site PI (own site; PI 2026-11-12), time-boxed reopen of a locked day (past-calendar OR
     submitted), with a mandatory reason recorded both on the row
     (override_reason/override_by/override_unlocked_until) and in the audit
     trail. The matching PUT endpoint for each form checks
@@ -7873,8 +7873,9 @@ def _override_unlock_day(
     endpoint before it existed; only the backend side and the trigger
     button for a *submitted* (not just past-calendar-locked) day were
     missing until 2026-08-23."""
-    if not is_superadmin(current_user):
-        raise HTTPException(status_code=403, detail="Superadmin only")
+    from deps import can_override_helper_day
+    if not can_override_helper_day(current_user):
+        raise HTTPException(status_code=403, detail="Only the site PI or the Global PI can unlock a locked day")
     reason = (data.reason or "").strip()
     if len(reason) < 5:
         raise HTTPException(status_code=400, detail="A reason (at least 5 characters) is required")
