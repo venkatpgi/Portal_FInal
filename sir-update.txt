@@ -1,0 +1,32 @@
+Sir,
+
+Following the form issues list, the items below are now implemented on web and tablet (local). Please review on localhost after a refresh. The API also needs a restart once for the new Designated Gender field.
+
+Formulas
+(1) Form B - Intrauterine growth centile: if gender is DSD, a Designated Gender (Male/Female) field is shown and INTERGROWTH uses that for the centile.
+(2) Form D - Caffeine loading is now mg/kg (not mg/kg/day). Typical loading 20 mg/kg is shown. Maintenance remains mg/kg/day from the same birth-weight calculation.
+
+Date / time corrections
+(1) Form B randomization date cannot be before date of birth.
+(2) Cord clamped at (HH:MM:SS) now fills elapsed seconds. If the gap is over 300 seconds the value still shows, with an error.
+(3) Form D caffeine date cannot be before birth or after today.
+(4) Form D and Form E completion date cannot be before birth or after today.
+(5) Form E admission date/time cannot be in the future.
+
+Linkages / layout
+(1) Form E2 area of admission autofills from Form D day-1 transfer location and must match if the baby was transferred out on day 1.
+(2) DMS day 1: slots before time of birth are blocked (e.g. born 3 pm, then 12 am / 8 am on day 1 cannot be filled).
+(3) Skin/axillary temperature is grouped separately from SBP/DBP/MAP.
+(4) Postnatal steroid name or dose on DMS now changes Form H postnatal steroids from No to Yes.
+
+Number validations
+(1) Form B T-piece flow rate: 1-99 L/min (no 3-digit values).
+(2) Form C Village / City / Tehsil: letters only, no numbers.
+
+Pending (needs your Excel)
+(1) DMS numeric ranges for Temp, SBP, DBP, MAP, fluid bolus, vasoactives (dose + unit), apnea/desaturation counts, postnatal steroids, and glucose. Once the ranges are reviewed, we will wire them in.
+
+Please let us know if any of the above should behave differently.
+
+Regards,
+Harsh

@@ -196,7 +196,7 @@ function EyePanel({
             </div>
             {typeList.includes("Anti-VEGF") && (
               <div className="rop-field" style={{ marginTop: 4 }}>
-                <label className="rop-label">Anti-VEGF Agent</label>
+                <label className="rop-label">{offset + 8} (a) Anti-VEGF Agent</label>
                 <input
                   className="rop-input"
                   value={formData[agentField] || ""}
@@ -915,7 +915,7 @@ export default function FormG() {
                 </div>
                 {formData.outcome === "Other" && (
                   <div className="rop-field" style={{ marginTop: 10 }}>
-                    <label className="rop-label">Specify Outcome</label>
+                    <label className="rop-label">17 (a) Specify Outcome</label>
                     <input
                       className="rop-input"
                       value={formData.outcome_other_text}

@@ -17,6 +17,7 @@ import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext
 import { relativeTime, toDateOnlyValue, parseDateOnly, normalizeClockTimeHms } from "./utils/datetime";
 import { babyIdLabel, isUsableEnrollmentId, nrEnrollmentId } from "./utils/enrollmentId";
 import { classifyVeryPretermCentile } from "./data/intergrowthVeryPreterm";
+import { calendarDateError } from "./utils/clinicalDateBounds";
 import {
   ArrowLeft, ArrowRight, Save, Home, User, Baby, Pencil,
   Heart, Activity, BarChart2, Droplets, AlertTriangle, Shuffle,
@@ -382,14 +383,14 @@ export default function BirthResuscitationForm() {
   const isPgiSite = siteName === "PGIMER";
   const requiredMark = <span className="required">*</span>;
   const BABY_ADMISSION_RULES = {
-    PGIMER: { label: "6. Baby Admission No.", placeholder: "Not assigned yet", min: 10, max: 10 },
-    "GMCH-A": { label: "6. MRD Number for Baby", placeholder: "Not assigned yet", min: 4, max: 6 },
-    AMC: { label: "6. Baby Admission No. (NICU only)", placeholder: "Not assigned yet", min: 11, max: 11 },
-    GMCH: { label: "6. Baby Admission No.", placeholder: "Not assigned yet", min: 9, max: 11 },
-    IOG: { label: "6. Baby MRD No. (same as UID)", placeholder: "Not assigned yet", min: 4, max: 6 },
+    PGIMER: { label: "8. Baby Admission No.", placeholder: "Not assigned yet", min: 10, max: 10 },
+    "GMCH-A": { label: "8. MRD Number for Baby", placeholder: "Not assigned yet", min: 4, max: 6 },
+    AMC: { label: "8. Baby Admission No. (NICU only)", placeholder: "Not assigned yet", min: 11, max: 11 },
+    GMCH: { label: "8. Baby Admission No.", placeholder: "Not assigned yet", min: 9, max: 11 },
+    IOG: { label: "8. Baby MRD No. (same as UID)", placeholder: "Not assigned yet", min: 4, max: 6 },
   };
   const babyAdmissionRule = BABY_ADMISSION_RULES[siteName] || {
-    label: "6. Baby Admission No.",
+    label: "8. Baby Admission No.",
     placeholder: "Not assigned yet",
     min: 0,
     max: 15,
@@ -401,9 +402,9 @@ export default function BirthResuscitationForm() {
   // AMC's is really the delivery room logbook serial; IOG's is the SNCU
   // number. Sites with no entry here (GMCH-A, GMCH) don't show the field.
   const BABY_ANNUAL_RULES = {
-    PGIMER: { label: "7. Baby Annual No.", placeholder: "4-digit annual number", min: 4, max: 4, numeric: true },
-    AMC:    { label: "7. Delivery Room Logbook Serial No.", placeholder: "Logbook serial number", min: 0, max: 20, numeric: false },
-    IOG:    { label: "7. SNCU No.", placeholder: "4-digit SNCU number", min: 4, max: 4, numeric: true },
+    PGIMER: { label: "9. Baby Annual No.", placeholder: "4-digit annual number", min: 4, max: 4, numeric: true },
+    AMC:    { label: "9. Delivery Room Logbook Serial No.", placeholder: "Logbook serial number", min: 0, max: 20, numeric: false },
+    IOG:    { label: "9. SNCU No.", placeholder: "4-digit SNCU number", min: 4, max: 4, numeric: true },
   };
   const babyAnnualRule = BABY_ANNUAL_RULES[siteName] || null;
 
@@ -429,7 +430,7 @@ export default function BirthResuscitationForm() {
     date_of_birth:"", time_of_birth:"",
     gestation_weeks:"", gestation_days:"",
     gestation_rand_weeks:"", gestation_rand_days:"",  // auto-calc from DOB
-    birth_weight:"", intrauterine_centile:"", gender:"",
+    birth_weight:"", intrauterine_centile:"", gender:"", designated_gender:"",
     delivery_mode:"", vaginal_delivery_type:"", lscs_type:"",
     indication_for_delivery:[], indication_for_delivery_other:"",
     indication_edf_detail:"", fetal_indication_detail:"", obstetric_indication_detail:"",
@@ -511,7 +512,16 @@ export default function BirthResuscitationForm() {
     });
     lockEnrollmentNoPpv();
   };
-  const handleChange = e => set({ [e.target.name]: e.target.value });
+  const handleChange = e => {
+    const { name, value } = e.target;
+    if (name === "gender") {
+      set({ gender: value, designated_gender: value === "DSD" ? formData.designated_gender : "" });
+      return;
+    }
+    set({ [name]: value });
+  };
+
+  const chartSex = formData.gender === "DSD" ? formData.designated_gender : formData.gender;
 
   // Native <input type="time"> defers to the OS/browser locale for its
   // picker UI, which shows AM/PM on many Windows/US-locale setups even
@@ -543,10 +553,8 @@ export default function BirthResuscitationForm() {
         const birth = field === "time_of_birth" ? next : updated.time_of_birth;
         const clamp = field === "cord_clamp_timestamp" ? next : updated.cord_clamp_timestamp;
         const elapsed = cordClampElapsedSeconds(birth, clamp);
-        if (elapsed !== null && elapsed >= 0 && elapsed <= 300) {
+        if (elapsed !== null) {
           updated.cord_clamp_time = String(elapsed);
-        } else if (elapsed !== null) {
-          updated.cord_clamp_time = "";
         }
       }
       return updated;
@@ -656,7 +664,7 @@ export default function BirthResuscitationForm() {
   /* ── Intrauterine growth centile (auto, INTERGROWTH-21st Very Preterm) ──
      Uses GA at randomization (= GA at birth) + birth weight + gender against
      the official INTERGROWTH-21st Very Preterm birthweight reference
-     (Villar et al. Lancet 2016) to auto-fill field 14. Only covers 24+0-32+6
+     (Villar et al. Lancet 2016) to auto-fill field 16. Only covers 24+0-32+6
      weeks and Male/Female — outside that (later GA, or DSD) the field is
      left for manual entry, since this specific chart doesn't apply.
      Tracks the last value it auto-set so a nurse's own manual override is
@@ -666,7 +674,7 @@ export default function BirthResuscitationForm() {
     const weeks = Number(formData.gestation_rand_weeks);
     const days  = Number(formData.gestation_rand_days);
     const weightKg = Number(formData.birth_weight) / 1000;
-    const result = classifyVeryPretermCentile(weightKg, weeks, days, formData.gender);
+    const result = classifyVeryPretermCentile(weightKg, weeks, days, chartSex);
     const current = formData.intrauterine_centile;
     const wasUntouchedOrAuto = current === "" || current === lastAutoCentileRef.current;
 
@@ -689,7 +697,7 @@ export default function BirthResuscitationForm() {
       set({ intrauterine_centile: autoValue });
     }
     lastAutoCentileRef.current = autoValue;
-  }, [formData.gestation_rand_weeks, formData.gestation_rand_days, formData.birth_weight, formData.gender]); // eslint-disable-line
+  }, [formData.gestation_rand_weeks, formData.gestation_rand_days, formData.birth_weight, formData.gender, formData.designated_gender]); // eslint-disable-line
 
   /* ── Strata — auto-derived from Gestation at Randomization ──
      Strata buckets exist purely to split the two eligible GA bands (24–27+6
@@ -756,7 +764,7 @@ export default function BirthResuscitationForm() {
     );
     if (elapsed === null) return;
     const valid = elapsed >= 0 && elapsed <= 300;
-    const asStr = valid ? String(elapsed) : "";
+    const asStr = String(elapsed);
     if (String(formData.cord_clamp_time ?? "") === asStr) {
       setErrors(p => ({
         ...p,
@@ -870,6 +878,7 @@ export default function BirthResuscitationForm() {
         ? String(fd.date_of_birth).slice(0, 10) : null,
       time_of_birth:       fd.time_of_birth || null,
       gender:              fd.gender || null,
+      designated_gender:   fd.gender === "DSD" ? (fd.designated_gender || null) : null,
       indication_for_delivery: (fd.indication_for_delivery || []).join(", ") || null,
       indication_for_delivery_other: fd.indication_for_delivery_other || null,
       indication_edf_detail: fd.indication_edf_detail || null,
@@ -992,12 +1001,12 @@ export default function BirthResuscitationForm() {
     if (enrollmentDuplicateWarn)
       add(`B3. ${enrollmentDuplicateWarn.replace(/^⚠️\s*/, "")}`, "enrollment_id");
     if(formData.baby_admission_no && !new RegExp(`^\\d{${babyAdmissionRule.min},${babyAdmissionRule.max}}$`).test(formData.baby_admission_no))
-      add(`B1. ${babyAdmissionRule.label.replace(/^6\\.\\s*/, "")} must be ${babyAdmissionRule.min === babyAdmissionRule.max ? `${babyAdmissionRule.max}` : `${babyAdmissionRule.min}-${babyAdmissionRule.max}`} digits`, "baby_admission_no");
+      add(`B1. ${babyAdmissionRule.label.replace(/^8\\.\\s*/, "")} must be ${babyAdmissionRule.min === babyAdmissionRule.max ? `${babyAdmissionRule.max}` : `${babyAdmissionRule.min}-${babyAdmissionRule.max}`} digits`, "baby_admission_no");
     if (babyAnnualRule && babyAnnualRule.numeric && formData.baby_annual_no) {
       const ok = new RegExp(`^\\d{${babyAnnualRule.min},${babyAnnualRule.max}}$`).test(formData.baby_annual_no);
       if (!ok) {
         add(
-          `B1. ${babyAnnualRule.label.replace(/^7\.\s*/, "")} must be exactly ${babyAnnualRule.max} digits`,
+          `B1. ${babyAnnualRule.label.replace(/^9\.\s*/, "")} must be exactly ${babyAnnualRule.max} digits`,
           "baby_annual_no"
         );
       }
@@ -1041,7 +1050,7 @@ export default function BirthResuscitationForm() {
       add("B3. Does baby require ventilation (PPV)?", "required_resuscitation");
     if(formData.required_resuscitation==="No" && formData.blender_activated==="Yes"){
       if(!isCompleteEnrollmentId(formData.enrollment_id))
-        add(`B3. Enrollment ID shown by the blender (${siteCode}-A-001)`, "enrollment_id");
+        add(`B3. 25 (a). Enrollment ID shown by the blender (${siteCode}-A-001)`, "enrollment_id");
       if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(formData.blender_activation_time||""))
         add("B3. Time the blender was activated (HH:MM)", "blender_activation_time");
       if(!formData.blender_activation_reason)
@@ -1058,6 +1067,16 @@ export default function BirthResuscitationForm() {
         else if(!isCompleteEnrollmentId(formData.enrollment_id))
           add(`B3. Enrollment ID must be ${siteCode}-A-001`, "enrollment_id");
         if(!formData.randomisation_date) add("B3. Randomization Date","randomisation_date");
+        else {
+          const randDateErr = calendarDateError(formData.randomisation_date, {
+            minYmd: formData.date_of_birth,
+          });
+          if (randDateErr === "Cannot be before date of birth") {
+            add("B3. Randomization Date cannot be before Date of Birth", "randomisation_date");
+          } else if (randDateErr) {
+            add(`B3. Randomization Date — ${randDateErr}`, "randomisation_date");
+          }
+        }
         if(!formData.strata)        add("B3. Strata",                 "strata");
       }
       if(formData.randomised==="No" && !formData.enrollment_reason_not_randomized)
@@ -1079,6 +1098,8 @@ export default function BirthResuscitationForm() {
         if(!formData.tpiece_pip) add("B4. T-piece PIP", "tpiece_pip");
         if(!formData.tpiece_peep) add("B4. T-piece PEEP", "tpiece_peep");
         if(!formData.tpiece_flow) add("B4. T-piece Flow", "tpiece_flow");
+        else if (Number(formData.tpiece_flow) > 99)
+          add("B4. T-piece Flow rate cannot be a 3-digit number (1–99 L/min)", "tpiece_flow");
       }
       if(!formData.intubation)      add("B4. Endotracheal Intubation", "intubation");
       if(!formData.chest_compression) add("B4. Chest Compressions",  "chest_compression");
@@ -1102,7 +1123,7 @@ export default function BirthResuscitationForm() {
       if(formData.time_to_respiration && optionalNum(formData.time_to_respiration)===null)
         add("B4. Time to Respiratory Efforts must be a whole number of seconds", "time_to_respiration");
       if(spontaneousExceedsApgar(formData.time_to_respiration, formData.total_resus_time))
-        add("B4. Time to spontaneous respiratory efforts must be ≤ 57. Total time from APGAR timer", "time_to_respiration");
+        add("B4. Time to spontaneous respiratory efforts must be ≤ 45. Total time from APGAR timer", "time_to_respiration");
       if(formData.time_to_spo2_80 && durationToSeconds(formatDurationMs(formData.time_to_spo2_80))===null)
         add("B4. Time to SpO2 >80% must be MM:SS", "time_to_spo2_80");
       if(formData.total_resus_time && durationToSeconds(formatDurationMs(formData.total_resus_time))===null)
@@ -1870,7 +1891,7 @@ export default function BirthResuscitationForm() {
                     randomised with its own envelope; Form A is the mother's. */}
                 <div className="form-grid-3">
                   <div className="form-group">
-                    <label>Number of babies born to this mother</label>
+                    <label>4. Number of babies born to this mother</label>
                     <select name="number_of_babies" value={String(formData.number_of_babies || "1")}
                       disabled={!isFieldEditable}
                       onChange={e => set({ number_of_babies: e.target.value })}>
@@ -1916,7 +1937,7 @@ export default function BirthResuscitationForm() {
                 )}
                 <div className="form-grid-3">
                   <div className="form-group">
-                    <label>4. Baby UID</label>
+                    <label>5. Baby UID</label>
                     <input name="baby_uid" value={formData.baby_uid||""}
                       maxLength={12} inputMode="numeric" placeholder="Not assigned yet"
                       readOnly={!isFieldEditable}
@@ -1933,11 +1954,11 @@ export default function BirthResuscitationForm() {
                     {errors.baby_uid&&<div className="field-error">{errors.baby_uid}</div>}
                   </div>
                   <div className="form-group">
-                    <label>5. Mobile number - Primary</label>
+                    <label>6. Mobile number - Primary</label>
                     <input value={formData.contact_mother||""} readOnly className="readonly-input" placeholder="From Form A"/>
                   </div>
                   <div className="form-group">
-                    <label>5. Mobile number - Secondary</label>
+                    <label>7. Mobile number - Secondary</label>
                     <input value={formData.contact_husband||""} readOnly className="readonly-input" placeholder="From Form A"/>
                   </div>
                 </div>
@@ -1979,7 +2000,7 @@ export default function BirthResuscitationForm() {
               <div className="form-section-body">
                 <div className="form-grid-3">
                   <div className="form-group">
-                    <label>8. Date of Birth<span className="required">*</span></label>
+                    <label>10. Date of Birth<span className="required">*</span></label>
                     <DatePicker
                       selected={formData.date_of_birth?parseDateOnly(formData.date_of_birth):null}
                       onChange={d=>{
@@ -1998,7 +2019,7 @@ export default function BirthResuscitationForm() {
                     {errors.date_of_birth && <div className="field-error">{errors.date_of_birth}</div>}
                   </div>
                   <div className="form-group">
-                    <label>9. Time of Birth<span className="required">*</span></label>
+                    <label>11. Time of Birth<span className="required">*</span></label>
                     <ModernTimeInput
                       hour={getTimePart("time_of_birth","h")}
                       minute={getTimePart("time_of_birth","m")}
@@ -2008,7 +2029,7 @@ export default function BirthResuscitationForm() {
                     {errors.time_of_birth && <div className="field-error">{errors.time_of_birth}</div>}
                   </div>
                   <div className="form-group">
-                    <label>10. Gender<span className="required">*</span></label>
+                    <label>12. Gender<span className="required">*</span></label>
                     <select name="gender" value={formData.gender}
                       disabled={!isFieldEditable} onChange={handleChange}>
                       <option value="">-- Select --</option>
@@ -2018,6 +2039,23 @@ export default function BirthResuscitationForm() {
                     </select>
                   </div>
                 </div>
+                {formData.gender === "DSD" && (
+                  <div className="form-grid-3">
+                    <div className="form-group">
+                      <label>12 (<span className="crf-subnum">a</span>). Designated Gender <FieldLogicBadge type="conditional" title="Used for INTERGROWTH-21st Very Preterm centile when sex is DSD" /></label>
+                      <select name="designated_gender" value={formData.designated_gender || ""}
+                        disabled={!isFieldEditable} onChange={handleChange}
+                        className={errors.designated_gender ? "input-error" : ""}>
+                        <option value="">-- Select Male or Female --</option>
+                        <option value="Female">Female</option>
+                        <option value="Male">Male</option>
+                      </select>
+                      {errors.designated_gender && <div className="field-error">{errors.designated_gender}</div>}
+                    </div>
+                    <div />
+                    <div />
+                  </div>
+                )}
 
                 {birthBeforeScreening && (
                   <div className="alert-danger" style={{marginTop:8, marginBottom:8}}>
@@ -2027,18 +2065,18 @@ export default function BirthResuscitationForm() {
 
                 <div className="form-grid-3">
                   <div className="form-group">
-                    <label>11. Gestation at Screening <FieldLogicBadge type="carried" title="From Form A — Screening" /></label>
+                    <label>13. Gestation at Screening <FieldLogicBadge type="carried" title="From Form A — Screening" /></label>
                     <input readOnly className="readonly-input"
                       value={formData.gestation_weeks ? `${formData.gestation_weeks}w ${formData.gestation_days??0}d` : "—"} placeholder="From Form A"/>
                   </div>
                   <div className="form-group">
-                    <label>12. Gestation at Randomization <FieldLogicBadge type="auto" title="Auto from Form A gestational age and date of birth" /></label>
+                    <label>14. Gestation at Randomization <FieldLogicBadge type="auto" title="Auto from Form A gestational age and date of birth" /></label>
                     <input readOnly className="readonly-input"
                       value={formData.gestation_rand_weeks !== "" ? `${formData.gestation_rand_weeks}w ${formData.gestation_rand_days||0}d` : "—"}
                       placeholder="Auto from DOB"/>
                   </div>
                   <div className="form-group">
-                    <label>13. Birth Weight (g)<span className="required">*</span></label>
+                    <label>15. Birth Weight (g)<span className="required">*</span></label>
                     <input type="text" name="birth_weight" value={formData.birth_weight||""}
                       inputMode="numeric" maxLength={4} placeholder="300–6000 g"
                       readOnly={!isFieldEditable}
@@ -2058,7 +2096,7 @@ export default function BirthResuscitationForm() {
 
                 <div className="form-grid-3">
                   <div className="form-group">
-                    <label>14. Intrauterine Growth Status (centile) <FieldLogicBadge type="auto" title="Auto-calculated from birth weight, GA at randomization and gender — INTERGROWTH-21st Very Preterm" /></label>
+                    <label>16. Intrauterine Growth Status (centile) <FieldLogicBadge type="auto" title="Auto-calculated from birth weight, GA at randomization and gender — INTERGROWTH-21st Very Preterm" /></label>
                     <input type="text" name="intrauterine_centile"
                       value={formData.intrauterine_centile||""}
                       inputMode="decimal" placeholder="0–100"
@@ -2069,7 +2107,7 @@ export default function BirthResuscitationForm() {
                         const weeks = Number(formData.gestation_rand_weeks);
                         const days  = Number(formData.gestation_rand_days);
                         const weightKg = Number(formData.birth_weight) / 1000;
-                        const r = classifyVeryPretermCentile(weightKg, weeks, days, formData.gender);
+                        const r = classifyVeryPretermCentile(weightKg, weeks, days, chartSex);
                         if (r) {
                           const cols = ["3rd","5th","10th","50th","90th","95th","97th"];
                           return (
@@ -2091,7 +2129,7 @@ export default function BirthResuscitationForm() {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label>15. Delivery Mode{requiredMark}</label>
+                    <label>17. Delivery Mode{requiredMark}</label>
                     <select name="delivery_mode" value={formData.delivery_mode}
                       disabled={!isFieldEditable}
                       onChange={e=>{ handleChange(e); set({vaginal_delivery_type:"",lscs_type:""}); }}>
@@ -2102,7 +2140,7 @@ export default function BirthResuscitationForm() {
                   </div>
                   <div className="form-group">
                     {formData.delivery_mode==="Vaginal" && (<>
-                      <label>16. Vaginal Delivery Type{requiredMark}</label>
+                      <label>17 (<span className="crf-subnum">a</span>). Vaginal Delivery Type{requiredMark}</label>
                       <select name="vaginal_delivery_type" value={formData.vaginal_delivery_type||""}
                         disabled={!isFieldEditable} onChange={handleChange}>
                         <option value="">-- Select --</option>
@@ -2112,7 +2150,7 @@ export default function BirthResuscitationForm() {
                       </select>
                     </>)}
                     {formData.delivery_mode==="LSCS" && (<>
-                      <label>17. LSCS Type{requiredMark}</label>
+                      <label>17 (<span className="crf-subnum">b</span>). LSCS Type{requiredMark}</label>
                       <select name="lscs_type" value={formData.lscs_type||""}
                         disabled={!isFieldEditable} onChange={handleChange}>
                         <option value="">-- Select --</option>
@@ -2145,7 +2183,7 @@ export default function BirthResuscitationForm() {
                     <div className="multi-check-other-row">
                       <input type="text" className="multi-check-other-input" name="indication_for_delivery_other"
                         value={formData.indication_for_delivery_other||""}
-                        onChange={handleChange} placeholder="Specify other indication *"
+                        onChange={handleChange} placeholder="18 (a). Specify other indication *"
                         readOnly={!isFieldEditable}/>
                     </div>
                   )}
@@ -2240,7 +2278,7 @@ export default function BirthResuscitationForm() {
                 {(birthConditionAllNormal || formData.required_resuscitation==="No") && (
                   <div className="followup-box">
                     <span className="followup-label">PORTAL blender</span>
-                    <YesNoToggle label={<>Was the PORTAL blender activated (allocation used)?</>}
+                    <YesNoToggle label={<>25. Was the PORTAL blender activated (allocation used)?</>}
                       name="blender_activated" value={formData.blender_activated || "No"}
                       onChange={e => {
                         const yes = e.target.value === "Yes";
@@ -2255,7 +2293,7 @@ export default function BirthResuscitationForm() {
                     {formData.blender_activated === "Yes" && (<>
                       <div className="form-grid-3">
                         <div className="form-group">
-                          <label>Enrollment ID shown by the blender<span className="required">*</span></label>
+                          <label>25 (<span className="crf-subnum">a</span>). Enrollment ID shown by the blender<span className="required">*</span></label>
                           <input
                             name="enrollment_id"
                             value={formData.enrollment_id||""}
@@ -2275,7 +2313,7 @@ export default function BirthResuscitationForm() {
                           <span className="field-note">Kept for good: this allocation is used.</span>
                         </div>
                         <div className="form-group">
-                          <label>Time activated (24 h)<span className="required">*</span></label>
+                          <label>25 (<span className="crf-subnum">b</span>). Time activated (24 h)<span className="required">*</span></label>
                           <input name="blender_activation_time" value={formData.blender_activation_time||""}
                             onChange={e=>{
                               const d = e.target.value.replace(/\D/g, "").slice(0, 4);
@@ -2285,7 +2323,7 @@ export default function BirthResuscitationForm() {
                             readOnly={!isFieldEditable}/>
                         </div>
                         <div className="form-group">
-                          <label>Activated by<span className="required">*</span></label>
+                          <label>25 (<span className="crf-subnum">c</span>). Activated by<span className="required">*</span></label>
                           <input name="blender_activated_by" value={formData.blender_activated_by||""}
                             onChange={handleChange} placeholder="Name of the staff member"
                             readOnly={!isFieldEditable}/>
@@ -2293,7 +2331,7 @@ export default function BirthResuscitationForm() {
                       </div>
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>Why was the blender activated?<span className="required">*</span></label>
+                          <label>25 (<span className="crf-subnum">d</span>). Why was the blender activated?<span className="required">*</span></label>
                           <select name="blender_activation_reason" value={formData.blender_activation_reason||""}
                             disabled={!isFieldEditable} onChange={handleChange}>
                             <option value="">-- Select --</option>
@@ -2305,7 +2343,7 @@ export default function BirthResuscitationForm() {
                           {formData.blender_activation_reason==="Other" && (
                             <input type="text" name="blender_activation_reason_other"
                               value={formData.blender_activation_reason_other||""}
-                              onChange={handleChange} placeholder="Specify other reason *"
+                              onChange={handleChange} placeholder="25 (e). Specify other reason *"
                               readOnly={!isFieldEditable} style={{marginTop:8}}/>
                           )}
                         </div>
@@ -2344,16 +2382,18 @@ export default function BirthResuscitationForm() {
                         </div>
                       {formData.randomised==="Yes" && (<>
                         <div className="form-group">
-                          <label>25. Randomization Date<span className="required">*</span></label>
+                          <label>24 (<span className="crf-subnum">a</span>). Randomization Date<span className="required">*</span></label>
                           <DatePicker
                             selected={formData.randomisation_date?parseDateOnly(formData.randomisation_date):null}
                             onChange={d=>set({randomisation_date:d?toDateOnlyValue(d):""})}
+                            minDate={parseDateOnly(formData.date_of_birth) || undefined}
                             maxDate={new Date()}
                             dateFormat="dd-MM-yyyy" placeholderText="dd-MM-yyyy"
                             readOnly={!isFieldEditable}/>
+                          {errors.randomisation_date && <div className="field-error">{errors.randomisation_date}</div>}
                         </div>
                         <div className="form-group">
-                          <label>26. Enrollment ID<span className="required">*</span></label>
+                          <label>24 (<span className="crf-subnum">b</span>). Enrollment ID<span className="required">*</span></label>
                           <input
                             name="enrollment_id"
                             value={formData.enrollment_id||""}
@@ -2389,7 +2429,7 @@ export default function BirthResuscitationForm() {
                     {formData.randomised==="Yes" && (
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>27. Strata <FieldLogicBadge type="auto" title="Auto from Gestation at Randomization" /></label>
+                          <label>24 (<span className="crf-subnum">c</span>). Strata <FieldLogicBadge type="auto" title="Auto from Gestation at Randomization" /></label>
                           <input value={formData.strata||""} readOnly className="readonly-input" placeholder="—"/>
                         </div>
                         <div/>
@@ -2398,7 +2438,7 @@ export default function BirthResuscitationForm() {
                     {formData.randomised==="No" && (
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>28. Reason Not Randomized<span className="required">*</span></label>
+                          <label>24 (<span className="crf-subnum">d</span>). Reason Not Randomized<span className="required">*</span></label>
                           <select name="enrollment_reason_not_randomized"
                             value={formData.enrollment_reason_not_randomized||""}
                             disabled={!isFieldEditable} onChange={handleChange}>
@@ -2415,7 +2455,7 @@ export default function BirthResuscitationForm() {
                           {formData.enrollment_reason_not_randomized==="Other" && (
                             <input type="text" name="enrollment_reason_not_randomized_other"
                               value={formData.enrollment_reason_not_randomized_other||""}
-                              onChange={handleChange} placeholder="Specify other reason *"
+                              onChange={handleChange} placeholder="24 (e). Specify other reason *"
                               readOnly={!isFieldEditable} style={{marginTop:8}}/>
                           )}
                         </div>
@@ -2442,9 +2482,9 @@ export default function BirthResuscitationForm() {
                 </div>
                 <div className="form-section-body">
 
-                  {/* 29. PPV device details (Q23 Required → B4 path) */}
+                  {/* 26. PPV device details (Q23 Required → B4 path) */}
                   <div className="followup-box" style={{marginTop:0}}>
-                    <span className="followup-label">29. PPV (Ventilation)</span>
+                    <span className="followup-label">26. PPV (Ventilation)</span>
                     <div className="form-grid-2">
                       <div className="form-group">
                         <label>Device used{requiredMark}</label>
@@ -2463,7 +2503,7 @@ export default function BirthResuscitationForm() {
                       <div className="followup-box">
                         <div className="form-grid-3">
                           <div className="form-group">
-                            <label>29a. If SIB{requiredMark}</label>
+                            <label>26 (<span className="crf-subnum">a</span>). If SIB{requiredMark}</label>
                             <select name="sib_peep_with" value={formData.sib_peep_with||""}
                               disabled={!isFieldEditable} onChange={handleChange}>
                               <option value="">-- Select --</option>
@@ -2473,7 +2513,7 @@ export default function BirthResuscitationForm() {
                           </div>
                           {formData.sib_peep_with==="Yes" && (
                             <div className="form-group">
-                              <label>PEEP (cm H₂O){requiredMark}</label>
+                              <label>26 (<span className="crf-subnum">b</span>). PEEP (cm H₂O){requiredMark}</label>
                               <input type="text" name="sib_peep_cmh2o" value={formData.sib_peep_cmh2o||""}
                                 inputMode="numeric" maxLength={3} placeholder="cm H₂O" readOnly={!isFieldEditable}
                                 onChange={e=>{if(/^\d{0,3}$/.test(e.target.value))set({sib_peep_cmh2o:e.target.value});}}/>
@@ -2487,29 +2527,29 @@ export default function BirthResuscitationForm() {
                       <div className="followup-box">
                         <div className="form-grid-3">
                           <div className="form-group">
-                            <label>29b. If T-piece — PIP (cm H₂O){requiredMark}</label>
+                            <label>26 (<span className="crf-subnum">c</span>). If T-piece — PIP (cm H₂O){requiredMark}</label>
                             <input type="text" name="tpiece_pip" value={formData.tpiece_pip||""}
                               inputMode="numeric" maxLength={3} placeholder="cm H₂O" readOnly={!isFieldEditable}
                               onChange={e=>{if(/^\d{0,3}$/.test(e.target.value))set({tpiece_pip:e.target.value});}}/>
                           </div>
                           <div className="form-group">
-                            <label>PEEP (cm H₂O){requiredMark}</label>
+                            <label>26 (<span className="crf-subnum">d</span>). PEEP (cm H₂O){requiredMark}</label>
                             <input type="text" name="tpiece_peep" value={formData.tpiece_peep||""}
                               inputMode="numeric" maxLength={3} placeholder="cm H₂O" readOnly={!isFieldEditable}
                               onChange={e=>{if(/^\d{0,3}$/.test(e.target.value))set({tpiece_peep:e.target.value});}}/>
                           </div>
                           <div className="form-group">
-                            <label>Flow rate (L/min){requiredMark}</label>
+                            <label>26 (<span className="crf-subnum">e</span>). Flow rate (L/min){requiredMark}</label>
                             <input type="text" name="tpiece_flow" value={formData.tpiece_flow||""}
-                              inputMode="numeric" maxLength={3} placeholder="L/min" readOnly={!isFieldEditable}
-                              onChange={e=>{if(/^\d{0,3}$/.test(e.target.value))set({tpiece_flow:e.target.value});}}/>
+                              inputMode="numeric" maxLength={2} placeholder="1–99 L/min" readOnly={!isFieldEditable}
+                              onChange={e=>{if(/^\d{0,2}$/.test(e.target.value))set({tpiece_flow:e.target.value});}}/>
                           </div>
                         </div>
                       </div>
                     )}
                     <div className="form-grid-2">
                       <div className="form-group">
-                        <label>30. Interface{requiredMark}</label>
+                        <label>27. Interface{requiredMark}</label>
                         <select name="interface_used" value={formData.interface_used||""}
                           disabled={!isFieldEditable} onChange={handleChange}>
                           <option value="">-- Select --</option>
@@ -2520,7 +2560,7 @@ export default function BirthResuscitationForm() {
                         </select>
                       </div>
                       <div className="form-group">
-                        <label>31. Duration of PPV (sec){requiredMark} <span className="field-note">from APGAR timer</span></label>
+                        <label>28. Duration of PPV (sec){requiredMark} <span className="field-note">from APGAR timer</span></label>
                         <input type="text" name="ppv_duration" value={formData.ppv_duration||""}
                           inputMode="numeric" maxLength={4} placeholder="seconds" readOnly={!isFieldEditable}
                           onChange={e=>{if(/^\d{0,4}$/.test(e.target.value))set({ppv_duration:e.target.value});}}/>
@@ -2528,13 +2568,13 @@ export default function BirthResuscitationForm() {
                     </div>
                   </div>
 
-                  {/* 32. Intubation */}
-                  <YesNoToggle label={<>32. Endotracheal intubation{requiredMark}</>}
+                  {/* 29. Intubation */}
+                  <YesNoToggle label={<>29. Endotracheal intubation{requiredMark}</>}
                     name="intubation" value={formData.intubation}
                     onChange={handleChange} disabled={!isFieldEditable}/>
 
-                  {/* 33–34. Chest compressions */}
-                  <YesNoToggle label={<>33. Chest compressions{requiredMark}</>}
+                  {/* 30. Chest compressions */}
+                  <YesNoToggle label={<>30. Chest compressions{requiredMark}</>}
                     name="chest_compression" value={formData.chest_compression}
                     onChange={e=>{handleChange(e);if(e.target.value==="No")set({cc_duration:""}); }}
                     disabled={!isFieldEditable}/>
@@ -2542,7 +2582,7 @@ export default function BirthResuscitationForm() {
                     <div className="followup-box">
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>34. Duration of CC (sec){requiredMark} <span className="field-note">from APGAR timer</span></label>
+                          <label>30 (<span className="crf-subnum">a</span>). Duration of CC (sec){requiredMark} <span className="field-note">from APGAR timer</span></label>
                           <input type="text" name="cc_duration" value={formData.cc_duration||""}
                             inputMode="numeric" maxLength={4} placeholder="seconds" readOnly={!isFieldEditable}
                             onChange={e=>{if(/^\d{0,4}$/.test(e.target.value))set({cc_duration:e.target.value});}}/>
@@ -2552,15 +2592,15 @@ export default function BirthResuscitationForm() {
                     </div>
                   )}
 
-                  {/* 35–37. Epinephrine */}
-                  <YesNoToggle label={<>35. Epinephrine{requiredMark}</>}
+                  {/* 31. Epinephrine */}
+                  <YesNoToggle label={<>31. Epinephrine{requiredMark}</>}
                     name="adrenaline" value={formData.adrenaline}
                     onChange={e=>{handleChange(e);if(e.target.value==="No")set({adrenaline_dilution:"",adrenaline_route:[]}); }}
                     disabled={!isFieldEditable}/>
                   {formData.adrenaline==="Yes" && (
                     <div className="followup-box">
                       <div className="form-group">
-                        <label>36. Dilution{requiredMark}</label>
+                        <label>31 (<span className="crf-subnum">a</span>). Dilution{requiredMark}</label>
                         <select name="adrenaline_dilution" value={formData.adrenaline_dilution||""}
                           disabled={!isFieldEditable} onChange={handleChange}>
                           <option value="">-- Select --</option>
@@ -2569,7 +2609,7 @@ export default function BirthResuscitationForm() {
                         </select>
                       </div>
                       <div className="form-group" style={{marginTop:12}}>
-                        <label>37. Route{requiredMark} <span className="field-note">(select all that apply)</span></label>
+                        <label>31 (<span className="crf-subnum">b</span>). Route{requiredMark} <span className="field-note">(select all that apply)</span></label>
                         <div className="rcn-pills">
                           {["Umbilical vein","Peripheral vein","Intratracheal"].map(opt => (
                             <button
@@ -2588,8 +2628,8 @@ export default function BirthResuscitationForm() {
                     </div>
                   )}
 
-                  {/* 38–40. Fluid bolus */}
-                  <YesNoToggle label={<>38. Fluid bolus{requiredMark}</>}
+                  {/* 32. Fluid bolus */}
+                  <YesNoToggle label={<>32. Fluid bolus{requiredMark}</>}
                     name="fluid_bolus" value={formData.fluid_bolus}
                     onChange={e=>{handleChange(e);if(e.target.value==="No")set({fluid_bolus_doses:"",fluid_bolus_cumulative:""});}}
                     disabled={!isFieldEditable}/>
@@ -2597,13 +2637,13 @@ export default function BirthResuscitationForm() {
                     <div className="followup-box">
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>39. Doses{requiredMark}</label>
+                          <label>32 (<span className="crf-subnum">a</span>). Doses{requiredMark}</label>
                           <input type="text" name="fluid_bolus_doses" value={formData.fluid_bolus_doses||""}
                             inputMode="numeric" maxLength={2} placeholder="doses" readOnly={!isFieldEditable}
                             onChange={e=>{if(/^\d{0,2}$/.test(e.target.value))set({fluid_bolus_doses:e.target.value});}}/>
                         </div>
                         <div className="form-group">
-                          <label>40. Cumulative (ml/mg){requiredMark}</label>
+                          <label>32 (<span className="crf-subnum">b</span>). Cumulative (ml/mg){requiredMark}</label>
                           <input type="text" name="fluid_bolus_cumulative" value={formData.fluid_bolus_cumulative||""}
                             inputMode="decimal" placeholder="ml/mg" readOnly={!isFieldEditable}
                             onChange={e=>{if(/^\d*\.?\d{0,2}$/.test(e.target.value))set({fluid_bolus_cumulative:e.target.value});}}/>
@@ -2612,8 +2652,8 @@ export default function BirthResuscitationForm() {
                     </div>
                   )}
 
-                  {/* 41. Placental transfusion — 42 Method only when Yes */}
-                  <YesNoToggle label={<>41. Placental transfusion{requiredMark}</>}
+                  {/* 33. Placental transfusion — 33 (<span className="crf-subnum">a</span>) Method only when Yes */}
+                  <YesNoToggle label={<>33. Placental transfusion{requiredMark}</>}
                     name="placental_transfusion" value={formData.placental_transfusion}
                     onChange={e=>{
                       handleChange(e);
@@ -2623,7 +2663,7 @@ export default function BirthResuscitationForm() {
                   <div className="form-grid-2">
                     {formData.placental_transfusion === "Yes" && (
                       <div className="form-group">
-                        <label>42. Method{requiredMark}</label>
+                        <label>33 (<span className="crf-subnum">a</span>). Method{requiredMark}</label>
                         <select name="transfusion_method" value={formData.transfusion_method||""}
                           disabled={!isFieldEditable}
                           onChange={handleChange}>
@@ -2634,7 +2674,7 @@ export default function BirthResuscitationForm() {
                       </div>
                     )}
                     <div className="form-group">
-                      <label>43. Cord clamped at (HH:MM:SS){requiredMark}</label>
+                      <label>34. Cord clamped at (HH:MM:SS){requiredMark}</label>
                       <ModernTimeInput
                         hour={getTimePart("cord_clamp_timestamp","h")}
                         minute={getTimePart("cord_clamp_timestamp","m")}
@@ -2645,7 +2685,7 @@ export default function BirthResuscitationForm() {
                   </div>
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>44. Cord clamping time from birth (sec) <FieldLogicBadge type="auto" title="Auto from 9. Time of Birth + 43. Cord clamped at — or type here to auto-fill 43" /></label>
+                      <label>35. Cord clamping time from birth (sec) <FieldLogicBadge type="auto" title="Auto from 11. Time of Birth + 34. Cord clamped at — or type here to auto-fill 34" /></label>
                       <input type="text" name="cord_clamp_time"
                         value={formData.cord_clamp_time === 0 || formData.cord_clamp_time === "0"
                           ? "0"
@@ -2664,16 +2704,16 @@ export default function BirthResuscitationForm() {
                         }}/>
                       {errors.cord_clamp_time&&<div className="field-error">{errors.cord_clamp_time}</div>}
                       {!formData.time_of_birth && (formData.cord_clamp_timestamp || formData.cord_clamp_time) && (
-                        <div className="field-error">Enter 9. Time of Birth first to auto-calculate.</div>
+                        <div className="field-error">Enter 11. Time of Birth first to auto-calculate.</div>
                       )}
                     </div>
                     <div/>
                   </div>
 
-                  {/* Timings 45–47 */}
+                  {/* Timings 36–38 */}
                   <div className="form-grid-2" style={{marginTop:16}}>
                     <div className="form-group">
-                      <label>45. Time to spontaneous respiratory efforts <span className="field-note">(fill from Stop watch / Apgar timer)</span> <FieldLogicBadge type="validated" title="Must be ≤ 57. Total time from APGAR timer" /></label>
+                      <label>36. Time to spontaneous respiratory efforts <span className="field-note">(fill from Stop watch / Apgar timer)</span> <FieldLogicBadge type="validated" title="Must be ≤ 45. Total time from APGAR timer" /></label>
                       <input type="text" name="time_to_respiration" value={formData.time_to_respiration||""}
                         inputMode="numeric" maxLength={4} placeholder="Enter seconds"
                         readOnly={!isFieldEditable}
@@ -2685,14 +2725,14 @@ export default function BirthResuscitationForm() {
                           setErrors(p => ({
                             ...p,
                             time_to_respiration: spontaneousExceedsApgar(v, formData.total_resus_time)
-                              ? "Must be ≤ 57. Total time from APGAR timer"
+                              ? "Must be ≤ 45. Total time from APGAR timer"
                               : "",
                           }));
                         }}/>
                       {errors.time_to_respiration && <div className="field-error">{errors.time_to_respiration}</div>}
                     </div>
                     <div className="form-group">
-                      <label>46. SpO₂ at 5 min (%) <span className="field-note">1–100 only</span></label>
+                      <label>37. SpO₂ at 5 min (%) <span className="field-note">1–100 only</span></label>
                       <input type="text" name="spo2_5min" value={formData.spo2_5min||""}
                         inputMode="numeric" maxLength={3} placeholder="1–100"
                         readOnly={!isFieldEditable}
@@ -2708,7 +2748,7 @@ export default function BirthResuscitationForm() {
                   </div>
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>47. Time to SpO₂ &gt; 80% (MM:SS) <span className="field-note">cross-verify with pulse oximeter</span></label>
+                      <label>38. Time to SpO₂ &gt; 80% (MM:SS) <span className="field-note">cross-verify with pulse oximeter</span></label>
                       <DurationField mode="ms" name="time_to_spo2_80"
                         value={formData.time_to_spo2_80}
                         disabled={!isFieldEditable}
@@ -2749,8 +2789,8 @@ export default function BirthResuscitationForm() {
                       </thead>
                       <tbody>
                         {[
-                          {key:"oxygen", label:"48. Oxygen"},
-                          {key:"cpap",   label:"49. CPAP"},
+                          {key:"oxygen", label:"39. Oxygen"},
+                          {key:"cpap",   label:"40. CPAP"},
                         ].map((row,ri)=>(
                           <tr key={row.key} style={{background:ri%2===0?"#fff":"#f9fafb"}}>
                             <td style={{padding:"9px 14px",fontSize:12,fontWeight:600,color:"#374151",
@@ -2770,7 +2810,7 @@ export default function BirthResuscitationForm() {
                             be recorded. */}
                         <tr style={{background:"#fffbeb"}}>
                           <td style={{padding:"9px 14px",fontSize:12,fontWeight:700,color:"#92400e",
-                            borderBottom:"1px solid #fde68a",whiteSpace:"nowrap"}}>50. Apgar score</td>
+                            borderBottom:"1px solid #fde68a",whiteSpace:"nowrap"}}>41. Apgar score</td>
                           {times.map(t=>{
                             const gated = isLaterApgarGated(t);
                             const locked = !isFieldEditable || gated;
@@ -2807,10 +2847,10 @@ export default function BirthResuscitationForm() {
                 </div>
                 <div className="form-section-body">
 
-                  {/* 51. Cord Blood
-                      Branching: 51=Yes -> gases (54). 51=No -> ask 52.
-                      52=Yes -> 53 source + 54 gases. 55 resus failure always. */}
-                  <YesNoToggle label={<>51. Cord blood analysis{requiredMark}</>}
+                  {/* 42. Cord Blood
+                      Branching: 42=Yes -> gases 42 (c–e). 42=No -> ask 42 (<span className="crf-subnum">a</span>).
+                      42 (<span className="crf-subnum">a</span>)=Yes -> 42 (<span className="crf-subnum">b</span>) source + gases. 43 resus failure always. */}
+                  <YesNoToggle label={<>42. Cord blood analysis{requiredMark}</>}
                     name="cord_blood_done" value={formData.cord_blood_done||""}
                     onChange={e=>{handleChange(e);set({cord_blood_within_1hr:"",cord_blood_source:"",cord_ph:"",cord_sbe:"",cord_pco2:""});}}
                     disabled={!isFieldEditable}/>
@@ -2819,7 +2859,7 @@ export default function BirthResuscitationForm() {
                     <div className="followup-box">
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>52. If no, within 1 hr of birth sample{requiredMark}</label>
+                          <label>42 (<span className="crf-subnum">a</span>). If no, within 1 hr of birth sample{requiredMark}</label>
                           <select name="cord_blood_within_1hr" value={formData.cord_blood_within_1hr||""}
                             disabled={!isFieldEditable}
                             onChange={e=>{
@@ -2836,12 +2876,12 @@ export default function BirthResuscitationForm() {
                     </div>
                   )}
 
-                  {/* 53. Source — when within-1hr sample was taken */}
+                  {/* 42 (<span className="crf-subnum">b</span>). Source — when within-1hr sample was taken */}
                   {formData.cord_blood_done==="No" && formData.cord_blood_within_1hr==="Yes" && (
                     <div className="followup-box">
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>53. Source{requiredMark}</label>
+                          <label>42 (<span className="crf-subnum">b</span>). Source{requiredMark}</label>
                           <select name="cord_blood_source" value={formData.cord_blood_source||""}
                             disabled={!isFieldEditable} onChange={handleChange}>
                             <option value="">-- Select --</option>
@@ -2854,12 +2894,12 @@ export default function BirthResuscitationForm() {
                     </div>
                   )}
 
-                  {/* 54. pH/SBE/pCO2 — any sample path */}
+                  {/* 42 (<span className="crf-subnum">c</span>). pH/SBE/pCO2 — any sample path */}
                   {(formData.cord_blood_done==="Yes" || (formData.cord_blood_done==="No" && formData.cord_blood_within_1hr==="Yes")) && (
                     <div className="followup-box">
                       <div className="form-grid-3">
                         <div className="form-group">
-                          <label>54. pH{requiredMark}</label>
+                          <label>42 (<span className="crf-subnum">c</span>). pH{requiredMark}</label>
                           <input type="text" name="cord_ph" value={formData.cord_ph||""}
                             placeholder="6.8-7.8" readOnly={!isFieldEditable}
                             className={errors.cord_ph?"input-error":""}
@@ -2867,13 +2907,13 @@ export default function BirthResuscitationForm() {
                           {errors.cord_ph&&<div className="field-error">{errors.cord_ph}</div>}
                         </div>
                         <div className="form-group">
-                          <label>54. SBE{requiredMark}</label>
+                          <label>42 (<span className="crf-subnum">d</span>). SBE{requiredMark}</label>
                           <input type="text" name="cord_sbe" value={formData.cord_sbe||""}
                             placeholder="-30 to +30" readOnly={!isFieldEditable}
                             onChange={e=>{const v=e.target.value;if(/^-?\d*\.?\d{0,1}$/.test(v)&&(v===""||v==="-"||(Number(v)>=-30&&Number(v)<=30)))set({cord_sbe:v});}}/>
                         </div>
                         <div className="form-group">
-                          <label>54. pCO₂{requiredMark}</label>
+                          <label>42 (<span className="crf-subnum">e</span>). pCO₂{requiredMark}</label>
                           <input type="text" name="cord_pco2" value={formData.cord_pco2||""}
                             placeholder="10-100" inputMode="decimal" readOnly={!isFieldEditable}
                             onChange={e=>{const v=e.target.value;if(/^\d{0,3}(\.\d{0,1})?$/.test(v)&&(v===""||v==="."||Number(v)<=200))set({cord_pco2:v});}}/>
@@ -2882,7 +2922,7 @@ export default function BirthResuscitationForm() {
                     </div>
                   )}
 
-                  <YesNoToggle label={<>55. Resuscitation failure{requiredMark}</>}
+                  <YesNoToggle label={<>43. Resuscitation failure{requiredMark}</>}
                     name="resus_failure" value={formData.resus_failure}
                     onChange={e=>{
                       handleChange(e);
@@ -2897,7 +2937,7 @@ export default function BirthResuscitationForm() {
 
                   <div className="form-grid-2" style={{marginTop:14}}>
                     <div className="form-group">
-                      <label>56. SpO₂ (%) at EXIT from TRIAL BLENDER <span className="field-note">1–100 only</span></label>
+                      <label>44. SpO₂ (%) at EXIT from TRIAL BLENDER <span className="field-note">1–100 only</span></label>
                       <input type="text" name="spo2_exit_trial_gas" value={formData.spo2_exit_trial_gas||""}
                         inputMode="numeric" maxLength={3} placeholder="1–100"
                         readOnly={!isFieldEditable}
@@ -2910,7 +2950,7 @@ export default function BirthResuscitationForm() {
                         }}/>
                     </div>
                     <div className="form-group">
-                      <label>57. Total time for Resuscitation (in seconds) <FieldLogicBadge type="validated" title="Cross-checked against field B4 (Time to spontaneous respiratory efforts) — must be ≥ that value" /> <span className="field-note">(note from Apgar timer)</span></label>
+                      <label>45. Total time for Resuscitation (in seconds) <FieldLogicBadge type="validated" title="Cross-checked against field B4 (Time to spontaneous respiratory efforts) — must be ≥ that value" /> <span className="field-note">(note from Apgar timer)</span></label>
                       <DurationField mode="ms" name="total_resus_time"
                         value={formData.total_resus_time}
                         disabled={!isFieldEditable}
@@ -2921,7 +2961,7 @@ export default function BirthResuscitationForm() {
                           setErrors(p => ({
                             ...p,
                             time_to_respiration: spontaneousExceedsApgar(formData.time_to_respiration, v)
-                              ? "Must be ≤ 57. Total time from APGAR timer"
+                              ? "Must be ≤ 45. Total time from APGAR timer"
                               : "",
                           }));
                         }}/>
@@ -2930,7 +2970,7 @@ export default function BirthResuscitationForm() {
 
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>58. Reason for resuscitation exit{requiredMark}</label>
+                      <label>46. Reason for resuscitation exit{requiredMark}</label>
                       <select name="reason_exit_trial_gas"
                         value={formData.reason_exit_trial_gas||""}
                         disabled={!isFieldEditable} onChange={handleChange}>
@@ -2946,14 +2986,14 @@ export default function BirthResuscitationForm() {
                       {formData.reason_exit_trial_gas==="Other" && (
                         <input type="text" name="reason_exit_trial_gas_other"
                           value={formData.reason_exit_trial_gas_other||""}
-                          onChange={handleChange} placeholder="Specify *"
+                          onChange={handleChange} placeholder="46 (a). Specify *"
                           readOnly={!isFieldEditable} style={{marginTop:8}}/>
                       )}
                     </div>
                     <div/>
                   </div>
 
-                  <YesNoToggle label={<>59. Was the TRIAL blender interrupted before 30 minutes from BIRTH?{requiredMark}</>}
+                  <YesNoToggle label={<>47. Was the TRIAL blender interrupted before 30 minutes from BIRTH?{requiredMark}</>}
                     name="blender_stopped" value={formData.blender_stopped}
                     onChange={e=>{
                       handleChange(e);
@@ -2963,7 +3003,7 @@ export default function BirthResuscitationForm() {
                   {formData.blender_stopped==="Yes" && (
                     <div className="followup-box">
                       <div className="form-group" id="blender_interrupt_reasons">
-                        <label>60. If yes, select reason{requiredMark} <span className="field-note">(select all that apply)</span></label>
+                        <label>47 (<span className="crf-subnum">a</span>). If yes, select reason{requiredMark} <span className="field-note">(select all that apply)</span></label>
                         <div className="multi-checkbox-group">
                           {BLENDER_INTERRUPT_REASONS.map(opt => (
                             <div key={opt} className={`multi-check-item${!isFieldEditable?" disabled":""}${(formData.blender_interrupt_reasons||[]).includes(opt)?" checked":""}`}>
@@ -2987,7 +3027,7 @@ export default function BirthResuscitationForm() {
                                   value={formData.blender_stopped_description||""}
                                   maxLength={1000}
                                   onChange={handleChange}
-                                  placeholder="Describe *"
+                                  placeholder="47 (b). Describe *"
                                   readOnly={!isFieldEditable}/>
                               )}
                             </div>
@@ -2998,7 +3038,7 @@ export default function BirthResuscitationForm() {
                   )}
 
                   <LetterToggle
-                    label={<>61. Blender Unit ID{requiredMark} <FieldLogicBadge type="auto" title="Auto from Enrollment ID" /></>}
+                    label={<>48. Blender Unit ID{requiredMark} <FieldLogicBadge type="auto" title="Auto from Enrollment ID" /></>}
                     name="blender_letter"
                     value={formData.blender_letter}
                     onChange={handleChange}

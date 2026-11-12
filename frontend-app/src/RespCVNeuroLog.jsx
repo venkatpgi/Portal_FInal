@@ -2851,7 +2851,7 @@ export default function RespCVNeuroLog() {
                   <>
                     <div className="rcn-input-group">
                       <div className="rcn-field-label-row">
-                        <label className="rcn-field-label">4. Max CPAP</label>
+                        <label className="rcn-field-label">4 (<span className="crf-subnum">a</span>) Max CPAP</label>
                         {isRespSupportYes && (
                           <button type="button"
                             className={`rcn-notdone-toggle${mapCpapSecondaryStatus ? " rcn-notdone-toggle--on" : ""}`}
@@ -2883,7 +2883,7 @@ export default function RespCVNeuroLog() {
                     </div>
                     <div className="rcn-input-group">
                       <div className="rcn-field-label-row">
-                        <label className="rcn-field-label">4b. Max MAP</label>
+                        <label className="rcn-field-label">4 (<span className="crf-subnum">b</span>) Max MAP</label>
                         {isRespSupportYes && (
                           <button type="button"
                             className={`rcn-notdone-toggle${mapCpapStatus ? " rcn-notdone-toggle--on" : ""}`}
@@ -3103,6 +3103,7 @@ export default function RespCVNeuroLog() {
                   <>
                     <div className="rcn-range-pair">
                       <div className={`rcn-num-input rcn-num-input--sm${pao2LowError ? " rcn-num-input--error" : ""}`}>
+                        <span className="rcn-field-sub" style={{marginLeft:0,display:"block"}}>9 (a) Lowest</span>
                         <input
                           type="number" placeholder="Lowest"
                           value={pao2Low}
@@ -3117,6 +3118,7 @@ export default function RespCVNeuroLog() {
                       </div>
                       <span className="rcn-range-sep">–</span>
                       <div className={`rcn-num-input rcn-num-input--sm${pao2HighError ? " rcn-num-input--error" : ""}`}>
+                        <span className="rcn-field-sub" style={{marginLeft:0,display:"block"}}>9 (b) Highest</span>
                         <input
                           type="number" placeholder="Highest"
                           value={pao2High}
@@ -3169,6 +3171,7 @@ export default function RespCVNeuroLog() {
                   <>
                     <div className="rcn-range-pair">
                       <div className={`rcn-num-input rcn-num-input--sm${paco2LowError ? " rcn-num-input--error" : ""}`}>
+                        <span className="rcn-field-sub" style={{marginLeft:0,display:"block"}}>10 (a) Lowest</span>
                         <input
                           type="number" placeholder="Lowest"
                           value={paco2Low}
@@ -3183,6 +3186,7 @@ export default function RespCVNeuroLog() {
                       </div>
                       <span className="rcn-range-sep">–</span>
                       <div className={`rcn-num-input rcn-num-input--sm${paco2HighError ? " rcn-num-input--error" : ""}`}>
+                        <span className="rcn-field-sub" style={{marginLeft:0,display:"block"}}>10 (b) Highest</span>
                         <input
                           type="number" placeholder="Highest"
                           value={paco2High}
@@ -3333,16 +3337,16 @@ export default function RespCVNeuroLog() {
                       setResp("extub_attempted", v);
                       if (v !== true) setResp("extub_failure", null);
                     }} disabled={!isFieldEditable} />
-                  <YNRow label="17. Extubation failure (<72h from extubation)" value={respEvents.extub_failure}
+                  <YNRow label="16 (a) Extubation failure (<72h from extubation)" value={respEvents.extub_failure}
                     onChange={v => isExtubAttemptedYes && setResp("extub_failure", v)}
                     disabled={!isFieldEditable || !isExtubAttemptedYes}
                     hint={!isExtubAttemptedYes ? "Enabled once Extubation attempted (#16) is Yes" : null} />
                   {[
-                    { k: "pulm_hemorrhage",    l: "18. Pulmonary hemorrhage" },
-                    { k: "pneumothorax",       l: "19. Pneumothorax" },
-                    { k: "chest_drain",        l: "20. Chest drain in situ" },
-                    { k: "pphn",               l: "21. Pulmonary HTN (PPHN)" },
-                    { k: "postnatal_steroids", l: "22. Postnatal steroids" },
+                    { k: "pulm_hemorrhage",    l: "17. Pulmonary hemorrhage" },
+                    { k: "pneumothorax",       l: "18. Pneumothorax" },
+                    { k: "chest_drain",        l: "19. Chest drain in situ" },
+                    { k: "pphn",               l: "20. Pulmonary HTN (PPHN)" },
+                    { k: "postnatal_steroids", l: "21. Postnatal steroids" },
                   ].map(({ k, l }) => (
                     <YNRow key={k} label={l} value={respEvents[k]}
                       onChange={v => setResp(k, v)} disabled={!isFieldEditable} />
@@ -3361,11 +3365,11 @@ export default function RespCVNeuroLog() {
             >
               <div className="rcn-yn-list">
                 {[
-                  { k: "pda_suspected",     l: "23. PDA suspected/confirmed" },
-                  { k: "echo_done",         l: "24. Echo done" },
-                  { k: "hs_pda",            l: "25. HS-PDA" },
-                  { k: "shock",             l: "26. Shock" },
-                  { k: "vasoactive_support",l: "27. Vasoactives" },
+                  { k: "pda_suspected",     l: "22. PDA suspected/confirmed" },
+                  { k: "echo_done",         l: "23. Echo done" },
+                  { k: "hs_pda",            l: "24. HS-PDA" },
+                  { k: "shock",             l: "25. Shock" },
+                  { k: "vasoactive_support",l: "26. Vasoactives" },
                 ].map(({ k, l }) => (
                   <YNRow key={k} label={l} value={cvData[k]}
                     onChange={v => setCv(k, v)} disabled={!isFieldEditable} />
@@ -3374,7 +3378,7 @@ export default function RespCVNeuroLog() {
 
               {cvData.vasoactive_support === true && (
                 <div className="rcn-subsection">
-                  <div className="rcn-subsection-title">28. Vasoactive type (select all that apply)</div>
+                  <div className="rcn-subsection-title">26 (<span className="crf-subnum">a</span>) Vasoactive type (select all that apply)</div>
                   <div className="rcn-pills">
                     {["Dopamine","Dobutamine","Adrenaline","Noradrenaline","Milrinone","Vasopressin"].map(drug => (
                       <button
@@ -3390,7 +3394,7 @@ export default function RespCVNeuroLog() {
               )}
 
               <div className="rcn-yn-list">
-                <YNRow key="fluid_bolus_given" label="29. Fluid bolus given" value={cvData.fluid_bolus_given}
+                <YNRow key="fluid_bolus_given" label="27. Fluid bolus given" value={cvData.fluid_bolus_given}
                   onChange={v => setCv("fluid_bolus_given", v)} disabled={!isFieldEditable}
                   autofilled={!!bolusAutofilled} />
               </div>
@@ -3405,7 +3409,7 @@ export default function RespCVNeuroLog() {
               defaultOpen={true}
             >
               <div className="rcn-yn-list">
-                <YNRow label="30. Cranial USG done" value={neuroData.cranial_usg}
+                <YNRow label="28. Cranial USG done" value={neuroData.cranial_usg}
                   onChange={v => setNeuro("cranial_usg", v)} disabled={!isFieldEditable} />
               </div>
 
@@ -3413,9 +3417,9 @@ export default function RespCVNeuroLog() {
                 <div className="rcn-subsection">
                   <div className="rcn-yn-list">
                     {[
-                      { k: "ivh",              l: "31. IVH (any grade)" },
-                      { k: "cpvl_confirmed",   l: "32. cPVL (any grade)" },
-                      { k: "ventriculomegaly", l: "33. Ventriculomegaly" },
+                      { k: "ivh",              l: "28 (a) IVH (any grade)" },
+                      { k: "cpvl_confirmed",   l: "28 (b) cPVL (any grade)" },
+                      { k: "ventriculomegaly", l: "28 (c) Ventriculomegaly" },
                     ].map(({ k, l }) => (
                       <YNRow key={k} label={l} value={neuroData[k]}
                         onChange={v => setNeuro(k, v)} disabled={!isFieldEditable} />
@@ -3427,10 +3431,10 @@ export default function RespCVNeuroLog() {
 
               <div className="rcn-yn-list">
                 {[
-                  { k: "clinical_seizures",     l: "34. Seizures (clinical)" },
-                  { k: "eeg_seizures",          l: "35. Seizures (EEG confirmed)" },
-                  { k: "aeds_given",            l: "36. AEDs given" },
-                  { k: "non_ivh_ich",           l: "37. Non-IVH ICH" },
+                  { k: "clinical_seizures",     l: "29. Seizures (clinical)" },
+                  { k: "eeg_seizures",          l: "30. Seizures (EEG confirmed)" },
+                  { k: "aeds_given",            l: "31. AEDs given" },
+                  { k: "non_ivh_ich",           l: "32. Non-IVH ICH" },
                 ].map(({ k, l }) => (
                   <YNRow key={k} label={l} value={neuroData[k]}
                     onChange={v => setNeuro(k, v)} disabled={!isFieldEditable} />

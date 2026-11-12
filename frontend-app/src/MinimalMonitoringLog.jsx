@@ -20,6 +20,7 @@ import {
   mmlMaxAllowedTimeForSheetDate,
   mmlClampTimeForSheetDate,
   isDateTimeInFuture,
+  mmlMinAllowedTimeForSheetDate,
 } from "./utils/datetime";
 import {
   readRememberedMmlSheetDate,
@@ -28,6 +29,7 @@ import {
 } from "./utils/helperSession";
 import { getMapCpapMode, validateMapCpap } from "./utils/mapCpapMode";
 import { birthMoment, dayOfLifeSpan, dayOfLifeSwitchOn, describeDayOfLife } from "./utils/dayOfLife";
+import { isDateTimeBeforeBirth } from "./utils/clinicalDateBounds";
 import "./styles/RespCVNeuro.css";
 import "./styles/MinimalMonitoring.css";
 
@@ -78,7 +80,7 @@ const BLOCKS_BY_SECTION = {
 const FLOWSHEET_BLOCKS = new Set(["cv_a", "met_a", "gi_a", "growth_a"]);
 
 const BLOCK_META = {
-  cv_a: { code: "5.1.A", label: "Vitals", desc: "Skin/Axillary temp, SBP, DBP, MAP" },
+  cv_a: { code: "5.1.A", label: "Vitals", desc: "Temperature separate from SBP / DBP / MAP" },
   cv_b: { code: "5.1.B", label: "Fluid Bolus", desc: "Fluid bolus volume given" },
   cv_c: { code: "5.1.C", label: "Vasoactive Drugs", desc: "Agent, dose & unit" },
   cv_d: { code: "5.1.D", label: "PDA Medical Rx", desc: "Agent for medical Rx of PDA & dose" },
@@ -899,7 +901,7 @@ function RespAMapCpapFields({ entry, disabled, fieldErr, onChangeField }) {
  *  Keys match the entry object keys used throughout renderBlockBody. */
 const BLOCK_FIELDS = {
   cv_a: [
-    { key: "axillary_temp", label: "Skin/Axillary Temp", unit: "°C" },
+    { key: "axillary_temp", label: "Skin/Axillary Temp", unit: "°C", group: "Temperature" },
     { key: "sbp", label: "SBP", unit: "mm Hg" },
     { key: "dbp", label: "DBP", unit: "mm Hg" },
     { key: "map_value", label: "MAP", unit: "mm Hg" },
@@ -1147,7 +1149,7 @@ function expectedSlots(frequencyHours) {
  *  slot_time doesn't match the current frequency's own boundaries (e.g. left
  *  over from a since-changed cadence) shown as its own row rather than
  *  dropped. */
-function buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes) {
+function buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes, minMinutes = null) {
   const real = entries || [];
   const slots = expectedSlots(frequencyHours);
   const bySlot = new Map();
@@ -1175,8 +1177,12 @@ function buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes) {
       matched.forEach(e => rows.push({ kind: "filled", slot, entry: e }));
     } else {
       const slotMin = hhmmToMinutes(slot);
+      const isBeforeBirth = minMinutes != null && slotMin != null && slotMin < minMinutes;
       const isFuture = isToday && slotMin != null && slotMin > nowMinutes;
-      rows.push({ kind: isFuture ? "upcoming" : "missing", slot });
+      rows.push({
+        kind: isBeforeBirth ? "before-birth" : isFuture ? "upcoming" : "missing",
+        slot,
+      });
     }
   }
   orphans.forEach(e => rows.push({ kind: "filled", slot: e.slot_time || "", entry: e, orphan: true }));
@@ -1400,10 +1406,10 @@ const DMS_RANGE_KEYS = {
 };
 
 const CV_A_COLUMNS = [
-  { key: "axillary_temp", label: "Skin/Axillary Temp", unit: "°C" },
-  { key: "sbp", label: "SBP", unit: "mm Hg" },
-  { key: "dbp", label: "DBP", unit: "mm Hg" },
-  { key: "map_value", label: "MAP", unit: "mm Hg" },
+  { key: "axillary_temp", label: "Skin/Axillary", unit: "°C", group: "Temperature" },
+  { key: "sbp", label: "SBP", unit: "mm Hg", group: "Blood pressure" },
+  { key: "dbp", label: "DBP", unit: "mm Hg", group: "Blood pressure" },
+  { key: "map_value", label: "MAP", unit: "mm Hg", group: "Blood pressure" },
 ];
 
 const GROWTH_A_COLUMNS = [
@@ -1464,19 +1470,39 @@ function computeMinMaxSummary(entries, columns) {
   return out;
 }
 
+function columnGroups(columns) {
+  const groups = [];
+  (columns || []).forEach((col) => {
+    const label = col.group || "";
+    if (!groups.length || groups[groups.length - 1].label !== label) {
+      groups.push({ label, span: 1 });
+    } else {
+      groups[groups.length - 1].span += 1;
+    }
+  });
+  return groups;
+}
+
 function ScheduledFlowsheet({
   blockKey, columns, entries, frequencyHours, onChangeFrequency, onChangeField, onAdd, onRemove,
   disabled, sheetDate, errors, frequencyOptions = HOURLY_FREQUENCY_OPTIONS,
-  allowAdd = true, dolSwitch = null,
+  allowAdd = true, dolSwitch = null, minTimeHm = "00:00",
 }) {
   const isToday = sheetDate === realCalendarDateYmd();
   const nowMinutes = (() => {
     const d = new Date();
     return d.getHours() * 60 + d.getMinutes();
   })();
-  const rows = withDolDivider(buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes), dolSwitch);
+  const minMinutes = hhmmToMinutes(minTimeHm);
+  const rows = withDolDivider(
+    buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes, minMinutes),
+    dolSwitch,
+  );
   const summary = computeMinMaxSummary(entries, columns);
+  const groups = columnGroups(columns);
+  const hasGroups = groups.some(g => g.label);
   const timeMax = mmlMaxAllowedTimeForSheetDate(sheetDate);
+  const timeMin = minTimeHm || "00:00";
 
   return (
     <div className="mml-flowsheet">
@@ -1496,23 +1522,35 @@ function ScheduledFlowsheet({
       <div className="mml-flowsheet-table-wrap">
         <table className="mml-flowsheet-table">
           <thead>
+            {hasGroups && (
+              <tr>
+                <th rowSpan={2}>Sched.</th>
+                <th rowSpan={2}>Actual</th>
+                {groups.map((g, i) => (
+                  <th key={`${g.label}-${i}`} colSpan={g.span}>{g.label || ""}</th>
+                ))}
+                <th rowSpan={2} aria-hidden="true" />
+              </tr>
+            )}
             <tr>
-              <th>Sched.</th>
-              <th>Actual</th>
+              {!hasGroups && <th>Sched.</th>}
+              {!hasGroups && <th>Actual</th>}
               {columns.map(col => (
                 <th key={col.key}>{col.label}{col.unit ? ` (${col.unit})` : ""}</th>
               ))}
-              <th aria-hidden="true" />
+              {!hasGroups && <th aria-hidden="true" />}
             </tr>
           </thead>
           <tbody>
             {rows.map((row, i) => {
               if (row.kind === "dol") return <DolDividerRow key={`dol-${i}`} row={row} colSpan={columns.length + 3} />;
-              if (row.kind === "upcoming") {
+              if (row.kind === "upcoming" || row.kind === "before-birth") {
                 return (
                   <tr key={`up-${row.slot}-${i}`} className="mml-flowsheet-row mml-flowsheet-row--upcoming">
                     <td className="mml-flowsheet-slot">{formatTimeAmPm(row.slot)}</td>
-                    <td colSpan={columns.length + 1} className="mml-flowsheet-placeholder-label">Upcoming</td>
+                    <td colSpan={columns.length + 1} className="mml-flowsheet-placeholder-label">
+                      {row.kind === "before-birth" ? "Before birth" : "Upcoming"}
+                    </td>
                     <td />
                   </tr>
                 );
@@ -1539,8 +1577,12 @@ function ScheduledFlowsheet({
                   <td className="mml-flowsheet-slot">{row.slot ? formatTimeAmPm(row.slot) : "—"}</td>
                   <td>
                     <input type="time" className="mml-flowsheet-time-input" value={e.time || ""}
-                      max={timeMax} disabled={disabled}
-                      onChange={ev => onChangeField(e.id, "time", mmlClampTimeForSheetDate(sheetDate, ev.target.value))} />
+                      min={timeMin} max={timeMax} disabled={disabled}
+                      onChange={ev => {
+                        let t = mmlClampTimeForSheetDate(sheetDate, ev.target.value);
+                        if (t && timeMin && t < timeMin) t = timeMin;
+                        onChangeField(e.id, "time", t);
+                      }} />
                   </td>
                   {columns.map(col => (
                     <td key={col.key}>
@@ -2377,6 +2419,19 @@ export default function MinimalMonitoringLog() {
         } else if (e.time && isDateTimeInFuture(e.date || sheetDate, e.time)) {
           next[`${blockKey}.${i}.time`] = "Time cannot be in the future";
         }
+        const stampDate = e.date || sheetDate;
+        if (dobYmd && stampDate && stampDate < dobYmd) {
+          next[`${blockKey}.${i}.date`] = "Date cannot be before date of birth";
+        }
+        if (birth && e.time && isDateTimeBeforeBirth(stampDate, e.time, birth)) {
+          next[`${blockKey}.${i}.time`] = "Time cannot be before birth";
+        }
+        if (blockKey === "resp_a") {
+          const { from } = parseTimeRange(e.time_range || "");
+          if (birth && from && isDateTimeBeforeBirth(stampDate, from, birth)) {
+            next[`${blockKey}.${i}.time_range`] = "Time cannot be before birth";
+          }
+        }
       });
     });
 
@@ -2559,6 +2614,7 @@ export default function MinimalMonitoringLog() {
             allowAdd={allowNew}
             dolSwitch={dolSwitch}
             errors={errors}
+            minTimeHm={mmlMinAllowedTimeForSheetDate(sheetDate, dobYmd, tobHm)}
           />
         );
       case "cv_b":
@@ -2796,6 +2852,7 @@ export default function MinimalMonitoringLog() {
             allowAdd={allowNew}
             dolSwitch={dolSwitch}
             errors={errors}
+            minTimeHm={mmlMinAllowedTimeForSheetDate(sheetDate, dobYmd, tobHm)}
           />
         );
       case "met_b":
@@ -2978,6 +3035,7 @@ export default function MinimalMonitoringLog() {
             allowAdd={allowNew}
             dolSwitch={dolSwitch}
             errors={errors}
+            minTimeHm={mmlMinAllowedTimeForSheetDate(sheetDate, dobYmd, tobHm)}
           />
           {weightWarn && (
             <div className="mml-weight-warn" role="status">⚠ {weightWarn}</div>

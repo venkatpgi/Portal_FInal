@@ -843,9 +843,9 @@ export default function FormF() {
                 <span className={`cu-side-badge cu-side-badge--${side.toLowerCase()}`}>{side}</span>
                 <div className="cu-panel-item-label">{num}. Max IVH Grade</div>
                 <div className={`cu-max-grade cu-max-grade--${data.grade.toLowerCase()}`}>{data.grade}</div>
-                <div className="cu-meta-row"><span>{num}a. Date</span><span>{data.date}</span></div>
-                <div className="cu-meta-row"><span>{num}b. DOL</span><span className="cu-auto-value">{data.dol}</span></div>
-                <div className="cu-meta-row"><span>{num}c. PMA</span><span className="cu-auto-value">{data.pma}</span></div>
+                <div className="cu-meta-row"><span>{num} (a) Date</span><span>{data.date}</span></div>
+                <div className="cu-meta-row"><span>{num} (b) DOL</span><span className="cu-auto-value">{data.dol}</span></div>
+                <div className="cu-meta-row"><span>{num} (c) PMA</span><span className="cu-auto-value">{data.pma}</span></div>
               </div>
             ))}
 
@@ -858,9 +858,9 @@ export default function FormF() {
                 <span className={`cu-side-badge cu-side-badge--${side.toLowerCase()}`}>{side}</span>
                 <div className="cu-panel-item-label">{num}. Max cPVL Grade</div>
                 <div className={`cu-max-grade cu-max-grade--${data.grade.toLowerCase()}`}>{data.grade}</div>
-                <div className="cu-meta-row"><span>Date</span><span>{data.date}</span></div>
-                <div className="cu-meta-row"><span>DOL</span><span className="cu-auto-value">{data.dol}</span></div>
-                <div className="cu-meta-row"><span>PMA</span><span className="cu-auto-value">{data.pma}</span></div>
+                <div className="cu-meta-row"><span>{num} (a) Date</span><span>{data.date}</span></div>
+                <div className="cu-meta-row"><span>{num} (b) DOL</span><span className="cu-auto-value">{data.dol}</span></div>
+                <div className="cu-meta-row"><span>{num} (c) PMA</span><span className="cu-auto-value">{data.pma}</span></div>
               </div>
             ))}
           </div>
@@ -885,7 +885,7 @@ export default function FormF() {
                 </div>
                 {complications.phvd === true && (
                   <div className="cu-complication-nested">
-                    <label className="cu-label">5a. Date</label>
+                    <label className="cu-label">5 (a) Date</label>
                     <input type="date" className="cu-input cu-input--sm"
                       value={complications.phvdDate}
                       onChange={e => setComp("phvdDate", e.target.value)}
@@ -904,7 +904,7 @@ export default function FormF() {
                 </div>
                 {complications.vpShunt === true && (
                   <div className="cu-complication-nested">
-                    <label className="cu-label">6a. Date</label>
+                    <label className="cu-label">6 (a) Date</label>
                     <input type="date" className="cu-input cu-input--sm"
                       value={complications.vpShuntDate}
                       onChange={e => setComp("vpShuntDate", e.target.value)}
@@ -942,7 +942,7 @@ export default function FormF() {
             </div>
             {otherFindings.otherFinding && (
               <div className="cu-field" style={{ padding: "0 22px 18px" }}>
-                <label className="cu-label">Describe Other Finding</label>
+                <label className="cu-label">7 (a) Describe Other Finding</label>
                 <textarea rows={3} className="cu-textarea"
                   placeholder="e.g. Porencephalic cyst, Hydrocephalus, Cerebral atrophy…"
                   value={otherFindings.otherText}

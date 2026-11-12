@@ -232,8 +232,8 @@ export default function ScreeningForm() {
     "AMC":     "06",
   };
 
-  /* Per-site format rules for Maternal UID (16) and Hospital Admission
-     Number (17) — confirmed with the study team 2026-08-01. Sites/fields
+  /* Per-site format rules for Maternal UID (11) and Hospital Admission
+     Number (12) — confirmed with the study team 2026-08-01. Sites/fields
      not listed here have no strict pattern (kept as free alphanumeric,
      required only for PGIMER/AMC maternal UID and PGIMER HAN) rather than guessing a
      format that could block a legitimate entry. */
@@ -1447,9 +1447,12 @@ export default function ScreeningForm() {
                    pre-filled when this record was opened via "Continue to
                    Form A" from that log. A nurse opening Form A directly
                    still sees and fills these same fields manually. */}
-                <div className="form-grid-3">
+                <div className="form-group">
+                  <label>1. Best estimate gestational age<span className="required">*</span></label>
+                </div>
+                <div className="form-grid-2">
                   <div className="form-group">
-                    <label>1. Best estimate gestational age — Weeks<span className="required">*</span></label>
+                    <label>1 (<span className="crf-subnum">a</span>). Weeks<span className="required">*</span></label>
                     <input type="number" name="best_ga_weeks" value={formData.best_ga_weeks}
                       onChange={handleChange} min={GA_MIN_WEEKS} max={GA_MAX_WEEKS} placeholder="25–31 weeks"
                       disabled={!isFieldEditable}
@@ -1457,13 +1460,15 @@ export default function ScreeningForm() {
                     {errors.best_ga_weeks && <div className="field-error">{errors.best_ga_weeks}</div>}
                   </div>
                   <div className="form-group">
-                    <label>Days<span className="required">*</span></label>
+                    <label>1 (<span className="crf-subnum">b</span>). Days<span className="required">*</span></label>
                     <input type="number" name="best_ga_days" value={formData.best_ga_days}
                       onChange={handleChange} min="0" max="6" placeholder="0–6"
                       disabled={!isFieldEditable}
                       className={errors.best_ga_days ? "input-error" : ""}/>
                     {errors.best_ga_days && <div className="field-error">{errors.best_ga_days}</div>}
                   </div>
+                </div>
+                <div className="form-grid-2">
                   <div className="form-group">
                     <label>2. Method of gestation assessment<span className="required">*</span></label>
                     <select name="gestation_method" value={formData.gestation_method} onChange={handleChange} disabled={!isFieldEditable}>
@@ -1475,7 +1480,7 @@ export default function ScreeningForm() {
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Pregnancy</label>
+                    <label>3. Pregnancy</label>
                     <select name="number_of_fetuses" value={formData.number_of_fetuses || "1"} onChange={handleChange} disabled={!isFieldEditable}>
                       <option value="1">Single</option>
                       <option value="2">Twins</option>
@@ -1486,11 +1491,11 @@ export default function ScreeningForm() {
                   </div>
                 </div>
 
-                {/* LMP date when method = LMP */}
+                {/* 2 (<span className="crf-subnum">a</span>)/2 (<span className="crf-subnum">b</span>) LMP date when method = LMP */}
                 {formData.gestation_method === "LMP" && (
-                  <div className="form-grid-3">
+                  <div className="form-grid-2">
                     <div className="form-group">
-                      <label>2. LMP date<span className="required">*</span></label>
+                      <label>2 (<span className="crf-subnum">a</span>). LMP date<span className="required">*</span></label>
                       <DatePicker
                         selected={formData.lmp_date ? parseDateOnly(formData.lmp_date) : null}
                         onChange={d => {
@@ -1506,11 +1511,10 @@ export default function ScreeningForm() {
                         readOnly={!isFieldEditable}/>
                     </div>
                     <div className="form-group">
-                      <label>EDD <span className="field-note">(auto-calculated from LMP)</span></label>
+                      <label>2 (<span className="crf-subnum">b</span>). EDD <span className="field-note">(auto-calculated from LMP)</span></label>
                       <input value={formData.edd_date ? formatDateToDDMMYYYY(formData.edd_date) : ""}
                         readOnly className="readonly-input" placeholder="—"/>
                     </div>
-                    <div/>
                   </div>
                 )}
                 {lmpMismatch && (
@@ -1564,13 +1568,13 @@ export default function ScreeningForm() {
                   {/* Row 1: Screening ID | Site | Site ID */}
                   <div className="form-grid-3">
                     <div className="form-group">
-                      <label>8. Screening ID <span className="field-note">(auto filled)</span></label>
+                      <label>4. Screening ID <span className="field-note">(auto filled)</span></label>
                       <input type="text" name="screening_id" value={formData.screening_id||""}
                         placeholder="01-0001" maxLength={7} readOnly
                         className="readonly-input"/>
                     </div>
                     <div className="form-group">
-                      <label>9. Site<span className="required">*</span></label>
+                      <label>5. Site<span className="required">*</span></label>
                       <select name="site_name" value={formData.site_name||""} onChange={handleChange} disabled={!isFieldEditable || isSiteLocked}>
                         <option value="">-- Select Site --</option>
                         <option value="PGIMER">PGIMER</option>
@@ -1582,7 +1586,7 @@ export default function ScreeningForm() {
                       </select>
                     </div>
                     <div className="form-group">
-                      <label>10. Site ID <span className="field-note">(auto filled)</span></label>
+                      <label>6. Site ID <span className="field-note">(auto filled)</span></label>
                       <input value={formData.site_id||""} readOnly className="readonly-input"/>
                     </div>
                   </div>
@@ -1590,7 +1594,7 @@ export default function ScreeningForm() {
                   {/* Row 2: Screening Date & Time | Screened By */}
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>11. Screening Date &amp; Time<span className="required">*</span></label>
+                      <label>7. Screening Date &amp; Time<span className="required">*</span></label>
                       <DatePicker
                         selected={(() => {
                           if (!formData.screening_datetime) return null;
@@ -1610,7 +1614,7 @@ export default function ScreeningForm() {
                         readOnly={!isFieldEditable}/>
                     </div>
                     <div className="form-group">
-                      <label>12. Screened by (First name)<span className="required">*</span></label>
+                      <label>8. Screened by (First name)<span className="required">*</span></label>
                       <select name="screened_by" value={formData.screened_by||""} onChange={handleChange}
                         disabled={!isFieldEditable || !formData.site_name}>
                         <option value="">{formData.site_name ? "-- Select --" : "Select Site first"}</option>
@@ -1648,10 +1652,13 @@ export default function ScreeningForm() {
                     </div>
                   )}
 
-                  {/* Row 1: Mother first + surname */}
+                  {/* 9. Mother's Name */}
+                  <div className="form-group">
+                    <label>9. Mother's Name</label>
+                  </div>
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>13. Mother's Name — First<span className="required">*</span></label>
+                      <label>9 (<span className="crf-subnum">a</span>). First<span className="required">*</span></label>
                       <input name="mother_first_name" value={formData.mother_first_name||""}
                         onChange={handleChange} onBlur={handleBlur}
                         placeholder="First name" disabled={!isFieldEditable}
@@ -1660,17 +1667,20 @@ export default function ScreeningForm() {
                       {fieldTouched.mother_first_name && errors.mother_first_name && <div className="field-error">{errors.mother_first_name}</div>}
                     </div>
                     <div className="form-group">
-                      <label>Surname</label>
+                      <label>9 (<span className="crf-subnum">b</span>). Surname</label>
                       <input name="mother_surname" value={formData.mother_surname||""}
                         onChange={handleChange} placeholder="Surname" disabled={!isFieldEditable}
                         autoComplete="family-name"/>
                     </div>
                   </div>
 
-                  {/* Row 2: Husband first + surname */}
+                  {/* 10. Husband's Name */}
+                  <div className="form-group">
+                    <label>10. Husband's Name</label>
+                  </div>
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>14. Husband's Name — First<span className="required">*</span></label>
+                      <label>10 (<span className="crf-subnum">a</span>). First<span className="required">*</span></label>
                       <input name="husband_first_name" value={formData.husband_first_name||""}
                         onChange={handleChange} onBlur={handleBlur}
                         placeholder="First name" disabled={!isFieldEditable}
@@ -1679,7 +1689,7 @@ export default function ScreeningForm() {
                       {fieldTouched.husband_first_name && errors.husband_first_name && <div className="field-error">{errors.husband_first_name}</div>}
                     </div>
                     <div className="form-group">
-                      <label>Surname</label>
+                      <label>10 (<span className="crf-subnum">b</span>). Surname</label>
                       <input name="husband_surname" value={formData.husband_surname||""}
                         onChange={handleChange} placeholder="Surname" disabled={!isFieldEditable}
                         autoComplete="off"/>
@@ -1689,7 +1699,7 @@ export default function ScreeningForm() {
                   {/* Row 3: Maternal UID + Hospital admission */}
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>15. Maternal UID (CR number){idFieldRule(formData.site_name, "maternal_uid")?.required && <span className="required">*</span>}</label>
+                      <label>11. Maternal UID (CR number){idFieldRule(formData.site_name, "maternal_uid")?.required && <span className="required">*</span>}</label>
                       <input name="maternal_uid" value={formData.maternal_uid||""}
                         onChange={handleChange}
                         onBlur={handleBlur}
@@ -1708,7 +1718,7 @@ export default function ScreeningForm() {
                       {errors.maternal_uid && <div className="field-error">{errors.maternal_uid}</div>}
                     </div>
                     <div className="form-group">
-                      <label>16. Hospital Admission Number{idFieldRule(formData.site_name, "hospital_admission_number")?.required && <span className="required">*</span>}</label>
+                      <label>12. Hospital Admission Number{idFieldRule(formData.site_name, "hospital_admission_number")?.required && <span className="required">*</span>}</label>
                       <input name="hospital_admission_number" value={formData.hospital_admission_number||""}
                         maxLength={15}
                         inputMode={["PGIMER","GMCH-A","GMCH","IOG"].includes(formData.site_name) ? "numeric" : "text"}
@@ -1766,13 +1776,13 @@ export default function ScreeningForm() {
                 <div className="form-section-body">
 
                   {/* 1. Structural anomaly */}
-                  <YesNoToggle label="18. Major structural anomalies or genetic abnormality (suspected/proven)"
+                  <YesNoToggle label="15. Major structural anomalies or genetic abnormality (suspected/proven)"
                     name="exclusion_anomaly" value={formData.exclusion_anomaly} onChange={handleChange} disabled={!isFieldEditable} eligibleWhen="No"/>
                   {formData.exclusion_anomaly === "Yes" && (
                     <div className="followup-box">
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>If yes, specify<span className="required">*</span></label>
+                          <label>15 (<span className="crf-subnum">a</span>). If yes, specify<span className="required">*</span></label>
                           <input name="exclusion_anomaly_details" value={formData.exclusion_anomaly_details||""}
                             onChange={handleChange} placeholder="Describe the anomaly" disabled={!isFieldEditable}/>
                         </div>
@@ -1782,13 +1792,13 @@ export default function ScreeningForm() {
                   )}
 
                   {/* 2. Fetal Hydrops */}
-                  <YesNoToggle label="19. Fetal Hydrops"
+                  <YesNoToggle label="16. Fetal Hydrops"
                     name="fetal_hydrops" value={formData.fetal_hydrops} onChange={handleChange} disabled={!isFieldEditable} eligibleWhen="No"/>
                   {formData.fetal_hydrops === "Yes" && (
                     <div className="followup-box">
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>20. If yes<span className="required">*</span></label>
+                          <label>16 (<span className="crf-subnum">a</span>). If yes<span className="required">*</span></label>
                           <select name="fetal_hydrops_type" value={formData.fetal_hydrops_type||""} onChange={handleChange} disabled={!isFieldEditable}>
                             <option value="">-- Select type --</option>
                             <option>Immune</option>
@@ -1802,11 +1812,11 @@ export default function ScreeningForm() {
                   )}
 
                   {/* 3. Decision to forego resuscitation */}
-                  <YesNoToggle label="21. Decision to forego resuscitation"
+                  <YesNoToggle label="17. Decision to forego resuscitation"
                     name="decision_forego_resus" value={formData.decision_forego_resus} onChange={handleChange} disabled={!isFieldEditable} eligibleWhen="No"/>
                   {formData.decision_forego_resus === "Yes" && (
                     <div className="followup-box">
-                      <label className="followup-label">22. If yes (select all that apply)<span className="required">*</span></label>
+                      <label className="followup-label">17 (<span className="crf-subnum">a</span>). If yes (select all that apply)<span className="required">*</span></label>
                         <MultiCheckbox
                           options={FOREGO_REASONS}
                           dataField="decision_forego_resus"
@@ -1819,13 +1829,13 @@ export default function ScreeningForm() {
                   )}
 
                   {/* 4. Insufficient time */}
-                  <YesNoToggle label="23. Insufficient time for consent"
+                  <YesNoToggle label="18. Insufficient time for consent"
                     name="insufficient_time" value={formData.insufficient_time} onChange={handleChange} disabled={!isFieldEditable} eligibleWhen="No"/>
                   {formData.insufficient_time === "Yes" && (
                     <div className="followup-box">
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>24. If yes, specify<span className="required">*</span></label>
+                          <label>18 (<span className="crf-subnum">a</span>). If yes, specify<span className="required">*</span></label>
                           <input name="insufficient_time_reason" value={formData.insufficient_time_reason||""}
                             onChange={handleChange} placeholder="Specify reason" disabled={!isFieldEditable}/>
                         </div>
@@ -1835,7 +1845,7 @@ export default function ScreeningForm() {
                   )}
 
                   {/* 5. IUFD */}
-                  <YesNoToggle label="25. IUFD"
+                  <YesNoToggle label="19. IUFD"
                     name="iufd" value={formData.iufd} onChange={handleChange} disabled={!isFieldEditable} eligibleWhen="No"/>
 
                   {anyExclusionYes && (
@@ -1879,10 +1889,10 @@ export default function ScreeningForm() {
                   </div>
                   <div className="form-section-body">
 
-                    {/* 26. Consent — half width */}
+                    {/* 20. Consent — half width */}
                     <div className="form-grid-2">
                       <div className="form-group">
-                        <label>26. Consent<span className="required">*</span></label>
+                        <label>20. Consent<span className="required">*</span></label>
                         <select name="consent_given" value={formData.consent_given||""} onChange={handleChange} disabled={!isFieldEditable}>
                           <option value="">-- Select --</option>
                           <option value="Yes">Yes</option>
@@ -1898,11 +1908,11 @@ export default function ScreeningForm() {
                       <div/>
                     </div>
 
-                    {/* 27. Obtained from — Yes / No */}
+                    {/* 20 (a). Obtained from — Yes / No */}
                     {(formData.consent_given === "Yes" || formData.consent_given === "No") && (
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>27. Consent obtained from<span className="required">*</span></label>
+                          <label>20 (<span className="crf-subnum">a</span>). Consent obtained from<span className="required">*</span></label>
                           <select name="relationship_to_participant"
                             value={formData.relationship_to_participant||""} onChange={handleChange} disabled={!isFieldEditable}>
                             <option value="">-- Select --</option>
@@ -1911,10 +1921,13 @@ export default function ScreeningForm() {
                             <option value="Other">Other</option>
                           </select>
                           {formData.relationship_to_participant === "Other" && (
-                            <input name="relationship_other" value={formData.relationship_other||""}
-                              onChange={handleChange} placeholder="Specify"
-                              disabled={!isFieldEditable}
-                              style={{marginTop:8}}/>
+                            <>
+                              <label style={{marginTop:8, display:"block"}}>20 (<span className="crf-subnum">b</span>). Specify<span className="required">*</span></label>
+                              <input name="relationship_other" value={formData.relationship_other||""}
+                                onChange={handleChange} placeholder="Specify"
+                                disabled={!isFieldEditable}
+                                style={{marginTop:8}}/>
+                            </>
                           )}
                         </div>
                         <div/>
@@ -1934,10 +1947,10 @@ export default function ScreeningForm() {
                       </div>
                     )}
 
-                    {/* 28. Reason for refusal (if No) */}
+                    {/* 20 (c). Reason for refusal (if No) */}
                     {formData.consent_given === "No" && (
                       <div className="followup-box">
-                        <label className="followup-label">28. If no, reason for consent refusal (select all that apply)<span className="required">*</span></label>
+                        <label className="followup-label">20 (<span className="crf-subnum">c</span>). If no, reason for consent refusal (select all that apply)<span className="required">*</span></label>
                         <MultiCheckbox
                           options={REFUSAL_REASONS}
                           dataField="reason_for_consent_refusal_list"
@@ -1949,10 +1962,10 @@ export default function ScreeningForm() {
                       </div>
                     )}
 
-                    {/* 29. Reason not approached (if Not approached) */}
+                    {/* 20 (d). Reason not approached (if Not approached) */}
                     {formData.consent_given === "Not approached" && (
                       <div className="followup-box">
-                        <label className="followup-label">29. If not approached, reason (select all that apply)<span className="required">*</span></label>
+                        <label className="followup-label">20 (<span className="crf-subnum">d</span>). If not approached, reason (select all that apply)<span className="required">*</span></label>
                         <MultiCheckbox
                           options={NOT_APPROACHED_REASONS}
                           dataField="reason_not_approached_list"
@@ -1964,11 +1977,11 @@ export default function ScreeningForm() {
                       </div>
                     )}
 
-                    {/* 30. Consent obtained by + 31. Video PIS */}
+                    {/* 20 (e). Consent obtained by + 20 (f). Video PIS */}
                     {(formData.consent_given === "Yes" || formData.consent_given === "No") && (
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>30. Consent obtained by (First name)<span className="required">*</span></label>
+                          <label>20 (<span className="crf-subnum">e</span>). Consent obtained by (First name)<span className="required">*</span></label>
                           <select name="consent_taken_by" value={formData.consent_taken_by||""}
                             onChange={handleChange} disabled={!isFieldEditable || !formData.site_name}>
                             <option value="">{formData.site_name ? "-- Select --" : "Select Site first"}</option>
@@ -1978,7 +1991,7 @@ export default function ScreeningForm() {
                           </select>
                         </div>
                         <div className="form-group">
-                          <label>31. Video PIS shown<span className="required">*</span></label>
+                          <label>20 (<span className="crf-subnum">f</span>). Video PIS shown<span className="required">*</span></label>
                           <select name="video_pis_shown" value={formData.video_pis_shown||""} onChange={handleChange} disabled={!isFieldEditable}>
                             <option value="">-- Select --</option>
                             <option value="Yes">Yes</option>
@@ -1992,7 +2005,7 @@ export default function ScreeningForm() {
                     {formData.consent_given === "Not approached" && (
                       <div className="form-grid-2">
                         <div className="form-group">
-                          <label>31. Video PIS shown<span className="required">*</span></label>
+                          <label>20 (<span className="crf-subnum">f</span>). Video PIS shown<span className="required">*</span></label>
                           <select name="video_pis_shown" value={formData.video_pis_shown||""} onChange={handleChange} disabled={!isFieldEditable}>
                             <option value="">-- Select --</option>
                             <option value="Yes">Yes</option>
@@ -2007,7 +2020,7 @@ export default function ScreeningForm() {
                         Not shown for a refusal: there is no consenting party to sign. */}
                     {formData.consent_given === "Yes" && (
                       <div className="followup-box icf-signature-box" data-field="consent_signature_image">
-                        <label className="followup-label">Informed consent (ICF)</label>
+                        <label className="followup-label">20 (<span className="crf-subnum">g</span>). Informed consent (ICF)</label>
                         {consentGivenByName(formData) && (
                           <p className="icf-signer-name" style={{ margin: "4px 0 12px", fontWeight: 600 }}>
                             Consent given by — {consentGivenByName(formData)}

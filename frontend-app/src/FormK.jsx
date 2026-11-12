@@ -143,6 +143,7 @@ function SectionCard({ icon: Icon, num, title, children }) {
 function FindingBlock({
   title, value, onChange, disabled,
   typeOpts, siteOpts, locationOpts, singleType = false,
+  typeLabel, siteLabel, locLabel,
 }) {
   const v = value || emptyFinding();
   return (
@@ -158,7 +159,7 @@ function FindingBlock({
         <div className="fk-finding-detail">
           {typeOpts && (
             <div className="fk-block">
-              <div className="fk-field-label">{singleType ? "If yes" : "Type"}</div>
+              <div className="fk-field-label">{typeLabel || (singleType ? "If yes" : "Type")}</div>
               <Chips
                 options={typeOpts}
                 value={singleType ? (v.type?.[0] || "") : (v.type || [])}
@@ -173,13 +174,13 @@ function FindingBlock({
           )}
           {siteOpts && (
             <div className="fk-block">
-              <div className="fk-field-label">Site</div>
+              <div className="fk-field-label">{siteLabel || "Site"}</div>
               <Chips options={siteOpts} value={v.site || []} multi onChange={(val) => onChange({ ...v, site: val })} disabled={disabled} />
             </div>
           )}
           {locationOpts && (
             <div className="fk-block">
-              <div className="fk-field-label">Location</div>
+              <div className="fk-field-label">{locLabel || "Location"}</div>
               <Chips options={locationOpts} value={v.location || []} multi onChange={(val) => onChange({ ...v, location: val })} disabled={disabled} />
             </div>
           )}
@@ -456,10 +457,10 @@ export default function FormK() {
               <div className="form-group">
                 <label>4. Gestation at birth</label>
                 <div className="fk-inline">
+                  <span>4 (a) Weeks</span>
                   <input className="fk-input fk-num" type="number" min="0" value={formData.gestation_weeks} onChange={(e) => set("gestation_weeks", e.target.value)} />
-                  <span>wks</span>
+                  <span>4 (b) Days</span>
                   <input className="fk-input fk-num" type="number" min="0" max="6" value={formData.gestation_days} onChange={(e) => set("gestation_days", e.target.value)} />
-                  <span>days</span>
                 </div>
               </div>
               <div className="form-group">
@@ -469,10 +470,10 @@ export default function FormK() {
               <div className="form-group">
                 <label>6. PMA</label>
                 <div className="fk-inline">
+                  <span>6 (a) Weeks</span>
                   <input className="fk-input fk-num" type="number" min="0" value={formData.pma_weeks} onChange={(e) => set("pma_weeks", e.target.value)} />
-                  <span>wks</span>
+                  <span>6 (b) Days</span>
                   <input className="fk-input fk-num" type="number" min="0" max="6" value={formData.pma_days} onChange={(e) => set("pma_days", e.target.value)} />
-                  <span>days</span>
                 </div>
               </div>
             </div>
@@ -510,45 +511,53 @@ export default function FormK() {
             </div>
 
             <FindingBlock
-              title="Basal ganglia & thalamus"
+              title="12. Basal ganglia & thalamus"
               value={formData.bg_thalamus}
               onChange={(v) => set("bg_thalamus", v)}
               typeOpts={["T1 hyper", "T2 hyper", "DWI restriction"]}
               siteOpts={["Caudate", "Putamen", "GP", "Thalamus"]}
+              typeLabel="12 (a) Type"
+              siteLabel="12 (b) Site"
             />
             <FindingBlock
-              title="PLIC (post limb internal capsule)"
+              title="13. PLIC (post limb internal capsule)"
               value={formData.plic}
               onChange={(v) => set("plic", v)}
               typeOpts={["T2 hyperintensity", "Signal reversal"]}
               singleType
+              typeLabel="13 (a) If yes"
             />
             <FindingBlock
-              title="White matter"
+              title="14. White matter"
               value={formData.white_matter}
               onChange={(v) => set("white_matter", v)}
               locationOpts={["Periventricular", "Deep WM"]}
               typeOpts={["Hyperintensity", "Volume loss"]}
+              typeLabel="14 (a) Type"
+              locLabel="14 (b) Location"
             />
             <FindingBlock
-              title="Corpus callosum"
+              title="15. Corpus callosum"
               value={formData.corpus_callosum}
               onChange={(v) => set("corpus_callosum", v)}
               typeOpts={["Thinning", "Signal abnormality"]}
               singleType
+              typeLabel="15 (a) If yes"
             />
             <FindingBlock
-              title="Cerebellum"
+              title="16. Cerebellum"
               value={formData.cerebellum}
               onChange={(v) => set("cerebellum", v)}
               typeOpts={["Signal changes", "Atrophy"]}
               singleType
+              typeLabel="16 (a) If yes"
             />
             <FindingBlock
-              title="Atrophy"
+              title="17. Atrophy"
               value={formData.atrophy}
               onChange={(v) => set("atrophy", v)}
               typeOpts={["Cortical", "Sulcal widening", "Ventriculomegaly"]}
+              typeLabel="17 (a) Type"
             />
 
             <div className="fk-finding">
@@ -578,11 +587,11 @@ export default function FormK() {
 
           <SectionCard icon={CheckCircle} num="K.4" title="Overall MRI">
             <div className="fk-block">
-              <div className="fk-field-label">Overall MRI</div>
+              <div className="fk-field-label">28. Overall MRI</div>
               <Chips options={["Normal", "Abnormal"]} value={formData.overall_mri} onChange={(v) => set("overall_mri", v)} />
             </div>
             <div className="form-group">
-              <label>Summary</label>
+              <label>28 (a) Summary</label>
               <textarea
                 className="fk-textarea"
                 rows={3}
@@ -593,11 +602,11 @@ export default function FormK() {
             </div>
             <div className="fk-grid-2">
               <div className="form-group">
-                <label>Site radiologist</label>
+                <label>28 (b) Site radiologist</label>
                 <input className="fk-input" value={formData.radiologist_name} onChange={(e) => set("radiologist_name", e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Date</label>
+                <label>28 (c) Date</label>
                 <DateField value={formData.radiologist_date} onChange={(v) => set("radiologist_date", v)} />
               </div>
             </div>

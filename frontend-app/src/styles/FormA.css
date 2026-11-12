@@ -267,6 +267,12 @@
   white-space: normal;
   word-break: break-word;
 }
+/* Keep 1 (a) letters lowercase while the rest of the CRF label stays caps. */
+.screening-form .form-group label .crf-subnum,
+.followup-box .form-group label .crf-subnum,
+.followup-label .crf-subnum {
+  text-transform: none;
+}
 .required   { color: #ef4444; margin-left: 2px; flex-shrink: 0; }
 .field-note { font-size: 10px; font-weight: 400; color: #9ca3af;
               text-transform: none; letter-spacing: 0; }

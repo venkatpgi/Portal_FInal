@@ -556,7 +556,10 @@ function ExpandedPanel({ entry, forms, onEdit, onDelete, onViewForm, babyName, i
     let cancelled = false;
     setSaves(null);
     setSavesError("");
-    api.get("/audit/patient", { params: { screening_id: entry.screening_id } })
+    api.get("/audit/patient", { params: {
+      screening_id: entry.screening_id,
+      enrollment_id: entry.enrollment_id || undefined,
+    } })
       .then(res => { if (!cancelled) setSaves(Array.isArray(res.data) ? res.data : []); })
       .catch(err => {
         if (cancelled) return;
@@ -566,7 +569,7 @@ function ExpandedPanel({ entry, forms, onEdit, onDelete, onViewForm, babyName, i
           : "Could not load this patient's save history.");
       });
     return () => { cancelled = true; };
-  }, [tab, entry.screening_id]);
+  }, [tab, entry.screening_id, entry.enrollment_id]);
 
   const completedForms = (forms || []).filter(f => f.status === "completed");
 

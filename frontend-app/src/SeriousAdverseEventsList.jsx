@@ -388,7 +388,7 @@ export default function SeriousAdverseEventsList() {
 
                 <div className="sl-event-grid">
                   <div className="form-group sl-span-2">
-                    <label>SAE</label>
+                    <label>1. SAE</label>
                     <ExpandableText
                       value={row.sae}
                       onChange={(v) => updateRow(i, "sae", v)}
@@ -397,7 +397,7 @@ export default function SeriousAdverseEventsList() {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Definition number</label>
+                    <label>2. Definition number</label>
                     <input
                       className="sl-input"
                       value={row.definition_no}
@@ -411,21 +411,21 @@ export default function SeriousAdverseEventsList() {
                   <div className="sl-event-block-title">Key dates</div>
                   <div className="sl-event-grid">
                     <div className="form-group">
-                      <label>Start date</label>
+                      <label>3. Start date</label>
                       <DateField
                         value={row.start_date}
                         onChange={(v) => updateRow(i, "start_date", v)}
                       />
                     </div>
                     <div className="form-group">
-                      <label>Date of 24-h notification</label>
+                      <label>4. Date of 24-h notification</label>
                       <DateField
                         value={row.notification_24h}
                         onChange={(v) => updateRow(i, "notification_24h", v)}
                       />
                     </div>
                     <div className="form-group">
-                      <label>End date</label>
+                      <label>5. End date</label>
                       <DateField
                         value={row.end_date}
                         onChange={(v) => updateRow(i, "end_date", v)}
@@ -438,21 +438,21 @@ export default function SeriousAdverseEventsList() {
                   <div className="sl-event-block-title">Dates of detailed notification</div>
                   <div className="sl-event-grid">
                     <div className="form-group">
-                      <label>1. Initial</label>
+                      <label>6 (a) Initial</label>
                       <DateField
                         value={row.notify_initial}
                         onChange={(v) => updateRow(i, "notify_initial", v)}
                       />
                     </div>
                     <div className="form-group">
-                      <label>2. 14 days</label>
+                      <label>6 (b) 14 days</label>
                       <DateField
                         value={row.notify_10d}
                         onChange={(v) => updateRow(i, "notify_10d", v)}
                       />
                     </div>
                     <div className="form-group">
-                      <label>3. Resolution</label>
+                      <label>6 (c) Resolution</label>
                       <DateField
                         value={row.notify_resolution}
                         onChange={(v) => updateRow(i, "notify_resolution", v)}

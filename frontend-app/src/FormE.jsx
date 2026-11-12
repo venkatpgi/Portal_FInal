@@ -11,7 +11,8 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import OfflineBanner from "./components/OfflineBanner";
 import SaveSuccessModal from "./components/SaveSuccessModal";
-import { toDateOnlyValue, parseDateOnly, toDateTimeLocalValue } from "./utils/datetime";
+import { toDateOnlyValue, parseDateOnly, toDateTimeLocalValue, isDateTimeInFuture } from "./utils/datetime";
+import { calendarDateError } from "./utils/clinicalDateBounds";
 import { designationForCompletedBy } from "./utils/completedByDesignation";
 import { helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
@@ -296,7 +297,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
   return (
     <div className="form-grid-2" style={{ marginTop: 12 }}>
       <div className="form-group" style={dulled.includes("cpap") ? dulledStyle : undefined}>
-        <label>{serial}b. CPAP</label>
+        <label>{serial} (c) CPAP</label>
         <UnitInput name={`${prefix}_cpap`} value={formData[`${prefix}_cpap`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("cpap")} error={errors[`${prefix}_cpap`]}
           placeholder="4–10"
@@ -312,7 +313,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <FieldErr msg={errors[`${prefix}_cpap`]} />
       </div>
       <div className="form-group" style={dulled.includes("pip") ? dulledStyle : undefined}>
-        <label>{serial}c. PIP</label>
+        <label>{serial} (d) PIP</label>
         <UnitInput name={`${prefix}_pip`} value={formData[`${prefix}_pip`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("pip")} error={errors[`${prefix}_pip`]}
           placeholder="12–30"
@@ -328,7 +329,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <FieldErr msg={errors[`${prefix}_pip`]} />
       </div>
       <div className="form-group" style={dulled.includes("peep") ? dulledStyle : undefined}>
-        <label>{serial}d. PEEP</label>
+        <label>{serial} (e) PEEP</label>
         <UnitInput name={`${prefix}_peep`} value={formData[`${prefix}_peep`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("peep")} error={errors[`${prefix}_peep`]}
           placeholder="4–10"
@@ -344,7 +345,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <FieldErr msg={errors[`${prefix}_peep`]} />
       </div>
       <div className="form-group" style={dulled.includes("map") ? dulledStyle : undefined}>
-        <label>{serial}e. MAP</label>
+        <label>{serial} (f) MAP</label>
         <UnitInput name={`${prefix}_map`} value={formData[`${prefix}_map`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("map")} error={errors[`${prefix}_map`]}
           placeholder="6–18"
@@ -361,7 +362,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
       </div>
       {/* FiO₂ — inline (not via UnitInput) to avoid spinner overlap */}
       <div className="form-group">
-        <label>{serial}f. FiO2</label>
+        <label>{serial} (g) FiO2</label>
         <div style={{ position: "relative" }}>
           <input
             type="number"
@@ -407,7 +408,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
       {isHfov && (
         <>
           <div className="form-group">
-            <label>{serial}g. Amplitude <span className="field-note">(% or cmH₂O)</span></label>
+            <label>{serial} (h) Amplitude <span className="field-note">(% or cmH₂O)</span></label>
             <input type="number" name={`${prefix}_amplitude`}
               value={formData[`${prefix}_amplitude`] || ""}
               readOnly={!isFieldEditable}
@@ -426,7 +427,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
             <FieldErr msg={errors[`${prefix}_amplitude`]} />
           </div>
           <div className="form-group">
-            <label>{serial}h. Frequency <span className="field-note">(Hz)</span></label>
+            <label>{serial} (i) Frequency <span className="field-note">(Hz)</span></label>
             <UnitInput name={`${prefix}_frequency`} value={formData[`${prefix}_frequency`]} unit="Hz"
               readOnly={!isFieldEditable} error={errors[`${prefix}_frequency`]}
               placeholder="5–20"
@@ -455,7 +456,7 @@ function RespModeSection({ prefix, label, serial, modes, formData, errors, isFie
     <div className="obstetric-subcard">
       <div className="obstetric-subcard__title">{label}</div>
       <div className="form-group">
-        <label>{serial}a. Mode <span className="required">*</span></label>
+        <label>{serial} (a) Mode <span className="required">*</span></label>
         <div className="rx-horizontal-group" style={{ flexWrap:"wrap" }}>
           {modes.map(mode => (
             <button key={mode} type="button"
@@ -478,7 +479,7 @@ function RespModeSection({ prefix, label, serial, modes, formData, errors, isFie
       {formData[modeField] === "Other" && (
         <div className="followup-box" style={{ marginTop:10 }}>
           <div className="form-group">
-            <label>Specify Mode <span className="required">*</span></label>
+            <label>{serial} (b) Specify Mode <span className="required">*</span></label>
             <input type="text" name={otherField} value={formData[otherField] || ""}
               readOnly={!isFieldEditable} className={`emr-input${errors[otherField] ? " input-error" : ""}`}
               placeholder="e.g. High flow nasal cannula"
@@ -517,6 +518,7 @@ export default function FormE() {
   const [pdfScreeningId, setPdfScreeningId] = useState("");
   const [isBirthLoaded, setIsBirthLoaded] = useState(false);
   const [hasFormERecord, setHasFormERecord] = useState(false);
+  const [day1Location, setDay1Location] = useState("");
   const isFieldEditable = !isSaved || isEditing;
 
   const emptyFormE = () => ({
@@ -657,6 +659,7 @@ export default function FormE() {
     setTouched({});
     setFormData(emptyFormE());
     setPdfScreeningId("");
+    setDay1Location("");
     userEditedRef.current = false;
     resetInitialRender();
 
@@ -835,6 +838,19 @@ export default function FormE() {
         resetInitialRender();
       });
 
+    api.get(`/postnatal-day1/${enrollmentId}`)
+      .then(res => {
+        if (cancelled) return;
+        const d = res.data || {};
+        const transferred = d.transferred_out_day1 === true || d.transferred_out_day1 === "Yes";
+        if (!transferred) return;
+        const loc = normalizeHelperLocation(d.transferred_out_location, { enrollmentId });
+        if (!loc) return;
+        setDay1Location(loc);
+        setFormData(prev => (prev.area_of_admission ? prev : { ...prev, area_of_admission: loc }));
+      })
+      .catch(() => {});
+
     return () => { cancelled = true; };
   }, [enrollmentId, resetInitialRender]);
 
@@ -954,7 +970,19 @@ export default function FormE() {
         }
       }
     }
+    if (!v.admission_datetime && formData.admission_datetime) {
+      const admNorm = normalizeAdmissionLocal(formData.admission_datetime);
+      const am = String(admNorm).match(/^(\d{4}-\d{2}-\d{2})T(\d{1,2}:\d{2})/);
+      if (am && isDateTimeInFuture(am[1], am[2])) {
+        v.admission_datetime = "Admission date/time cannot be in the future";
+      }
+    }
     if (!formData.area_of_admission) v.area_of_admission = "This field is required";
+    else if (day1Location && formData.area_of_admission !== day1Location) {
+      v.area_of_admission = `Must match Form D day-1 location (${locationLabel(day1Location, {
+        enrollmentId: formData.enrollment_id, site: formData.site_name,
+      })})`;
+    }
     if (!formData.temp_dr) v.temp_dr = "This field is required";
     if (!formData.temp_skin) v.temp_skin = "This field is required";
     if (!formData.mode_of_transport) v.mode_of_transport = "This field is required";
@@ -980,6 +1008,10 @@ export default function FormE() {
       v.nicu_mode_other = "Specify mode";
     if (!formData.completed_by) v.completed_by = "This field is required";
     if (!formData.completion_date) v.completion_date = "This field is required";
+    else {
+      const cErr = calendarDateError(formData.completion_date, { minYmd: formData.date_of_birth });
+      if (cErr) v.completion_date = cErr;
+    }
 
     ["temp_dr","temp_skin","temp_axillary"].forEach(f => {
       if (formData[f] && (Number(formData[f]) < 30 || Number(formData[f]) > 40))
@@ -1243,6 +1275,9 @@ export default function FormE() {
                             }
                           }
                         }
+                        if (!admErr && admission && date instanceof Date && date.getTime() > Date.now()) {
+                          admErr = "Admission date/time cannot be in the future";
+                        }
                         setErrors(prev => ({ ...prev, admission_datetime: admErr }));
                       }}
                       minDate={(() => {
@@ -1255,6 +1290,8 @@ export default function FormE() {
                         else birth.setHours(0, 0, 0, 0);
                         return birth;
                       })()}
+                      maxDate={new Date()}
+                      filterTime={time => time.getTime() <= Date.now()}
                       showTimeSelect timeFormat="hh:mm aa" timeIntervals={1}
                       dateFormat="dd-MM-yyyy | hh:mm aa"
                       placeholderText="Select date & time"
@@ -1344,14 +1381,14 @@ export default function FormE() {
                   </div>
                   <div className="form-grid-2">
                     <div className="form-group">
-                      <label>7a. Skin <span className="required">*</span></label>
+                      <label>7 (a) Skin <span className="required">*</span></label>
                       <UnitInput name="temp_skin" value={formData.temp_skin} unit="°C"
                         readOnly={!isFieldEditable} error={!!errors.temp_skin}
                         placeholder="35–38" onChange={handleChange} />
                       <FieldErr msg={errors.temp_skin} />
                     </div>
                     <div className="form-group">
-                      <label>7b. Axillary</label>
+                      <label>7 (b) Axillary</label>
                       <UnitInput name="temp_axillary" value={formData.temp_axillary} unit="°C"
                         readOnly={!isFieldEditable} error={!!errors.temp_axillary}
                         placeholder="35–38" onChange={handleChange} />
@@ -1386,7 +1423,7 @@ export default function FormE() {
                   {formData.mode_of_transport === "Other" && (
                     <div className="followup-box" style={{ marginTop:10 }}>
                       <div className="form-group">
-                        <label>Specify mode of transport <span className="required">*</span></label>
+                        <label>8 (a) Specify mode of transport <span className="required">*</span></label>
                         <input type="text" name="mode_of_transport_other"
                           value={formData.mode_of_transport_other || ""}
                           readOnly={!isFieldEditable}
@@ -1414,7 +1451,7 @@ export default function FormE() {
                   {formData.additional_heating === "Yes" && (
                     <div className="followup-box" style={{ marginTop:12 }}>
                       <div className="form-group">
-                        <label>10. Type <span className="required">*</span> <span style={{ fontSize:11, fontWeight:400, color:"#94a3b8" }}>(select all that apply)</span></label>
+                        <label>9 (a) Type <span className="required">*</span> <span style={{ fontSize:11, fontWeight:400, color:"#94a3b8" }}>(select all that apply)</span></label>
                         <div className="rx-horizontal-group" style={{ flexWrap:"wrap" }}>
                           {KNOWN_HEATING_TYPES.map(type => (
                             <button key={type} type="button"
@@ -1438,7 +1475,7 @@ export default function FormE() {
                       </div>
                       {formData.heating_type?.includes("Other") && (
                         <div className="form-group" style={{ marginTop:10 }}>
-                          <label>Specify Heating Type <span className="required">*</span></label>
+                          <label>9 (b) Specify Heating Type <span className="required">*</span></label>
                           <input type="text" name="heating_type_other"
                             value={formData.heating_type_other || ""}
                             readOnly={!isFieldEditable}
@@ -1459,7 +1496,7 @@ export default function FormE() {
                 <div className="obstetric-subcard">
                   <div className="obstetric-subcard__title">Adverse Events During Transport</div>
                   <div className="form-group">
-                    <label>11. Adverse events during transport <span className="required">*</span></label>
+                    <label>10. Adverse events during transport <span className="required">*</span></label>
                     <Toggle name="transport_adverse_event" value={formData.transport_adverse_event}
                       options={["Yes","No"]} onChange={handleToggle}
                       disabled={!isFieldEditable} error={errors.transport_adverse_event} />
@@ -1467,7 +1504,7 @@ export default function FormE() {
                   {formData.transport_adverse_event === "Yes" && (
                     <div className="followup-box" style={{ marginTop:12 }}>
                       <div className="form-group">
-                        <label>12. If yes, type <span className="required">*</span> <span style={{ fontSize:11, fontWeight:400, color:"#94a3b8" }}>(select all that apply)</span></label>
+                        <label>10 (a) If yes, type <span className="required">*</span> <span style={{ fontSize:11, fontWeight:400, color:"#94a3b8" }}>(select all that apply)</span></label>
                         <div className="rx-horizontal-group" style={{ flexWrap:"wrap" }}>
                           {KNOWN_ADVERSE_TYPES.map(type => (
                             <button key={type} type="button"
@@ -1492,7 +1529,7 @@ export default function FormE() {
                       </div>
                       {formData.adverse_event_type?.includes("ET tube accident") && (
                         <div className="form-group" style={{ marginTop:10 }}>
-                          <label>13. If ET tube accident <span className="required">*</span></label>
+                          <label>10 (b) If ET tube accident <span className="required">*</span></label>
                           <Toggle name="tube_accident_type" value={formData.tube_accident_type}
                             options={["Displacement","Blockage"]} onChange={handleToggle}
                             disabled={!isFieldEditable} error={errors.tube_accident_type} />
@@ -1500,7 +1537,7 @@ export default function FormE() {
                       )}
                       {formData.adverse_event_type?.includes("Other") && (
                         <div className="form-group" style={{ marginTop:10 }}>
-                          <label>Specify adverse event <span className="required">*</span></label>
+                          <label>10 (c) Specify adverse event <span className="required">*</span></label>
                           <input type="text" name="adverse_event_other"
                             value={formData.adverse_event_other || ""}
                             readOnly={!isFieldEditable}
@@ -1526,13 +1563,13 @@ export default function FormE() {
                 <div className="section-title-left"><Wind size={18} className="section-header-icon" /><h3>E4 · Respiratory Support</h3></div>
               </div>
               <div className="form-section-body">
-                <RespModeSection prefix="transport" label="14. During Transport" serial="14"
+                <RespModeSection prefix="transport" label="11. During Transport" serial="11"
                   modes={["Room air","CPAP","SIB","NIPPV","IMV","SIMV","HFOV","Other"]}
                   formData={formData} errors={errors}
                   isFieldEditable={isFieldEditable} handleChange={handleChange}
                   setFormData={setFormData} setErrors={setErrors} />
                 <div style={{ marginTop:16 }}>
-                  <RespModeSection prefix="nicu" label="15. In NICU (after stabilization)" serial="15"
+                  <RespModeSection prefix="nicu" label="12. In NICU (after stabilization)" serial="12"
                     modes={["Room air","CPAP","NIPPV","IMV","SIMV","HFOV","Other"]}
                     formData={formData} errors={errors}
                     isFieldEditable={isFieldEditable} handleChange={handleChange}
@@ -1576,8 +1613,14 @@ export default function FormE() {
                       onChange={date => {
                         const value = date ? toDateOnlyValue(date) : "";
                         setFormData(prev => ({ ...prev, completion_date: value }));
-                        setErrors(prev => ({ ...prev, completion_date: value ? "" : "This field is required" }));
+                        setErrors(prev => ({
+                          ...prev,
+                          completion_date: value
+                            ? (calendarDateError(value, { minYmd: formData.date_of_birth }) || "")
+                            : "This field is required",
+                        }));
                       }}
+                      minDate={parseDateOnly(formData.date_of_birth) || undefined}
                       maxDate={new Date()}
                       dateFormat="dd-MM-yyyy" placeholderText="Select date"
                       disabled={!isFieldEditable} />

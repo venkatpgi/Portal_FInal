@@ -12,6 +12,8 @@ import NotesBox from "./components/NotesBox";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import { relativeTime, toDateOnlyValue, parseDateOnly } from "./utils/datetime";
+import { calendarDateError } from "./utils/clinicalDateBounds";
+import { formatCaffeineMgPerKg, typicalCaffeineLoadingMg } from "./utils/caffeineDose";
 import { designationForCompletedBy } from "./utils/completedByDesignation";
 import { helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
@@ -160,11 +162,7 @@ const RULES = {
   },
   caffeine_date: {
     required: (fd) => fd.caffeine === "Yes" && fd.caffeine_loading === "Yes", type: "date",
-    validate: v => {
-      if (!v) return null;
-      if (new Date(v) > new Date()) return "Future date not allowed";
-      return null;
-    },
+    validate: (v, fd) => calendarDateError(v, { minYmd: fd?.date_of_birth }),
   },
 
   caffeine_maint_frequency: {
@@ -182,11 +180,7 @@ const RULES = {
 
   date: {
     required: true, type: "date",
-    validate: v => {
-      if (!v) return null;
-      if (new Date(v) > new Date()) return "Future date not allowed";
-      return null;
-    },
+    validate: (v, fd) => calendarDateError(v, { minYmd: fd?.date_of_birth }),
   },
 
   // Completion
@@ -234,6 +228,23 @@ function validateForm(formData) {
   return errs;
 }
 
+/* Keep 1 (a) letters lowercase while CRF labels stay uppercase. */
+function withCrfSubnum(label) {
+  if (typeof label !== "string") return label;
+  const re = /(\d+) \(([a-k])\)/g;
+  const parts = [];
+  let last = 0;
+  let m;
+  while ((m = re.exec(label))) {
+    if (m.index > last) parts.push(label.slice(last, m.index));
+    parts.push(m[1], " (", <span className="crf-subnum" key={m.index}>{m[2]}</span>, ")");
+    last = m.index + m[0].length;
+  }
+  if (!parts.length) return label;
+  if (last < label.length) parts.push(label.slice(last));
+  return parts;
+}
+
 /* ── Status-aware field wrapper ── */
 function FieldWrap({ name, formData, touched, children, label, required }) {
   const result = touched[name] ? validateField(name, formData[name], formData) : null;
@@ -247,7 +258,7 @@ function FieldWrap({ name, formData, touched, children, label, required }) {
     <div className={`form-group ${wrapClass}`}>
       {label && (
         <label>
-          {label}
+          {withCrfSubnum(label)}
           {required && <span className="required"> *</span>}
           {level === "ok"    && <CheckCircle   size={12} className="fv-icon fv-icon-ok"   />}
           {level === "warn"  && <AlertTriangle size={12} className="fv-icon fv-icon-warn" />}
@@ -1179,11 +1190,11 @@ export default function FormD() {
                     {formData.ga_method && formData.ga_method !== "NBS" && (
                       <div className="form-grid-2 ga-weeks-days-row" style={{ marginTop: 8 }}>
                         <div className="form-group">
-                          <label>Weeks <FieldLogicBadge type="carried" title="From Form B — postnatal day 1 / gestation at randomization" /></label>
+                          <label>{withCrfSubnum("5 (a) Weeks")} <FieldLogicBadge type="carried" title="From Form B — postnatal day 1 / gestation at randomization" /></label>
                           <input value={formData.gestation_weeks || ""} readOnly className="readonly-input" />
                         </div>
                         <div className="form-group">
-                          <label>Days <FieldLogicBadge type="carried" title="From Form B — postnatal day 1 / gestation at randomization" /></label>
+                          <label>{withCrfSubnum("5 (b) Days")} <FieldLogicBadge type="carried" title="From Form B — postnatal day 1 / gestation at randomization" /></label>
                           <input value={formData.gestation_days || ""} readOnly className="readonly-input" />
                         </div>
                       </div>
@@ -1196,7 +1207,7 @@ export default function FormD() {
                         <div className="form-grid-2 ga-weeks-days-row" style={{ marginTop: 8 }}>
                           <FieldWrap name="gestation_weeks"
                             formData={formData} touched={touched}
-                            label="Weeks" required={isRequired("gestation_weeks")}>
+                            label="5 (a) Weeks" required={isRequired("gestation_weeks")}>
                             <input type="number" name="gestation_weeks" value={formData.gestation_weeks || ""}
                               min="18" max="42" readOnly={!isFieldEditable}
                               className={`emr-input${vr("gestation_weeks")?.level === "error" ? " fv-input-error" : vr("gestation_weeks")?.level === "ok" ? " fv-input-ok" : ""}`}
@@ -1212,7 +1223,7 @@ export default function FormD() {
                           </FieldWrap>
                           <FieldWrap name="gestation_days"
                             formData={formData} touched={touched}
-                            label="Days" required={isRequired("gestation_days")}>
+                            label="5 (b) Days" required={isRequired("gestation_days")}>
                             <input type="number" name="gestation_days" value={formData.gestation_days || ""}
                               min="0" max="6" readOnly={!isFieldEditable}
                               className={`emr-input${vr("gestation_days")?.level === "error" ? " fv-input-error" : vr("gestation_days")?.level === "ok" ? " fv-input-ok" : ""}`}
@@ -1274,7 +1285,7 @@ export default function FormD() {
                         </div>
                         {(formData.growth_status === "SGA" || showManual) && (
                           <div className="form-group">
-                            <label>8. If SGA {showManual ? null : formData.ga_method === "NBS"
+                            <label>{withCrfSubnum("7 (a) If SGA")} {showManual ? null : formData.ga_method === "NBS"
                               ? <FieldLogicBadge type="auto" title="Recalculated from birth weight, gender and NBS GA — INTERGROWTH-21st" />
                               : <FieldLogicBadge type="carried" title="From Form B intrauterine growth / INTERGROWTH-21st" />}</label>
                             {showManual ? (
@@ -1307,14 +1318,14 @@ export default function FormD() {
                 <div className="form-grid-2">
                   <FieldWrap name="plastic_wrap"
                     formData={formData} touched={touched}
-                    label="9. Plastic wrap / bag at birth" required={isRequired("plastic_wrap")}>
+                    label="8. Plastic wrap / bag at birth" required={isRequired("plastic_wrap")}>
                     <SegmentedToggle name="plastic_wrap" value={formData.plastic_wrap}
                       options={["Yes","No"]} onChange={handleToggle}
                       disabled={!isFieldEditable} />
                   </FieldWrap>
                   <FieldWrap name="et_intubation"
                     formData={formData} touched={touched}
-                    label="10. ET intubation for resuscitation" required={isRequired("et_intubation")}>
+                    label="9. ET intubation for resuscitation" required={isRequired("et_intubation")}>
                     <SegmentedToggle name="et_intubation" value={formData.et_intubation}
                       options={["Yes","No"]} onChange={handleToggle}
                       disabled={!isFieldEditable} />
@@ -1324,7 +1335,7 @@ export default function FormD() {
                   {formData.et_intubation === "Yes" && (
                     <FieldWrap name="remained_intubated"
                     formData={formData} touched={touched}
-                      label="11. If yes, Remained intubated after resus" required={isRequired("remained_intubated")}>
+                      label="9 (a) If yes, Remained intubated after resus" required={isRequired("remained_intubated")}>
                       <SegmentedToggle name="remained_intubated" value={formData.remained_intubated}
                         options={["Yes","No"]} onChange={handleToggle}
                         disabled={!isFieldEditable} />
@@ -1332,7 +1343,7 @@ export default function FormD() {
                   )}
                   <FieldWrap name="labored_breathing"
                     formData={formData} touched={touched}
-                    label="12. Labored breathing after resus" required={isRequired("labored_breathing")}>
+                    label="10. Labored breathing after resus" required={isRequired("labored_breathing")}>
                     <SegmentedToggle name="labored_breathing" value={formData.labored_breathing}
                       options={["Yes","No"]} onChange={handleToggle}
                       disabled={!isFieldEditable} />
@@ -1350,7 +1361,7 @@ export default function FormD() {
                 <div className="form-grid-2">
                   <FieldWrap name="surfactant_required"
                     formData={formData} touched={touched}
-                    label="13. Surfactant Administered" required>
+                    label="11. Surfactant Administered" required>
                     <SegmentedToggle name="surfactant_required" value={formData.surfactant_required}
                       options={["Yes","No"]} onChange={handleToggle}
                       disabled={!isFieldEditable} />
@@ -1366,7 +1377,7 @@ export default function FormD() {
                       <div className="obstetric-subcard__title">Indication</div>
                       <FieldWrap name="surfactant_indication"
                     formData={formData} touched={touched}
-                        label="14. Indication" required={isRequired("surfactant_indication")}>
+                        label="11 (a) Indication" required={isRequired("surfactant_indication")}>
                         <SegmentedToggle name="surfactant_indication" value={formData.surfactant_indication}
                           options={[
                             { label: "FiO₂ & pressure based", value: "FiO2 & pressure based" },
@@ -1383,7 +1394,7 @@ export default function FormD() {
                       <div className="form-grid-2">
                         <FieldWrap name="cpap_cm"
                     formData={formData} touched={touched}
-                          label="15. Pressure (MAP/CPAP)" required={isRequired("cpap_cm")}>
+                          label="11 (b) Pressure (MAP/CPAP)" required={isRequired("cpap_cm")}>
                           <UnitInput name="cpap_cm" value={formData.cpap_cm} unit="cmH₂O"
                             readOnly={!isFieldEditable}
                             error={vr("cpap_cm")?.level === "error"}
@@ -1403,7 +1414,7 @@ export default function FormD() {
                         </FieldWrap>
                         <FieldWrap name="fio2_percent"
                     formData={formData} touched={touched}
-                          label="16. FiO₂ at administration" required={isRequired("fio2_percent")}>
+                          label="11 (c) FiO₂ at administration" required={isRequired("fio2_percent")}>
                           <UnitInput name="fio2_percent" value={formData.fio2_percent} unit="%"
                             readOnly={!isFieldEditable}
                             error={vr("fio2_percent")?.level === "error"}
@@ -1430,7 +1441,7 @@ export default function FormD() {
                       <div className="form-grid-2">
                         <FieldWrap name="surfactant_brand"
                     formData={formData} touched={touched}
-                          label="17. Brand" required={isRequired("surfactant_brand")}>
+                          label="11 (d) Brand" required={isRequired("surfactant_brand")}>
                           <div className="rx-horizontal-group">
                             {["Survanta","Curosurf","Neosurf","Other"].map(brand => (
                               <button key={brand} type="button"
@@ -1443,7 +1454,7 @@ export default function FormD() {
                             <div style={{ marginTop:8 }}>
                               <FieldWrap name="surfactant_brand_other"
                     formData={formData} touched={touched}
-                                label="Specify brand" required={isRequired("surfactant_brand_other")}>
+                                label="11 (e) Specify brand" required={isRequired("surfactant_brand_other")}>
                                 <input type="text" name="surfactant_brand_other"
                                   value={formData.surfactant_brand_other || ""}
                                   readOnly={!isFieldEditable}
@@ -1456,7 +1467,7 @@ export default function FormD() {
                         </FieldWrap>
                         <FieldWrap name="surfactant_dose"
                     formData={formData} touched={touched}
-                          label="18. Dose" required={isRequired("surfactant_dose")}>
+                          label="11 (f) Dose" required={isRequired("surfactant_dose")}>
                           <UnitInput name="surfactant_dose" value={formData.surfactant_dose} unit="mg/kg"
                             readOnly={!isFieldEditable}
                             error={vr("surfactant_dose")?.level === "error"}
@@ -1471,7 +1482,7 @@ export default function FormD() {
                       <div className="obstetric-subcard__title">Method of Administration</div>
                       <FieldWrap name="surfactant_method"
                     formData={formData} touched={touched}
-                        label="19. Method of admn" required={isRequired("surfactant_method")}>
+                        label="11 (g) Method of admn" required={isRequired("surfactant_method")}>
                         <SegmentedToggle name="surfactant_method" value={formData.surfactant_method}
                           options={["InSurE","LISA","Remained intubated"]}
                           onChange={handleToggle} disabled={!isFieldEditable} />
@@ -1484,7 +1495,7 @@ export default function FormD() {
                         <div className="obstetric-subcard__title">InSurE Premedication</div>
                         <FieldWrap name="premedication_given"
                     formData={formData} touched={touched}
-                          label="20. If InSurE, premedication given" required={isRequired("premedication_given")}>
+                          label="11 (h) If InSurE, premedication given" required={isRequired("premedication_given")}>
                           <SegmentedToggle name="premedication_given" value={formData.premedication_given}
                             options={["Yes","No"]}
                             onChange={handleToggle} disabled={!isFieldEditable} />
@@ -1492,7 +1503,7 @@ export default function FormD() {
                         {formData.premedication_given === "Yes" && (
                           <div style={{ marginTop:12 }}>
                             <div style={{ fontSize:12, fontWeight:600, color:"#475569", marginBottom:8 }}>
-                              21. Drugs used <span style={{ fontSize:11, fontWeight:400, color:"#94a3b8" }}>(select all that apply)</span>
+                              11 (i) Drugs used <span style={{ fontSize:11, fontWeight:400, color:"#94a3b8" }}>(select all that apply)</span>
                               {isRequired("premedication_drugs") && <span className="required"> *</span>}
                             </div>
                             <div className="rx-horizontal-group" style={{ flexWrap:"wrap", gap: 8 }}>
@@ -1517,7 +1528,7 @@ export default function FormD() {
                               <div style={{ marginTop:10 }}>
                                 <FieldWrap name="premedication_other"
                     formData={formData} touched={touched}
-                                  label="Specify other drug" required={isRequired("premedication_other")}>
+                                  label="11 (j) Specify other drug" required={isRequired("premedication_other")}>
                                   <input type="text" name="premedication_other"
                                     value={formData.premedication_other || ""}
                                     readOnly={!isFieldEditable}
@@ -1537,7 +1548,7 @@ export default function FormD() {
                         <div className="obstetric-subcard__title">LISA Details</div>
                         <FieldWrap name="lisa_catheter_type"
                     formData={formData} touched={touched}
-                          label="22. If LISA, Catheter type" required={isRequired("lisa_catheter_type")}>
+                          label="11 (k) If LISA, Catheter type" required={isRequired("lisa_catheter_type")}>
                           <SegmentedToggle name="lisa_catheter_type" value={formData.lisa_catheter_type}
                             options={["Infant feeding tube","LISA catheter","Other"]}
                             onChange={handleToggle} disabled={!isFieldEditable} />
@@ -1546,7 +1557,7 @@ export default function FormD() {
                           <div style={{ marginTop:10 }}>
                             <FieldWrap name="lisa_catheter_other"
                     formData={formData} touched={touched}
-                              label="Specify catheter type" required={isRequired("lisa_catheter_other")}>
+                              label="11 (l) Specify catheter type" required={isRequired("lisa_catheter_other")}>
                               <input type="text" name="lisa_catheter_other"
                                 value={formData.lisa_catheter_other || ""}
                                 readOnly={!isFieldEditable}
@@ -1561,7 +1572,7 @@ export default function FormD() {
                         <div style={{ marginTop:14 }}>
                           <FieldWrap name="device_assistance"
                     formData={formData} touched={touched}
-                            label="23. Device assistance" required={isRequired("device_assistance")}>
+                            label="11 (m) Device assistance" required={isRequired("device_assistance")}>
                             <SegmentedToggle name="device_assistance" value={formData.device_assistance}
                               options={["Yes","No"]}
                               onChange={handleToggle} disabled={!isFieldEditable} />
@@ -1570,7 +1581,7 @@ export default function FormD() {
                             <div style={{ marginTop:10 }}>
                               <FieldWrap name="device_type"
                     formData={formData} touched={touched}
-                                label="24. Type" required={isRequired("device_type")}>
+                                label="11 (n) Type" required={isRequired("device_type")}>
                                 <SegmentedToggle name="device_type" value={formData.device_type}
                                   options={["FOL","VL","Magill","Other"]}
                                   onChange={handleToggle} disabled={!isFieldEditable} />
@@ -1579,7 +1590,7 @@ export default function FormD() {
                                 <div style={{ marginTop:8 }}>
                                   <FieldWrap name="device_type_other"
                     formData={formData} touched={touched}
-                                    label="Specify device type" required={isRequired("device_type_other")}>
+                                    label="11 (o) Specify device type" required={isRequired("device_type_other")}>
                                     <input type="text" name="device_type_other"
                                       value={formData.device_type_other || ""}
                                       readOnly={!isFieldEditable}
@@ -1600,7 +1611,7 @@ export default function FormD() {
                       <div className="obstetric-subcard__title">Adverse Effects</div>
                       <FieldWrap name="adverse_effects"
                     formData={formData} touched={touched}
-                        label="25. Adverse effects" required={isRequired("adverse_effects")}>
+                        label="11 (p) Adverse effects" required={isRequired("adverse_effects")}>
                         <SegmentedToggle name="adverse_effects" value={formData.adverse_effects}
                           options={["Yes","No"]} onChange={handleToggle}
                           disabled={!isFieldEditable} />
@@ -1608,7 +1619,7 @@ export default function FormD() {
                       {formData.adverse_effects === "Yes" && (
                         <div style={{ marginTop:12 }}>
                           <div style={{ fontSize:12, fontWeight:600, color:"#475569", marginBottom:8 }}>
-                            26. Type <span style={{ fontSize:11, fontWeight:400, color:"#94a3b8" }}>(select all that apply)</span>
+                            11 (q) Type <span style={{ fontSize:11, fontWeight:400, color:"#94a3b8" }}>(select all that apply)</span>
                             {isRequired("adverse_type") && <span className="required"> *</span>}
                           </div>
                           {/* CRF adverse types: Bradycardia, Desaturation, Regurgitation of surfactant,
@@ -1635,7 +1646,7 @@ export default function FormD() {
                             <div style={{ marginTop:10 }}>
                               <FieldWrap name="adverse_type_other"
                     formData={formData} touched={touched}
-                                label="Specify adverse effect" required={isRequired("adverse_type_other")}>
+                                label="11 (r) Specify adverse effect" required={isRequired("adverse_type_other")}>
                                 <input type="text" name="adverse_type_other"
                                   value={formData.adverse_type_other || ""}
                                   readOnly={!isFieldEditable}
@@ -1663,14 +1674,14 @@ export default function FormD() {
                 <div className="form-grid-2">
                   <FieldWrap name="early_cpap"
                     formData={formData} touched={touched}
-                    label="27. Early / DR-CPAP" required>
+                    label="12. Early / DR-CPAP" required>
                     <SegmentedToggle name="early_cpap" value={formData.early_cpap}
                       options={["Yes","No"]} onChange={handleToggle}
                       disabled={!isFieldEditable} />
                   </FieldWrap>
                   <FieldWrap name="humidified_gas"
                     formData={formData} touched={touched}
-                    label="28. Humidified gas with CPAP" required>
+                    label="13. Humidified gas with CPAP" required>
                     <SegmentedToggle name="humidified_gas" value={formData.humidified_gas}
                       options={["Yes","No"]} onChange={handleToggle}
                       disabled={!isFieldEditable} />
@@ -1679,7 +1690,7 @@ export default function FormD() {
                 <div className="form-grid-2">
                   <FieldWrap name="max_fio2_1hr"
                     formData={formData} touched={touched}
-                    label="29. Maximum FiO₂ in first hour after stopping Trial Blender" required>
+                    label="14. Maximum FiO₂ in first hour after stopping Trial Blender" required>
                     <UnitInput name="max_fio2_1hr" value={formData.max_fio2_1hr} unit="%"
                       readOnly={!isFieldEditable}
                       error={vr("max_fio2_1hr")?.level === "error"}
@@ -1699,7 +1710,7 @@ export default function FormD() {
                   </FieldWrap>
                   <FieldWrap name="intubation_after_resus"
                     formData={formData} touched={touched}
-                    label="30. Required intubation after resuscitation" required>
+                    label="15. Required intubation after resuscitation" required>
                     <SegmentedToggle name="intubation_after_resus" value={formData.intubation_after_resus}
                       options={["Yes","No"]} onChange={handleToggle}
                       disabled={!isFieldEditable} />
@@ -1712,7 +1723,7 @@ export default function FormD() {
                   <div className="form-grid-2">
                     <FieldWrap name="caffeine"
                     formData={formData} touched={touched}
-                      label={<>31a. Caffeine <FieldLogicBadge type="conditional" title="Yes reveals loading dose and maintenance block" /></>} required>
+                      label={<>16. Caffeine <FieldLogicBadge type="conditional" title="Yes reveals loading dose and maintenance block" /></>} required>
                       <SegmentedToggle name="caffeine" value={formData.caffeine}
                         options={["Yes","No"]} onChange={handleToggle}
                         disabled={!isFieldEditable} />
@@ -1724,7 +1735,7 @@ export default function FormD() {
                   <div className="form-grid-2" style={{ marginTop:12 }}>
                     <FieldWrap name="caffeine_loading"
                     formData={formData} touched={touched}
-                      label={<>31. Loading Dose of Caffeine <FieldLogicBadge type="conditional" title="Yes reveals loading dose fields and the maintenance-dose block" /></>} required={isRequired("caffeine_loading")}>
+                      label={<>16 (<span className="crf-subnum">a</span>) Loading Dose of Caffeine <FieldLogicBadge type="conditional" title="Yes reveals loading dose fields and the maintenance-dose block" /></>} required={isRequired("caffeine_loading")}>
                       <SegmentedToggle name="caffeine_loading" value={formData.caffeine_loading}
                         options={["Yes","No"]} onChange={handleToggle}
                         disabled={!isFieldEditable} />
@@ -1736,7 +1747,7 @@ export default function FormD() {
                     <div className="form-grid-2" style={{ marginTop:12 }}>
                       <FieldWrap name="caffeine_loading_abs"
                     formData={formData} touched={touched}
-                        label="32a. Absolute Dose" required={isRequired("caffeine_loading_abs")}>
+                        label="16 (b) Absolute Dose" required={isRequired("caffeine_loading_abs")}>
                         <UnitInput name="caffeine_loading_abs" value={formData.caffeine_loading_abs} unit="mg"
                           readOnly={!isFieldEditable}
                           error={vr("caffeine_loading_abs")?.level === "error"}
@@ -1744,25 +1755,27 @@ export default function FormD() {
                           onChange={e => { touch("caffeine_loading_abs"); handleChange(e); }} />
                       </FieldWrap>
                       <div className="form-group">
-                        <label>32b. Dose (in mg/kg/day) <FieldLogicBadge type="auto" title="Absolute dose ÷ birth weight" /></label>
+                        <label>16 (<span className="crf-subnum">c</span>) Dose (in mg/kg) <FieldLogicBadge type="auto" title="Loading is a single dose: absolute mg ÷ birth weight kg. Typical 20 mg/kg." /></label>
                         <div style={{ position:"relative" }}>
-                          <input value={
-                              formData.caffeine_loading_abs && formData.birth_weight
-                                ? (formData.caffeine_loading_abs / (formData.birth_weight / 1000)).toFixed(2) : ""
-                            } readOnly className="readonly-input" style={{ paddingRight:72 }} />
-                          <span style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"#94a3b8",fontWeight:600 }}>mg/kg/day</span>
+                          <input value={formatCaffeineMgPerKg(formData.caffeine_loading_abs, formData.birth_weight)}
+                            readOnly className="readonly-input" style={{ paddingRight:72 }} />
+                          <span style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"#94a3b8",fontWeight:600 }}>mg/kg</span>
                         </div>
+                        {typicalCaffeineLoadingMg(formData.birth_weight) != null && (
+                          <div className="field-note">Typical loading 20 mg/kg = {typicalCaffeineLoadingMg(formData.birth_weight).toFixed(1)} mg</div>
+                        )}
                       </div>
                     </div>
                     <div className="form-grid-2" style={{ marginTop:12 }}>
                       <FieldWrap name="caffeine_date"
-                    formData={formData} touched={touched} label="33. Date of Administration (DD/MM/YY)" required={isRequired("caffeine_date")}>
+                    formData={formData} touched={touched} label="16 (d) Date of Administration (DD/MM/YY)" required={isRequired("caffeine_date")}>
                         <DatePicker
                           selected={formData.caffeine_date ? parseDateOnly(formData.caffeine_date) : null}
                           onChange={date => {
                             touch("caffeine_date");
                             setFormData(p => ({ ...p, caffeine_date: date ? toDateOnlyValue(date) : "" }));
                           }}
+                          minDate={parseDateOnly(formData.date_of_birth) || undefined}
                           maxDate={new Date()}
                           dateFormat="dd-MM-yyyy" placeholderText="Select date"
                           readOnly={!isFieldEditable} />
@@ -1780,7 +1793,7 @@ export default function FormD() {
                     <div className="form-grid-2">
                       <FieldWrap name="caffeine_maint_abs"
                     formData={formData} touched={touched}
-                        label="34. Absolute Dose" required={isRequired("caffeine_maint_abs")}>
+                        label="16 (e) Maintenance Absolute Dose" required={isRequired("caffeine_maint_abs")}>
                         <UnitInput name="caffeine_maint_abs" value={formData.caffeine_maint_abs} unit="mg"
                           readOnly={!isFieldEditable}
                           error={vr("caffeine_maint_abs")?.level === "error"}
@@ -1788,12 +1801,10 @@ export default function FormD() {
                           onChange={e => { touch("caffeine_maint_abs"); handleChange(e); }} />
                       </FieldWrap>
                       <div className="form-group">
-                        <label>35. Dose (in mg/kg/day) <FieldLogicBadge type="auto" title="Absolute maintenance dose ÷ birth weight" /></label>
+                        <label>16 (<span className="crf-subnum">f</span>) Dose (in mg/kg/day) <FieldLogicBadge type="auto" title="Maintenance is total daily dose: absolute mg ÷ birth weight kg (not split by OD/BD)" /></label>
                         <div style={{ position:"relative" }}>
-                          <input value={
-                              formData.caffeine_maint_abs && formData.birth_weight
-                                ? (formData.caffeine_maint_abs / (formData.birth_weight / 1000)).toFixed(2) : ""
-                            } readOnly className="readonly-input" style={{ paddingRight:72 }} />
+                          <input value={formatCaffeineMgPerKg(formData.caffeine_maint_abs, formData.birth_weight)}
+                            readOnly className="readonly-input" style={{ paddingRight:72 }} />
                           <span style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"#94a3b8",fontWeight:600 }}>mg/kg/day</span>
                         </div>
                       </div>
@@ -1801,7 +1812,7 @@ export default function FormD() {
                     <div className="form-grid-2" style={{ marginTop:12 }}>
                       <FieldWrap name="caffeine_maint_frequency"
                     formData={formData} touched={touched}
-                        label="Maintenance frequency" required={isRequired("caffeine_maint_frequency")}>
+                        label="16 (g) Maintenance frequency" required={isRequired("caffeine_maint_frequency")}>
                         <SegmentedToggle name="caffeine_maint_frequency" value={formData.caffeine_maint_frequency}
                           options={["OD","BD","TID","QID"]} onChange={handleToggle}
                           disabled={!isFieldEditable} />
@@ -1813,13 +1824,13 @@ export default function FormD() {
                   </>
                   )}
                 </div>
-                {/* Field 36 — Immediate KMC */}
+                {/* Field 17 — Immediate KMC */}
                 <div className="obstetric-subcard" style={{ marginTop:16 }}>
                   <div className="obstetric-subcard__title">Kangaroo Mother Care</div>
                   <div className="form-grid-2">
                     <FieldWrap name="immediate_kmc"
                     formData={formData} touched={touched}
-                      label="36. Immediate KMC" required={true}>
+                      label="17. Immediate KMC" required={true}>
                       <SegmentedToggle name="immediate_kmc" value={formData.immediate_kmc}
                         options={["Yes","No"]} onChange={handleToggle}
                         disabled={!isFieldEditable} />
@@ -1832,7 +1843,7 @@ export default function FormD() {
                   <div className="form-grid-2">
                     <FieldWrap name="transferred_out_day1"
                     formData={formData} touched={touched}
-                      label="37. Transferred out on 1st day?" required={true}>
+                      label="18. Transferred out on 1st day?" required={true}>
                       <SegmentedToggle name="transferred_out_day1" value={formData.transferred_out_day1}
                         options={["Yes","No"]} onChange={handleToggle}
                         disabled={!isFieldEditable} />
@@ -1842,7 +1853,7 @@ export default function FormD() {
                   {formData.transferred_out_day1 === "Yes" && (
                     <FieldWrap name="transferred_out_location"
                     formData={formData} touched={touched}
-                      label="Location" required={true}>
+                      label="18 (a) Location" required={true}>
                       <div className="fd-location-pills">
                         {helperLocationOptions({
                           noDR: true,
@@ -1905,6 +1916,7 @@ export default function FormD() {
                         touch("date");
                         setFormData(p => ({ ...p, date: date ? toDateOnlyValue(date) : "" }));
                       }}
+                      minDate={parseDateOnly(formData.date_of_birth) || undefined}
                       maxDate={new Date()}
                       dateFormat="dd-MM-yyyy" placeholderText="Select date"
                       readOnly={!isFieldEditable} />

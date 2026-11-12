@@ -660,11 +660,11 @@ export default function AdverseEventsForm() {
       <SectionCard icon={ClipboardList} title="Identification">
         <div className="ae-grid-4">
           <div className="form-group">
-            <label>Enrollment ID</label>
+            <label>1. Enrollment ID</label>
             <input className="ae-input" value={formData.enrollment_id} readOnly />
           </div>
           <div className="form-group">
-            <label>Mother&apos;s name</label>
+            <label>2. Mother&apos;s name</label>
             <input
               className="ae-input"
               value={formData.mother_name}
@@ -672,7 +672,7 @@ export default function AdverseEventsForm() {
             />
           </div>
           <div className="form-group">
-            <label>Baby&apos;s UID</label>
+            <label>3. Baby&apos;s UID</label>
             <input
               className="ae-input"
               value={formData.baby_uid}
@@ -680,7 +680,7 @@ export default function AdverseEventsForm() {
             />
           </div>
           <div className="form-group">
-            <label>Maternal UID</label>
+            <label>4. Maternal UID</label>
             <input
               className="ae-input"
               value={formData.maternal_uid}
@@ -695,7 +695,7 @@ export default function AdverseEventsForm() {
           Was any adverse event reported? If Yes, fill the details below.
         </p>
         <div className="ae-qa">
-          <span className="ae-q">Any adverse event reported?</span>
+          <span className="ae-q">5. Any adverse event reported?</span>
           <YesNo value={formData.has_adverse_event} onChange={setHasAE} />
         </div>
         <div className="ae-scan-row">

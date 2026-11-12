@@ -1238,6 +1238,11 @@
   text-transform: none;
   letter-spacing: 0.01em;
 }
+.rcn-field-label .crf-subnum,
+.rcn-subsection-title .crf-subnum {
+  text-transform: none;
+  letter-spacing: 0;
+}
 .rcn-field-sub {
   font-size: 10px;
   font-weight: 500;

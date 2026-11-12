@@ -596,6 +596,16 @@ export function mmlMaxAllowedTimeForSheetDate(sheetDateYmd, now = new Date()) {
   return `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
 }
 
+/** Earliest HH:mm on a DMS sheet: birth clock on the date of birth, else 00:00. */
+export function mmlMinAllowedTimeForSheetDate(sheetDateYmd, dobYmd, tobHm) {
+  if (!sheetDateYmd || !dobYmd) return "00:00";
+  if (sheetDateYmd < String(dobYmd).slice(0, 10)) return "23:59";
+  if (sheetDateYmd > String(dobYmd).slice(0, 10)) return "00:00";
+  const t = String(tobHm || "").match(/^(\d{1,2}):(\d{2})/);
+  if (!t) return "00:00";
+  return `${pad2(Number(t[1]))}:${t[2]}`;
+}
+
 export function mmlClampTimeForSheetDate(sheetDateYmd, timeHm, now = new Date()) {
   if (!timeHm) return timeHm;
   const max = mmlMaxAllowedTimeForSheetDate(sheetDateYmd, now);

@@ -141,11 +141,27 @@ function RText({ name, placeholder }) {
   );
 }
 
+function withCrfSubnum(label) {
+  if (typeof label !== "string") return label;
+  const re = /(\d+) \(([a-k])\)/g;
+  const parts = [];
+  let last = 0;
+  let m;
+  while ((m = re.exec(label))) {
+    if (m.index > last) parts.push(label.slice(last, m.index));
+    parts.push(m[1], " (", <span className="crf-subnum" key={m.index}>{m[2]}</span>, ")");
+    last = m.index + m[0].length;
+  }
+  if (!parts.length) return label;
+  if (last < label.length) parts.push(label.slice(last));
+  return parts;
+}
+
 // Additional-info column: small labeled fields stacked vertically.
 function Mini({ label, children }) {
   return (
     <div className="crf-mini">
-      <span className="crf-mini-label">{label}</span>
+      <span className="crf-mini-label">{withCrfSubnum(label)}</span>
       {children}
     </div>
   );
@@ -1867,17 +1883,17 @@ export default function FormI() {
                   <RSelect name="encounter36_other" options={["Attendant", "Treating physician", "Others"]} />
                 </Mini>
                 {formData.encounter36_other === "Others" && (
-                  <MiniText label="23. Specify others" name="encounter36_other_text" placeholder="Specify" />
+                  <MiniText label="23 (a) Specify others" name="encounter36_other_text" placeholder="Specify" />
                 )}
               </>
             )}
             {!formData.encounter36_method && (
               <>
-                <Mini label="If not assessed: reason for loss to follow-up">
+                <Mini label="22 (a) If not assessed: reason for loss to follow-up">
                   <RSelect name="ltfu36_reason" options={LTFU_REASONS} placeholder="Not lost / not yet due" />
                 </Mini>
                 {formData.ltfu36_reason === "Other" && (
-                  <MiniText label="Specify reason" name="ltfu36_reason_other" placeholder="Specify" />
+                  <MiniText label="22 (b) Specify reason" name="ltfu36_reason_other" placeholder="Specify" />
                 )}
               </>
             )}
@@ -1897,11 +1913,12 @@ export default function FormI() {
               definition="BPD is assessed based on radiographic confirmation + respiratory support/FiO2 for ≥ 3 consecutive days at 36 weeks PMA completion as per NICHD criteria (2018)"
               result={
                 <div className="crf-stack">
-                  <div className="crf-stack-item"><span>a) Radiographic disease</span><RYesNo name="bpd36_nichd_radiographic" /></div>
-                  <div className="crf-stack-item"><span>b) FiO2 at 36 wks</span><RNum name="bpd36_nichd_fio2" unit="%" /></div>
-                  <div className="crf-stack-item"><span>c) Flow rate</span><RNum name="bpd36_nichd_flow" unit="L/min" /></div>
-                  <RSelect name="bpd36_nichd_grade" placeholder="Grade"
-                    options={["Room air → No BPD", "NC < 1L + FiO2 0.22–0.29 → Grade 1", "NC 1–<3L + FiO2 0.22–0.29 or NIPPV + FiO2 0.21 → Grade 1", "NC ≥ 3L or NIPPV + FiO2 0.22–0.29 → Grade 2", "NIPPV + FiO2 ≥ 0.30 or IMV → Grade 3"]} />
+                  <div className="crf-stack-item"><span>31 (a) Radiographic disease</span><RYesNo name="bpd36_nichd_radiographic" /></div>
+                  <div className="crf-stack-item"><span>31 (b) FiO2 at 36 wks</span><RNum name="bpd36_nichd_fio2" unit="%" /></div>
+                  <div className="crf-stack-item"><span>31 (c) Flow rate</span><RNum name="bpd36_nichd_flow" unit="L/min" /></div>
+                  <div className="crf-stack-item"><span>31 (d) Grade</span>
+                    <RSelect name="bpd36_nichd_grade" placeholder="Grade"
+                      options={["Room air → No BPD", "NC < 1L + FiO2 0.22–0.29 → Grade 1", "NC 1–<3L + FiO2 0.22–0.29 or NIPPV + FiO2 0.21 → Grade 1", "NC ≥ 3L or NIPPV + FiO2 0.22–0.29 → Grade 2", "NIPPV + FiO2 ≥ 0.30 or IMV → Grade 3"]} /></div>
                 </div>
               }
               showInfo={!!formData.bpd36_nichd_grade}
@@ -1916,8 +1933,8 @@ export default function FormI() {
             <CrfRow num={36} outcome="Brain injury"
               definition="Papile Classification for IVH / De Vries Classification for cPVL"
               result={<>
-                <div className="crf-stack-item"><span>a) IVH Grade ≥ III</span><RYesNo name="ivh36_grade3" /></div>
-                <div className="crf-stack-item"><span>b) cPVL Grade ≥ II</span><RYesNo name="cpvl36_grade2" /></div>
+                <div className="crf-stack-item"><span>36 (a) IVH Grade ≥ III</span><RYesNo name="ivh36_grade3" /></div>
+                <div className="crf-stack-item"><span>36 (b) cPVL Grade ≥ II</span><RYesNo name="cpvl36_grade2" /></div>
               </>}
               showInfo={formData.ivh36_grade3 === "Yes" || formData.cpvl36_grade2 === "Yes"}
               info={<>
@@ -1991,17 +2008,17 @@ export default function FormI() {
                   <RSelect name="encounter40_other" options={["Attendant", "Treating physician", "Others"]} />
                 </Mini>
                 {formData.encounter40_other === "Others" && (
-                  <MiniText label="43. Specify others" name="encounter40_other_text" placeholder="Specify" />
+                  <MiniText label="43 (a) Specify others" name="encounter40_other_text" placeholder="Specify" />
                 )}
               </>
             )}
             {!formData.encounter40_method && (
               <>
-                <Mini label="If not assessed: reason for loss to follow-up">
+                <Mini label="42 (a) If not assessed: reason for loss to follow-up">
                   <RSelect name="ltfu40_reason" options={LTFU_REASONS} placeholder="Not lost / not yet due" />
                 </Mini>
                 {formData.ltfu40_reason === "Other" && (
-                  <MiniText label="Specify reason" name="ltfu40_reason_other" placeholder="Specify" />
+                  <MiniText label="42 (b) Specify reason" name="ltfu40_reason_other" placeholder="Specify" />
                 )}
               </>
             )}
@@ -2020,8 +2037,8 @@ export default function FormI() {
               </>} />
             <CrfRow num={52} outcome="Brain injury" definition="Papile Classification for IVH / De Vries Classification for cPVL"
               result={<>
-                <div className="crf-stack-item"><span>a) IVH Grade ≥ III</span><RYesNo name="ivh40_grade3" /></div>
-                <div className="crf-stack-item"><span>b) cPVL Grade ≥ II</span><RYesNo name="cpvl40_grade2" /></div>
+                <div className="crf-stack-item"><span>52 (a) IVH Grade ≥ III</span><RYesNo name="ivh40_grade3" /></div>
+                <div className="crf-stack-item"><span>52 (b) cPVL Grade ≥ II</span><RYesNo name="cpvl40_grade2" /></div>
               </>}
               showInfo={formData.ivh40_grade3 === "Yes" || formData.cpvl40_grade2 === "Yes"}
               info={<>
@@ -2100,17 +2117,17 @@ export default function FormI() {
                   <RSelect name="encounter44_other" options={["Attendant", "Treating physician", "Others"]} />
                 </Mini>
                 {formData.encounter44_other === "Others" && (
-                  <MiniText label="60. Specify others" name="encounter44_other_text" placeholder="Specify" />
+                  <MiniText label="60 (a) Specify others" name="encounter44_other_text" placeholder="Specify" />
                 )}
               </>
             )}
             {!formData.encounter44_method && (
               <>
-                <Mini label="If not assessed: reason for loss to follow-up">
+                <Mini label="59 (a) If not assessed: reason for loss to follow-up">
                   <RSelect name="ltfu44_reason" options={LTFU_REASONS} placeholder="Not lost / not yet due" />
                 </Mini>
                 {formData.ltfu44_reason === "Other" && (
-                  <MiniText label="Specify reason" name="ltfu44_reason_other" placeholder="Specify" />
+                  <MiniText label="59 (b) Specify reason" name="ltfu44_reason_other" placeholder="Specify" />
                 )}
               </>
             )}
@@ -2129,8 +2146,8 @@ export default function FormI() {
               </>} />
             <CrfRow num={69} outcome="Brain injury" definition="Papile Classification for IVH / De Vries Classification for cPVL"
               result={<>
-                <div className="crf-stack-item"><span>a) IVH Grade ≥ III</span><RYesNo name="ivh44_grade3" /></div>
-                <div className="crf-stack-item"><span>b) cPVL Grade ≥ II</span><RYesNo name="cpvl44_grade2" /></div>
+                <div className="crf-stack-item"><span>69 (a) IVH Grade ≥ III</span><RYesNo name="ivh44_grade3" /></div>
+                <div className="crf-stack-item"><span>69 (b) cPVL Grade ≥ II</span><RYesNo name="cpvl44_grade2" /></div>
               </>}
               showInfo={formData.ivh44_grade3 === "Yes" || formData.cpvl44_grade2 === "Yes"}
               info={<>
@@ -2183,11 +2200,11 @@ export default function FormI() {
             <CrfRow num={75} outcome="Duration of resp support" definition="Cumulative days of respiratory support during hospital stay"
               result={
                 <div className="crf-stack">
-                  <div className="crf-stack-item"><span>a) Invasive mech. ventilation</span><RNum name="mv_days" unit="d" /></div>
-                  <div className="crf-stack-item"><span>b) Non-invasive ventilation</span><RNum name="niv_days" unit="d" /></div>
-                  <div className="crf-stack-item"><span>c) CPAP</span><RNum name="cpap_days" unit="d" /></div>
-                  <div className="crf-stack-item"><span>d) HFNC</span><RNum name="hfnc_days" unit="d" /></div>
-                  <div className="crf-stack-item"><span>e) NIPPV</span><RNum name="nippv_days" unit="d" /></div>
+                  <div className="crf-stack-item"><span>75 (a) Invasive mech. ventilation</span><RNum name="mv_days" unit="d" /></div>
+                  <div className="crf-stack-item"><span>75 (b) Non-invasive ventilation</span><RNum name="niv_days" unit="d" /></div>
+                  <div className="crf-stack-item"><span>75 (c) CPAP</span><RNum name="cpap_days" unit="d" /></div>
+                  <div className="crf-stack-item"><span>75 (d) HFNC</span><RNum name="hfnc_days" unit="d" /></div>
+                  <div className="crf-stack-item"><span>75 (e) NIPPV</span><RNum name="nippv_days" unit="d" /></div>
                 </div>
               } />
             <CrfRow num={76} outcome="Sepsis (overall)" definition="Any type"

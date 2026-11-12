@@ -240,6 +240,7 @@ class BirthResuscitation(Base):
     vaginal_delivery_type = Column(String, nullable=True)
     lscs_type = Column(String, nullable=True)
     gender = Column(String)
+    designated_gender = Column(String, nullable=True)
 
     poor_resp_efforts = Column(Boolean)
     poor_muscle_tone = Column(Boolean)

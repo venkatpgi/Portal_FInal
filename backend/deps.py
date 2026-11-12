@@ -133,6 +133,7 @@ def get_current_user(
         user.id,
         (user.full_name or user.username or "").strip() or user.username,
     )  # audit_trail.py: person's name on this request's changes
+    db.info["audit_explicit_save"] = bool(getattr(request.state, "explicit_save", False))
     return user
 
 

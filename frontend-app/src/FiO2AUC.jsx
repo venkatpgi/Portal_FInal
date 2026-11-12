@@ -1014,7 +1014,7 @@ export default function Fio2AUCForm() {
                   <div className="day-body">
                     <div className="start-time-grid">
                       <div className="start-time-field">
-                        <label>Start timing hour of life - 1-12hr</label>
+                        <label>1. Start timing hour of life - 1-12hr</label>
                         <input
                           type="time"
                           value={d.start1 || ""}
@@ -1022,7 +1022,7 @@ export default function Fio2AUCForm() {
                           className="entry-input" />
                       </div>
                       <div className="start-time-field">
-                        <label>Start timing hour of life - 13-24h</label>
+                        <label>2. Start timing hour of life - 13-24h</label>
                         <input
                           type="time"
                           value={d.start2 || ""}

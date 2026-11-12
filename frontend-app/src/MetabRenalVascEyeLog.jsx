@@ -2453,12 +2453,12 @@ export default function MetabRenalVascEyeLog() {
                 />
                 {hypoRxRequired && (
                   <div className="rcn-conditional-block">
-                    <YNRow label="3. Hypoglycemia Rx (required — low reading present)" value={metabData.hypoglycemia_rx}
+                    <YNRow label="2 (a) Hypoglycemia Rx (required — low reading present)" value={metabData.hypoglycemia_rx}
                       onChange={v=>setMetab("hypoglycemia_rx",v)} disabled={!isFieldEditable}/>
                   </div>
                 )}
                 <GlucoseTextRow
-                  label="4. Highest glucose reading (if >125 mg/dL)"
+                  label="3. Highest glucose reading (if >125 mg/dL)"
                   value={metabData.highest_glucose}
                   onChange={v => setGlucoseField("highest_glucose", v)}
                   disabled={!isFieldEditable}
@@ -2469,14 +2469,14 @@ export default function MetabRenalVascEyeLog() {
                 />
                 {hyperRxRequired && (
                   <div className="rcn-conditional-block">
-                    <YNRow label="5. Hyperglycemia Rx (Insulin)" value={metabData.insulin}
+                    <YNRow label="3 (a) Hyperglycemia Rx (Insulin)" value={metabData.insulin}
                       onChange={v=>setMetab("insulin",v)} disabled={!isFieldEditable}/>
                   </div>
                 )}
 
                 <div className="rcn-readings-field">
                   <div className="rcn-field-label-row">
-                    <span className="rcn-yn-label">6. Metabolic acidosis (pH&lt;7.2) — enter readings</span>
+                    <span className="rcn-yn-label">4. Metabolic acidosis (pH&lt;7.2) — enter readings</span>
                     <StatusToggleGroup status={metabData.metabolic_acidosis_status}
                       onChange={s => setAcidosisStatus(s)}
                       disabled={!isFieldEditable} />
@@ -2522,7 +2522,7 @@ export default function MetabRenalVascEyeLog() {
 
                 <div className="rcn-readings-field">
                   <div className="rcn-field-label-row">
-                    <span className="rcn-yn-label">7. Sodium value (&lt;135 or &gt;142)</span>
+                    <span className="rcn-yn-label">5. Sodium value (&lt;135 or &gt;142)</span>
                     <StatusToggleGroup status={labStatus("sodium_value")}
                       onChange={s => setLabStatus("sodium_value", s)}
                       disabled={!isFieldEditable} allowAwaited={true} />
@@ -2558,7 +2558,7 @@ export default function MetabRenalVascEyeLog() {
 
                 <div className="rcn-readings-field">
                   <div className="rcn-field-label-row">
-                    <span className="rcn-yn-label">8. Potassium value (&lt;3.5 or &gt;6)</span>
+                    <span className="rcn-yn-label">6. Potassium value (&lt;3.5 or &gt;6)</span>
                     <StatusToggleGroup status={labStatus("potassium_value")}
                       onChange={s => setLabStatus("potassium_value", s)}
                       disabled={!isFieldEditable} allowAwaited={true} />
@@ -2594,7 +2594,7 @@ export default function MetabRenalVascEyeLog() {
 
                 <div className="rcn-readings-field">
                   <div className="rcn-field-label-row">
-                    <span className="rcn-yn-label">9. Ionized Calcium value (&lt;0.9 or &gt;1.2)</span>
+                    <span className="rcn-yn-label">7. Ionized Calcium value (&lt;0.9 or &gt;1.2)</span>
                     <StatusToggleGroup status={labStatus("ionized_calcium_value")}
                       onChange={s => setLabStatus("ionized_calcium_value", s)}
                       disabled={!isFieldEditable} allowAwaited={true} />
@@ -2628,7 +2628,7 @@ export default function MetabRenalVascEyeLog() {
                   )}
                 </div>
 
-                <YNRow label="10. Osteopenia suspected" value={metabData.osteopenia_suspected}
+                <YNRow label="8. Osteopenia suspected" value={metabData.osteopenia_suspected}
                   onChange={v=>setMetab("osteopenia_suspected",v)} disabled={!isFieldEditable}/>
               </div>
             </SectionCard>
@@ -2637,13 +2637,13 @@ export default function MetabRenalVascEyeLog() {
             <SectionCard iconEmoji="💧" title="4.2 Renal"
               answered={renalAnswered} total={renalTotal} defaultOpen={true}>
               <div className="rcn-yn-list">
-                <YNRow label="11. AKI suspected" value={renalData.aki_suspected}
+                <YNRow label="9. AKI suspected" value={renalData.aki_suspected}
                   onChange={v=>setRenal("aki_suspected",v)} disabled={!isFieldEditable}/>
               </div>
 
               <div className="rcn-yn-list" style={{ marginTop: 12 }}>
                 <GlucoseTextRow
-                  label="12. Serum Creatinine (mg/dL)"
+                  label="10. Serum Creatinine (mg/dL)"
                   value={renalData.creatinine_value}
                   range="h5_creatinine"
                   onChange={v => setRenal("creatinine_value", v)}
@@ -2653,7 +2653,7 @@ export default function MetabRenalVascEyeLog() {
                   allowAwaited={true}
                   allowNotDone={true}
                 />
-                <NumRow label="13a. Urine output 8am → 2pm (6 h)" value={renalData.urine_output_8am_2pm}
+                <NumRow label="11 (a) Urine output 8am → 2pm (6 h)" value={renalData.urine_output_8am_2pm}
                   onChange={v=>setRenal("urine_output_8am_2pm",v)} disabled={!isFieldEditable}
                   unit="ml"
                   computedRate={urineRates.am}
@@ -2661,7 +2661,7 @@ export default function MetabRenalVascEyeLog() {
                   computedUnit="ml/kg/hr"
                   status={renalData.urine_output_8am_2pm_status}
                   onStatusChange={v=>setRenal("urine_output_8am_2pm_status",v)}/>
-                <NumRow label="13b. Urine output 2pm → 8pm (6 h)" value={renalData.urine_output_2pm_8pm}
+                <NumRow label="11 (b) Urine output 2pm → 8pm (6 h)" value={renalData.urine_output_2pm_8pm}
                   onChange={v=>setRenal("urine_output_2pm_8pm",v)} disabled={!isFieldEditable}
                   unit="ml"
                   computedRate={urineRates.pm}
@@ -2669,7 +2669,7 @@ export default function MetabRenalVascEyeLog() {
                   computedUnit="ml/kg/hr"
                   status={renalData.urine_output_2pm_8pm_status}
                   onStatusChange={v=>setRenal("urine_output_2pm_8pm_status",v)}/>
-                <NumRow label="13c. Urine output 8pm → 8am (12 h)" value={renalData.urine_output_8pm_8am}
+                <NumRow label="11 (c) Urine output 8pm → 8am (12 h)" value={renalData.urine_output_8pm_8am}
                   onChange={v=>setRenal("urine_output_8pm_8am",v)} disabled={!isFieldEditable}
                   unit="ml"
                   computedRate={urineRates.night}
@@ -2679,11 +2679,11 @@ export default function MetabRenalVascEyeLog() {
                   onStatusChange={v=>setRenal("urine_output_8pm_8am_status",v)}/>
                 <div className="rcn-field-hint">{urineWeightHint}</div>
                 <ReadonlyAutoField
-                  label="13. Urine output total"
+                  label="11. Urine output total"
                   value={urineRates.total}
                   unit="ml/kg/hr"
                 />
-                <YNRow label="14. Dialysis/CRRT" value={renalData.dialysis_crrt}
+                <YNRow label="12. Dialysis/CRRT" value={renalData.dialysis_crrt}
                   onChange={v=>setRenal("dialysis_crrt",v)} disabled={!isFieldEditable}/>
               </div>
             </SectionCard>
@@ -2692,7 +2692,7 @@ export default function MetabRenalVascEyeLog() {
             <SectionCard iconEmoji="🌡️" title="4.3 Thermoregulation"
               answered={thermoAnswered} total={thermoTotal} defaultOpen={true}>
               <div className="rcn-yn-list">
-                <NumRow label="15. Axillary Temperature (<36.5 or >37.5)" value={thermoData.axillary_temperature}
+                <NumRow label="13. Axillary Temperature (<36.5 or >37.5)" value={thermoData.axillary_temperature}
                   onChange={v=>setThermo("axillary_temperature",v)} disabled={!isFieldEditable} unit="°C"/>
               </div>
             </SectionCard>
@@ -2701,18 +2701,18 @@ export default function MetabRenalVascEyeLog() {
             <SectionCard iconEmoji="🩺" title="4.4 Vascular Access"
               answered={vascAnswered} total={vascTotal} defaultOpen={true}>
               <div className="rcn-yn-list">
-                <YNRow label="16. PICC in situ"           value={vascData.picc_in_situ}         onChange={v=>setVasc("picc_in_situ",v)}         disabled={!isFieldEditable}/>
-                <YNRow label="17. UVC in situ"            value={vascData.uvc_in_situ}          onChange={v=>setVasc("uvc_in_situ",v)}          disabled={!isFieldEditable}/>
-                <YNRow label="18. UAC in situ"            value={vascData.uac_in_situ}          onChange={v=>setVasc("uac_in_situ",v)}          disabled={!isFieldEditable}/>
-                <YNRow label="19. Peripheral IV"          value={vascData.peripheral_iv}        onChange={v=>setVasc("peripheral_iv",v)}        disabled={!isFieldEditable}/>
-                <YNRow label="20. Peripheral arterial"    value={vascData.peripheral_arterial}  onChange={v=>setVasc("peripheral_arterial",v)}  disabled={!isFieldEditable}/>
+                <YNRow label="14. PICC in situ"           value={vascData.picc_in_situ}         onChange={v=>setVasc("picc_in_situ",v)}         disabled={!isFieldEditable}/>
+                <YNRow label="15. UVC in situ"            value={vascData.uvc_in_situ}          onChange={v=>setVasc("uvc_in_situ",v)}          disabled={!isFieldEditable}/>
+                <YNRow label="16. UAC in situ"            value={vascData.uac_in_situ}          onChange={v=>setVasc("uac_in_situ",v)}          disabled={!isFieldEditable}/>
+                <YNRow label="17. Peripheral IV"          value={vascData.peripheral_iv}        onChange={v=>setVasc("peripheral_iv",v)}        disabled={!isFieldEditable}/>
+                <YNRow label="18. Peripheral arterial"    value={vascData.peripheral_arterial}  onChange={v=>setVasc("peripheral_arterial",v)}  disabled={!isFieldEditable}/>
                 {extravasationRequired && (
                   <div className="rcn-conditional-block">
-                    <YNRow label="21. Extravasation injury" value={vascData.extravasation_injury}
+                    <YNRow label="18 (a) Extravasation injury" value={vascData.extravasation_injury}
                       onChange={v=>setVasc("extravasation_injury",v)} disabled={!isFieldEditable}/>
                   </div>
                 )}
-                <YNRow label="22. Line complication"      value={vascData.line_complication}    onChange={v=>setVasc("line_complication",v)}    disabled={!isFieldEditable}/>
+                <YNRow label="19. Line complication"      value={vascData.line_complication}    onChange={v=>setVasc("line_complication",v)}    disabled={!isFieldEditable}/>
               </div>
             </SectionCard>
 
@@ -2720,13 +2720,13 @@ export default function MetabRenalVascEyeLog() {
             <SectionCard iconEmoji="👁️" title="4.5 Ophthalmology"
               answered={eyeAnswered} total={eyeTotal} defaultOpen={true}>
               <div className="rcn-yn-list">
-                <YNRow label="23. ROP screening due" value={eyeData.rop_screening_due}
+                <YNRow label="20. ROP screening due" value={eyeData.rop_screening_due}
                   onChange={v=>setEye("rop_screening_due",v)} disabled={!isFieldEditable}/>
-                <YNRow label="24. ROP screened" value={eyeData.rop_screened}
+                <YNRow label="21. ROP screened" value={eyeData.rop_screened}
                   onChange={v=>setEye("rop_screened",v)} disabled={!isFieldEditable}/>
                 {ropScreenedYes && (
                   <div className="rcn-conditional-block">
-                    <YNRow label="25. ROP detected" value={eyeData.rop_detected}
+                    <YNRow label="21 (a) ROP detected" value={eyeData.rop_detected}
                       onChange={v=>setEye("rop_detected",v)} disabled={!isFieldEditable}/>
                   </div>
                 )}
@@ -2736,8 +2736,8 @@ export default function MetabRenalVascEyeLog() {
                 <div className="rcn-subsection">
                   <div className="rcn-subsection-title">Optional detail (not on paper CRF)</div>
                   <div className="rcn-yn-list" style={{marginTop:16}}>
-                    <YNRow label="Plus Disease"   value={eyeData.plus_disease}   onChange={v=>setEye("plus_disease",v)}   disabled={!isFieldEditable}/>
-                    <YNRow label="ROP Treatment"  value={eyeData.rop_treatment}  onChange={v=>setEye("rop_treatment",v)}  disabled={!isFieldEditable}/>
+                    <YNRow label="21 (b) Plus Disease"   value={eyeData.plus_disease}   onChange={v=>setEye("plus_disease",v)}   disabled={!isFieldEditable}/>
+                    <YNRow label="21 (c) ROP Treatment"  value={eyeData.rop_treatment}  onChange={v=>setEye("rop_treatment",v)}  disabled={!isFieldEditable}/>
                   </div>
                 </div>
               )}
@@ -2746,6 +2746,9 @@ export default function MetabRenalVascEyeLog() {
             {/* ════ 4.6 LOCATION ════ */}
             <SectionCard iconEmoji="📍" title="4.6 Location"
               answered={ans(tailData.location) ? 1 : 0} total={1} defaultOpen={true}>
+              <div className="rcn-yn-list" style={{ marginBottom: 8 }}>
+                <span className="rcn-yn-label">22. Location</span>
+              </div>
               <PillMulti
                 options={helperLocationOptions({ selected: tailData.location })}
                 labelOf={opt => locationLabel(opt, { enrollmentId, site: patientData?.site_name || patientData?.site })}
@@ -2760,7 +2763,7 @@ export default function MetabRenalVascEyeLog() {
               answered={tailData.survived_the_day === true || tailData.survived_the_day === false ? 1 : 0}
               total={1} defaultOpen={true}>
               <div className="rcn-yn-list">
-                <YNRow label="Survived the day" value={tailData.survived_the_day}
+                <YNRow label="23. Survived the day" value={tailData.survived_the_day}
                   onChange={v=>setTail("survived_the_day",v)} disabled={!isFieldEditable}/>
               </div>
               {tailData.survived_the_day === false && laterDaysSaved.length > 0 && (

@@ -57,6 +57,7 @@ BIRTH_RESUSCITATION_COLUMN_PATCHES = [
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS gestation_rand_weeks INTEGER",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS gestation_rand_days INTEGER",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS intrauterine_centile VARCHAR",
+    "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS designated_gender VARCHAR",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS vaginal_delivery_type VARCHAR",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS lscs_type VARCHAR",
     "ALTER TABLE birth_resuscitation ADD COLUMN IF NOT EXISTS hr_above_100 BOOLEAN",

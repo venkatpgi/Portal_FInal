@@ -296,6 +296,23 @@ _DATA_CHECK_SKIP_PREFIXES = ("/auth/", "/data-queries", "/dashboard/", "/users",
 
 
 @app.middleware("http")
+async def mark_explicit_form_save(request: Request, call_next):
+    """Form Save sends explicitly_saved=true. Audit History uses that as action SAVE."""
+    flag = False
+    if request.method in ("POST", "PUT", "PATCH"):
+        try:
+            body = await request.body()
+            if body:
+                parsed = json.loads(body)
+                if isinstance(parsed, dict) and parsed.get("explicitly_saved") is True:
+                    flag = True
+        except Exception:
+            flag = False
+    request.state.explicit_save = flag
+    return await call_next(request)
+
+
+@app.middleware("http")
 async def data_checks_after_write_middleware(request: Request, call_next):
     response = await call_next(request)
     try:
@@ -4211,6 +4228,39 @@ def get_bpd_suggestion(
         )
 
 
+def _mml_any_postnatal_steroids(db: Session, enrollment_id: str) -> bool:
+    """True if DMS 5.2.D has a steroid name or dose on any sheet."""
+    rows = (
+        db.query(MinimalMonitoringDayLog)
+        .filter(MinimalMonitoringDayLog.enrollment_id == enrollment_id)
+        .all()
+    )
+    for row in rows:
+        data = getattr(row, "entries_json", None)
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except (TypeError, ValueError):
+                continue
+        if not isinstance(data, dict):
+            continue
+        block = data.get("resp_d")
+        if not isinstance(block, list):
+            continue
+        for entry in block:
+            if not isinstance(entry, dict):
+                continue
+            steroids = entry.get("postnatal_steroids")
+            if isinstance(steroids, list) and any(str(v).strip() for v in steroids):
+                return True
+            if isinstance(steroids, str) and steroids.strip():
+                return True
+            dose = entry.get("steroid_dose")
+            if dose not in (None, ""):
+                return True
+    return False
+
+
 @app.get("/neonatal-morbidities/resp-prefill/{enrollment_id}")
 def get_resp_prefill(
     enrollment_id: str,
@@ -4278,8 +4328,26 @@ def get_resp_prefill(
         .filter(RespCVNeuroDayLog.enrollment_id == enrollment_id)
         .all()
     )
+    mml_steroids = _mml_any_postnatal_steroids(db, enrollment_id)
     if not logs:
-        return {"has_data": False}
+        if not mml_steroids:
+            return {"has_data": False}
+        return {
+            "has_data": True,
+            "log_days_count": 0,
+            "postnatal_steroids": "Yes",
+        }
+
+    birth = (
+        db.query(BirthResuscitation)
+        .filter(BirthResuscitation.enrollment_id == enrollment_id)
+        .first()
+    )
+    dob = birth.date_of_birth if birth else None
+    for log in logs:
+        cal = calendar_date_for_nicu_day_from_birth(dob, log.nicu_day) if dob else None
+        if cal:
+            _overlay_resp_cv_from_mml(db, enrollment_id, log, cal)
 
     def any_day(attr):
         return any(getattr(l, attr) is True for l in logs)
@@ -4322,7 +4390,7 @@ def get_resp_prefill(
         "hfnc_days": count_days_with_mode("HFNC") or None,
         "invasive_ventilation": "Yes" if any_day("endotracheal_intubation") else "No",
         "imv_days": count_days("endotracheal_intubation") or None,
-        "postnatal_steroids": "Yes" if any_day("postnatal_steroids") else "No",
+        "postnatal_steroids": "Yes" if (any_day("postnatal_steroids") or mml_steroids) else "No",
         "pulmonary_hemorrhage": "Yes" if any_day("pulm_hemorrhage") else "No",
         "pneumothorax": "Yes" if any_day("pneumothorax") else "No",
         "chest_drain": "Yes" if any_day("chest_drain") else "No",
