@@ -34,9 +34,9 @@ export const RANGE_RULES = [
   // DMS
   R("dms_weight", "Weight", "g", null, null, 300, 6000),
   R("dms_temp", "Axillary temperature", "°C", 35, 37.8, 24, 42),
-  R("dms_sbp", "Systolic BP", "mmHg", 30, 90, 15, 140),
-  R("dms_dbp", "Diastolic BP", "mmHg", 10, 60, 5, 100),
-  R("dms_map", "Mean BP", "mmHg", 15, 60, 10, 100),
+  R("dms_sbp", "Systolic BP", "mmHg", 30, 110, 15, 140),
+  R("dms_dbp", "Diastolic BP", "mmHg", 10, 75, 5, 100),
+  R("dms_map", "Mean BP", "mmHg", 15, 85, 10, 100),
   R("dms_glucose", "Glucose", "mg/dL", 20, 200, 5, 600),
   R("dms_ph", "pH", "", 6.8, 7.6, 6.5, 7.9),
   R("dms_paco2", "PaCO₂", "mmHg", 20, 100, 10, 150),
