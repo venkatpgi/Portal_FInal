@@ -41,13 +41,21 @@ export default function RangeWatch({ children }) {
     };
   }, [onInput]);
 
-  // Drop entries whose input left the page (day or baby switched).
-  const live = Object.entries(items).filter(([, v]) => v.el.isConnected);
+  // Drop entries whose input left the page (row removed, day or baby
+  // switched): the page re-renders without this component, so watch the DOM.
   useEffect(() => {
-    if (live.length !== Object.keys(items).length) {
-      setItems(Object.fromEntries(live));
-    }
-  });
+    const root = ref.current;
+    if (!root || typeof MutationObserver === "undefined") return undefined;
+    const obs = new MutationObserver(() => {
+      setItems((prev) => {
+        const keep = Object.entries(prev).filter(([, v]) => v.el.isConnected && !v.el.disabled);
+        return keep.length === Object.keys(prev).length ? prev : Object.fromEntries(keep);
+      });
+    });
+    obs.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled"] });
+    return () => obs.disconnect();
+  }, []);
+  const live = Object.entries(items).filter(([, v]) => v.el.isConnected);
 
   return (
     <div ref={ref} className="range-watch-root">

@@ -299,7 +299,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <label>{serial}b. CPAP</label>
         <UnitInput name={`${prefix}_cpap`} value={formData[`${prefix}_cpap`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("cpap")} error={errors[`${prefix}_cpap`]}
-          placeholder="2–12"
+          placeholder="4–10"
           onChange={e => {
             const v = e.target.value;
             if (v === "" || (/^\d+$/.test(v) && Number(v) <= 20)) handleChange(e);
@@ -315,7 +315,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <label>{serial}c. PIP</label>
         <UnitInput name={`${prefix}_pip`} value={formData[`${prefix}_pip`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("pip")} error={errors[`${prefix}_pip`]}
-          placeholder="10–40"
+          placeholder="12–30"
           onChange={e => {
             const v = e.target.value;
             if (v === "" || (/^\d+$/.test(v) && Number(v) <= 50)) handleChange(e);
@@ -331,7 +331,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <label>{serial}d. PEEP</label>
         <UnitInput name={`${prefix}_peep`} value={formData[`${prefix}_peep`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("peep")} error={errors[`${prefix}_peep`]}
-          placeholder="2–10"
+          placeholder="4–10"
           onChange={e => {
             const v = e.target.value;
             if (v === "" || (/^\d+$/.test(v) && Number(v) <= 15)) handleChange(e);
@@ -347,7 +347,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <label>{serial}e. MAP</label>
         <UnitInput name={`${prefix}_map`} value={formData[`${prefix}_map`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("map")} error={errors[`${prefix}_map`]}
-          placeholder="5–20"
+          placeholder="6–18"
           onChange={e => {
             const v = e.target.value;
             if (v === "" || (/^\d+$/.test(v) && Number(v) <= 25)) handleChange(e);
@@ -1334,7 +1334,7 @@ export default function FormE() {
                     </label>
                     <UnitInput name="temp_dr" value={formData.temp_dr} unit="°C"
                       readOnly={!isFieldEditable} error={!!errors.temp_dr}
-                      placeholder="30–40" onChange={handleChange} />
+                      placeholder="35–38" onChange={handleChange} />
                     <FieldErr msg={errors.temp_dr} />
                   </div>
 
@@ -1347,14 +1347,14 @@ export default function FormE() {
                       <label>7a. Skin <span className="required">*</span></label>
                       <UnitInput name="temp_skin" value={formData.temp_skin} unit="°C"
                         readOnly={!isFieldEditable} error={!!errors.temp_skin}
-                        placeholder="30–40" onChange={handleChange} />
+                        placeholder="35–38" onChange={handleChange} />
                       <FieldErr msg={errors.temp_skin} />
                     </div>
                     <div className="form-group">
                       <label>7b. Axillary</label>
                       <UnitInput name="temp_axillary" value={formData.temp_axillary} unit="°C"
                         readOnly={!isFieldEditable} error={!!errors.temp_axillary}
-                        placeholder="30–40" onChange={handleChange} />
+                        placeholder="35–38" onChange={handleChange} />
                       <FieldErr msg={errors.temp_axillary} />
                     </div>
                   </div>

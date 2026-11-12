@@ -11,7 +11,7 @@ input[data-range-level="impossible"] {
 .range-watch-panel {
   position: fixed;
   right: 16px;
-  bottom: 16px;
+  bottom: 110px;   /* above the form footer bar (Save) and the training banner */
   z-index: 900;
   width: min(380px, calc(100vw - 32px));
   max-height: 40vh;
