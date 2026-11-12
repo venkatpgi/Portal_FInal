@@ -145,7 +145,7 @@ nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
   is the blender's own allocation number, PI 2026-11-11); list of
   babies randomised in error with time, reason and who activated.
 - **Data queries** (PI 2026-11-12): a snapshot when generated. Summary by site
-  (open new / over 72 h / over 7 days, awaiting sign-off, closed corrected /
+  (open new / over 72 h / over 7 days, awaiting sign-off, closed no longer raised /
   confirmed correct), open queries by check, the open list (oldest first,
   awaiting sign-off last) and queries closed in the last 7 days with who and
   why. Dates filter by when a query was first raised. Same people as the Data
