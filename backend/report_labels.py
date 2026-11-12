@@ -101,6 +101,7 @@ OVERRIDES = {
     "B.gestation_rand_weeks": "Gestation at randomisation (weeks)",
     "B.gestation_rand_days": "Gestation at randomisation (+ days)",
     "B.intrauterine_centile": "Intrauterine growth centile",
+    "B.designated_gender": "Designated gender",
     "B.poor_resp_efforts": "Poor respiratory effort at birth",
     "B.hr_above_100": "Heart rate above 100 at birth",
     "B.required_resuscitation": "Needed PPV (resuscitation)",

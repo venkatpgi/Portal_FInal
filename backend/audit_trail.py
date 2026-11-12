@@ -103,6 +103,7 @@ def _after_flush(session: Session, flush_context) -> None:
         return
     from models import AuditLog
     user_id, username = session.info.get("audit_user") or (None, "system")
+    explicit_save = bool(session.info.get("audit_explicit_save"))
     rows = []
     for action, objs in (("INSERT", session.new), ("UPDATE", session.dirty), ("DELETE", session.deleted)):
         for obj in objs:
@@ -112,12 +113,15 @@ def _after_flush(session: Session, flush_context) -> None:
             if action == "UPDATE" and not session.is_modified(obj, include_collections=False):
                 continue
             old, new = _changes(obj, action)
-            if action == "UPDATE" and not new and not old:
+            if action == "UPDATE" and not new and not old and not explicit_save:
                 continue
+            action_out = (
+                "SAVE" if explicit_save and action in ("INSERT", "UPDATE") else action
+            )
             st = inspect(obj)
             pk = [st.dict.get(st.mapper.get_property_by_column(c).key) for c in st.mapper.primary_key]
             rows.append({
-                "user_id": user_id, "username": username, "action": action, "table_name": table,
+                "user_id": user_id, "username": username, "action": action_out, "table_name": table,
                 "created_at": datetime.now(timezone.utc).replace(tzinfo=None),
                 "record_id": (str(pk[0]) if len(pk) == 1 else str(tuple(pk))) if any(v is not None for v in pk) else None,
                 "enrollment_id": getattr(obj, "enrollment_id", None)

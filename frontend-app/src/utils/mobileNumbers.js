@@ -1,9 +1,9 @@
 /** Shared Form A / Form B mobile-number labels and checks. */
 
-export const PRIMARY_MOBILE_LABEL = "17. Mobile number - Primary";
-export const SECONDARY_MOBILE_LABEL = "Mobile number - Secondary";
-export const FORM_B_PRIMARY_MOBILE_LABEL = "5. Mobile number - Primary";
-export const FORM_B_SECONDARY_MOBILE_LABEL = "5. Mobile number - Secondary";
+export const PRIMARY_MOBILE_LABEL = "13. Mobile number - Primary";
+export const SECONDARY_MOBILE_LABEL = "14. Mobile number - Secondary";
+export const FORM_B_PRIMARY_MOBILE_LABEL = "6. Mobile number - Primary";
+export const FORM_B_SECONDARY_MOBILE_LABEL = "7. Mobile number - Secondary";
 
 export const ERR_REQUIRED = "Required";
 export const ERR_DIGITS = "Must be exactly 10 digits";

@@ -2352,9 +2352,9 @@ export default function InfectGIHemaLog() {
 
               {sepsisYes && (
                 <div className="rcn-subsection">
-                  <div className="rcn-subsection-title">2-3. If Sepsis Suspected</div>
+                  <div className="rcn-subsection-title">If Sepsis Suspected</div>
                   <div className="rcn-yn-list">
-                    <YNRow label="2. Blood Culture Sent" value={infData.blood_culture_sent}
+                    <YNRow label="1 (a) Blood Culture Sent" value={infData.blood_culture_sent}
                       onChange={v => {
                         setInf("blood_culture_sent", v);
                         if (v !== true) setInfData(p => ({ ...p, blood_culture_positive: null }));
@@ -2364,7 +2364,7 @@ export default function InfectGIHemaLog() {
                   {bloodCultureSentYes && (
                     <div className="rcn-subsection">
                       <div className="rcn-yn-list">
-                        <YNRow label="3. Blood Culture Positive" value={infData.blood_culture_positive}
+                        <YNRow label="1 (b) Blood Culture Positive" value={infData.blood_culture_positive}
                           onChange={v => setInf("blood_culture_positive", v)} disabled={!isFieldEditable}
                           status={infData.blood_culture_status}
                           onStatusChange={v => setInf("blood_culture_status", v)}
@@ -2380,7 +2380,7 @@ export default function InfectGIHemaLog() {
                       fixed antibiotic-duration proxy for screen result. */}
                   <div className="rcn-subsection">
                     <div className="rcn-yn-list">
-                      <YNRow label="Sepsis Screen Sent" value={infData.sepsis_screen_sent}
+                      <YNRow label="1 (c) Sepsis Screen Sent" value={infData.sepsis_screen_sent}
                         onChange={v => {
                           setInf("sepsis_screen_sent", v);
                           if (v !== true) setInfData(p => ({ ...p, sepsis_screens: [blankSepsisScreen()] }));
@@ -2457,9 +2457,9 @@ export default function InfectGIHemaLog() {
               )}
 
               <div className="rcn-yn-list">
-                <YNRow label="4. Antibiotics"          value={infData.antibiotics}    onChange={v => setInf("antibiotics", v)}    disabled={!isFieldEditable} />
-                <YNRow label="5. LP Done"              value={infData.lp_done}        onChange={v => setInf("lp_done", v)}        disabled={!isFieldEditable} />
-                <YNRow label="6. Meningitis (Y/N)"     value={infData.meningitis}
+                <YNRow label="2. Antibiotics"          value={infData.antibiotics}    onChange={v => setInf("antibiotics", v)}    disabled={!isFieldEditable} />
+                <YNRow label="3. LP Done"              value={infData.lp_done}        onChange={v => setInf("lp_done", v)}        disabled={!isFieldEditable} />
+                <YNRow label="4. Meningitis (Y/N)"     value={infData.meningitis}
                   onChange={v => {
                     setInf("meningitis", v);
                     if (v !== true) {
@@ -2470,10 +2470,10 @@ export default function InfectGIHemaLog() {
 
               {meningitisYes && (
                 <div className="rcn-subsection">
-                  <div className="rcn-subsection-title">7. If Meningitis</div>
+                  <div className="rcn-subsection-title">If Meningitis</div>
                   <div className="rcn-yn-list">
                     <div className="rcn-yn-row">
-                      <span className="rcn-yn-label">Meningitis Type</span>
+                      <span className="rcn-yn-label">4 (a) Meningitis Type</span>
                       <select
                         className="rcn-status-select"
                         value={infData.meningitis_type || ""}
@@ -2490,8 +2490,8 @@ export default function InfectGIHemaLog() {
               )}
 
               <div className="rcn-yn-list">
-                <YNRow label="8. CLABSI"                value={infData.clabsi}               onChange={v => setInf("clabsi", v)}               disabled={!isFieldEditable} />
-                <YNRow label="9. VAP"                   value={infData.vap}                  onChange={v => setInf("vap", v)}                  disabled={!isFieldEditable} />
+                <YNRow label="5. CLABSI"                value={infData.clabsi}               onChange={v => setInf("clabsi", v)}               disabled={!isFieldEditable} />
+                <YNRow label="6. VAP"                   value={infData.vap}                  onChange={v => setInf("vap", v)}                  disabled={!isFieldEditable} />
               </div>
             </SectionCard>
 
@@ -2500,7 +2500,7 @@ export default function InfectGIHemaLog() {
               answered={giAnswered} total={giTotal} defaultOpen={true}>
 
               <div className="rcn-yn-list">
-                <YNRow label="10. NPO" value={giData.npo}
+                <YNRow label="7. NPO" value={giData.npo}
                   onChange={v => {
                     setGi("npo", v);
                     if (v !== false) {
@@ -2525,10 +2525,10 @@ export default function InfectGIHemaLog() {
 
               {npoNo && (
                 <div className="rcn-subsection">
-                  <div className="rcn-subsection-title">11-15. If NPO = No</div>
+                  <div className="rcn-subsection-title">If NPO = No</div>
                   <div className="rcn-yn-list">
-                    <YNRow label="11. MEN (Minimal Enteral Nutrition)" value={giData.men} onChange={v => setGi("men", v)} disabled={!isFieldEditable} />
-                    <YNRow label={<>12. Enteral Feeds Received{npoNo && <span style={{fontSize:11,fontWeight:500,color:"#94A3B8"}}> (implied by NPO = No)</span>}</>}
+                    <YNRow label="7 (a) MEN (Minimal Enteral Nutrition)" value={giData.men} onChange={v => setGi("men", v)} disabled={!isFieldEditable} />
+                    <YNRow label={<>7 (b) Enteral Feeds Received{npoNo && <span style={{fontSize:11,fontWeight:500,color:"#94A3B8"}}> (implied by NPO = No)</span>}</>}
                       value={npoNo ? true : giData.enteral_feeds_received}
                       onChange={v => {
                         setGi("enteral_feeds_received", v);
@@ -2539,7 +2539,7 @@ export default function InfectGIHemaLog() {
                   {enteralYes && (
                     <div className="rcn-subsection">
                       <div className="rcn-subsection-title">
-                        13. Feed Type <span style={{fontSize:11,fontWeight:500,color:"#94A3B8"}}>(select all that apply)</span>
+                        7 (<span className="crf-subnum">c</span>) Feed Type <span style={{fontSize:11,fontWeight:500,color:"#94A3B8"}}>(select all that apply)</span>
                         {feedTypeAutofilled && <span className="rcn-autofill-tag">from Minimal Monitoring</span>}
                       </div>
                       <PillMulti
@@ -2556,10 +2556,10 @@ export default function InfectGIHemaLog() {
                   )}
 
                   <div className="rcn-yn-list" style={{marginTop:16}}>
-                    <NumRow label="14. Cumulative Feed Volume (ml)" value={giData.cumulative_feed_volume} onChange={v => setGi("cumulative_feed_volume", v)} disabled={!isFieldEditable} unit="ml" placeholder="0" error={cumulativeFeedVolumeError} width={220}
+                    <NumRow label="7 (d) Cumulative Feed Volume (ml)" value={giData.cumulative_feed_volume} onChange={v => setGi("cumulative_feed_volume", v)} disabled={!isFieldEditable} unit="ml" placeholder="0" error={cumulativeFeedVolumeError} width={220}
                       status={giData.cumulative_feed_volume_status} onStatusChange={v => setGi("cumulative_feed_volume_status", v)}
                       autofilled={!!feedVolumeAutofilled} />
-                    <NumRow label="15. Feed Volume (ml/kg/d)" value={giData.feed_volume} onChange={v => setGi("feed_volume", v)} disabled={!isFieldEditable} unit="ml/kg/d" placeholder="0" error={feedVolumeError} width={220}
+                    <NumRow label="7 (e) Feed Volume (ml/kg/d)" value={giData.feed_volume} onChange={v => setGi("feed_volume", v)} disabled={!isFieldEditable} unit="ml/kg/d" placeholder="0" error={feedVolumeError} width={220}
                       status={giData.feed_volume_status} onStatusChange={v => setGi("feed_volume_status", v)}
                       autofilled={!!feedVolumeCalcAutofilled} />
                   </div>
@@ -2585,11 +2585,11 @@ export default function InfectGIHemaLog() {
               )}
 
               <div className="rcn-yn-list" style={{marginTop:16}}>
-                <YNRow label="16. IV Fluids" value={giData.iv_fluids} onChange={v => setGi("iv_fluids", v)} disabled={!isFieldEditable} />
-                <YNRow label="17. Parenteral Nutrition" value={giData.parenteral_nutrition} onChange={v => setGi("parenteral_nutrition", v)} disabled={!isFieldEditable} />
-                <YNRow label="18. Probiotic" value={giData.probiotic} onChange={v => setGi("probiotic", v)} disabled={!isFieldEditable} />
-                <YNRow label="19. Feed Intolerance" value={giData.feed_intolerance} onChange={v => setGi("feed_intolerance", v)} disabled={!isFieldEditable} />
-                <YNRow label="20. NEC Suspected" value={giData.nec_suspected}
+                <YNRow label="8. IV Fluids" value={giData.iv_fluids} onChange={v => setGi("iv_fluids", v)} disabled={!isFieldEditable} />
+                <YNRow label="9. Parenteral Nutrition" value={giData.parenteral_nutrition} onChange={v => setGi("parenteral_nutrition", v)} disabled={!isFieldEditable} />
+                <YNRow label="10. Probiotic" value={giData.probiotic} onChange={v => setGi("probiotic", v)} disabled={!isFieldEditable} />
+                <YNRow label="11. Feed Intolerance" value={giData.feed_intolerance} onChange={v => setGi("feed_intolerance", v)} disabled={!isFieldEditable} />
+                <YNRow label="12. NEC Suspected" value={giData.nec_suspected}
                   onChange={v => {
                     setGi("nec_suspected", v);
                     if (v !== true)
@@ -2599,10 +2599,10 @@ export default function InfectGIHemaLog() {
 
               {necYes && (
                 <div className="rcn-subsection">
-                  <div className="rcn-subsection-title">21. If NEC Suspected</div>
+                  <div className="rcn-subsection-title">If NEC Suspected</div>
                   <div className="rcn-yn-list">
                     <div className="rcn-yn-row">
-                      <span className="rcn-yn-label">NEC Confirmed Stage</span>
+                      <span className="rcn-yn-label">12 (a) NEC Confirmed Stage</span>
                       <PillSingle
                         options={["IA", "IB", "IIA", "IIB", "IIIA", "IIIB"]}
                         value={giData.nec_confirmed_stage}
@@ -2615,7 +2615,7 @@ export default function InfectGIHemaLog() {
               )}
 
               <div className="rcn-yn-list">
-                <YNRow label="22. Cholestasis" value={giData.cholestasis} onChange={v => setGi("cholestasis", v)} disabled={!isFieldEditable} />
+                <YNRow label="13. Cholestasis" value={giData.cholestasis} onChange={v => setGi("cholestasis", v)} disabled={!isFieldEditable} />
               </div>
             </SectionCard>
 
@@ -2624,9 +2624,9 @@ export default function InfectGIHemaLog() {
               answered={hemaAnswered} total={hemaTotal} defaultOpen={true}>
 
               <div className="rcn-yn-list">
-                <NumRow label="23. Hb Value (g/dL)" value={hemaData.hb_value} onChange={v => setHema("hb_value", v)} disabled={!isFieldEditable} unit="g/dL" placeholder="0.0" error={hbValueError}
+                <NumRow label="14. Hb Value (g/dL)" value={hemaData.hb_value} onChange={v => setHema("hb_value", v)} disabled={!isFieldEditable} unit="g/dL" placeholder="0.0" error={hbValueError}
                   status={hemaData.hb_value_status} onStatusChange={v => setHema("hb_value_status", v)} allowAwaited={true} />
-                <YNRow label="24. Jaundice" value={hemaData.jaundice}
+                <YNRow label="15. Jaundice" value={hemaData.jaundice}
                   onChange={v => {
                     setHema("jaundice", v);
                     if (v !== true) setHemaData(p => ({ ...p, phototherapy: null }));
@@ -2635,25 +2635,25 @@ export default function InfectGIHemaLog() {
 
               {jaundiceYes && (
                 <div className="rcn-subsection">
-                  <div className="rcn-subsection-title">25. If Jaundice</div>
+                  <div className="rcn-subsection-title">If Jaundice</div>
                   <div className="rcn-yn-list">
-                    <YNRow label="Phototherapy" value={hemaData.phototherapy}
+                    <YNRow label="15 (a) Phototherapy" value={hemaData.phototherapy}
                       onChange={v => setHema("phototherapy", v)} disabled={!isFieldEditable} />
                   </div>
                 </div>
               )}
 
               <div className="rcn-yn-list">
-                <NumRow label="26. Peak TSB (mg/dL)" value={hemaData.peak_tsb} onChange={v => setHema("peak_tsb", v)} disabled={!isFieldEditable} unit="mg/dL" placeholder="0.0" error={peakTsbError}
+                <NumRow label="16. Peak TSB (mg/dL)" value={hemaData.peak_tsb} onChange={v => setHema("peak_tsb", v)} disabled={!isFieldEditable} unit="mg/dL" placeholder="0.0" error={peakTsbError}
                   status={hemaData.peak_tsb_status} onStatusChange={v => setHema("peak_tsb_status", v)} allowAwaited={true} />
-                <YNRow label="27. Exchange Transfusion" value={hemaData.exchange_transfusion} onChange={v => setHema("exchange_transfusion", v)} disabled={!isFieldEditable} />
-                <YNRow label="28. PRBC Transfusion" value={hemaData.prbc_transfusion}
+                <YNRow label="17. Exchange Transfusion" value={hemaData.exchange_transfusion} onChange={v => setHema("exchange_transfusion", v)} disabled={!isFieldEditable} />
+                <YNRow label="18. PRBC Transfusion" value={hemaData.prbc_transfusion}
                   onChange={v => { setHemaTransfusionAutofilled(p => ({ ...p, prbc: false })); setHema("prbc_transfusion", v); }}
                   disabled={!isFieldEditable} />
-                <YNRow label="29. Platelet Transfusion" value={hemaData.platelet_transfusion}
+                <YNRow label="19. Platelet Transfusion" value={hemaData.platelet_transfusion}
                   onChange={v => { setHemaTransfusionAutofilled(p => ({ ...p, platelet: false })); setHema("platelet_transfusion", v); }}
                   disabled={!isFieldEditable} />
-                <YNRow label="30. FFP / Cryo Transfusion" value={hemaData.ffp_cryo}
+                <YNRow label="20. FFP / Cryo Transfusion" value={hemaData.ffp_cryo}
                   onChange={v => { setHemaTransfusionAutofilled(p => ({ ...p, ffpCryo: false })); setHema("ffp_cryo", v); }}
                   disabled={!isFieldEditable} />
               </div>

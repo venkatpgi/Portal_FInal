@@ -3129,7 +3129,8 @@ const fetchRespPrefill = async ({ force = false } = {}) => {
         const disagrees = !currentlyBlank
           && RESP_STALE_CHECK_FIELDS.includes(field)
           && String(prev[field]) !== String(value);
-        if (currentlyBlank || (force && disagrees)) {
+        const steroidsGiven = field === "postnatal_steroids" && value === "Yes" && prev[field] === "No";
+        if (currentlyBlank || (force && disagrees) || steroidsGiven) {
           next[field] = value;
           filled[field] = true;
         } else if (disagrees) {

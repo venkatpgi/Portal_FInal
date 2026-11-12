@@ -390,19 +390,19 @@ export default function FormL() {
           <div className="form-group">
             <label>3. Gestation</label>
             <div className="fl-inline">
+              <span>3 (a) Weeks</span>
               <input className="fl-input fl-num" type="number" min="0" value={formData.gestation_weeks} onChange={(e) => set("gestation_weeks", e.target.value)} />
-              <span>wks</span>
+              <span>3 (b) Days</span>
               <input className="fl-input fl-num" type="number" min="0" max="6" value={formData.gestation_days} onChange={(e) => set("gestation_days", e.target.value)} />
-              <span>days</span>
             </div>
           </div>
           <div className="form-group">
             <label>4. PMA</label>
             <div className="fl-inline">
+              <span>4 (a) Weeks</span>
               <input className="fl-input fl-num" type="number" min="0" value={formData.pma_weeks} onChange={(e) => set("pma_weeks", e.target.value)} />
-              <span>wks</span>
+              <span>4 (b) Days</span>
               <input className="fl-input fl-num" type="number" min="0" max="6" value={formData.pma_days} onChange={(e) => set("pma_days", e.target.value)} />
-              <span>days</span>
             </div>
           </div>
           <div className="form-group">
@@ -442,7 +442,7 @@ export default function FormL() {
           <div className="fl-minute-grid">
             {MINUTE_LABELS.map((letter, idx) => (
               <div key={idx} className="fl-minute-cell">
-                <span className="fl-minute-label">{letter}) {idx}&apos;</span>
+                <span className="fl-minute-label">10 ({letter}) {idx}&apos;</span>
                 <input
                   type="number"
                   step="any"
@@ -472,7 +472,7 @@ export default function FormL() {
 
         <div className="fl-outcome">
           <div className="fl-outcome-label">
-            <div className="fl-outcome-sub">12a. Composite outcome 2</div>
+            <div className="fl-outcome-sub">12 (a) Composite outcome 2</div>
             Death or BPD or ROP-Rx or NEC or Brain Injury (IVH or cPVL) at 44 weeks
           </div>
           <YesNo value={formData.composite_outcome_2} onChange={(v) => set("composite_outcome_2", v)} />
@@ -482,7 +482,7 @@ export default function FormL() {
 
         <div className="fl-outcome">
           <div className="fl-outcome-label">
-            <div className="fl-outcome-sub">12b. MRI brain abnormality</div>
+            <div className="fl-outcome-sub">12 (b) MRI brain abnormality</div>
             MRI brain abnormality (25% subset)
           </div>
           <YesNo value={formData.mri_abnormality} onChange={(v) => set("mri_abnormality", v)} allowNA />

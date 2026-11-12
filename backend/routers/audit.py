@@ -10,7 +10,25 @@ from sqlalchemy.orm import Session, aliased
 from audit_service import utc_now_naive
 from db import get_db
 from deps import ROLE_SITE_PI, get_current_user, is_global
-from models import AuditLog, BirthResuscitation, Screening, User
+from models import (
+    AuditLog,
+    AdverseEvents,
+    BirthResuscitation,
+    BlenderStudySummary,
+    CranialUltrasound,
+    ExternalHospitalAssessment,
+    MaternalDetails,
+    MRIBrainAssessment,
+    NeonatalMorbidities,
+    NICUAdmission,
+    PostnatalDay1,
+    ROPScreening,
+    SAEList,
+    SAEReport,
+    Screening,
+    StudyOutcomes,
+    User,
+)
 from schemas import AuditLogOut
 
 # Keep in sync with dashboard.py ALL_SITES (site filter validation).
@@ -145,7 +163,40 @@ _FORM_LABELS = {
     "maternal_details": "Form C — Maternal Details",
     "postnatal_day1": "Form D — Postnatal Day 1",
     "nicu_admission": "Form E — NICU Admission",
+    "cranial_ultrasound": "Form F — Cranial USG",
+    "rop_screening": "Form G — ROP Screening",
+    "neonatal_morbidities": "Form H — Neonatal Morbidities",
+    "study_outcomes": "Form I — Study Outcomes",
+    "external_hospital_assessments": "Form J — External Hospital",
+    "mri_brain_assessments": "Form K — MRI Brain",
+    "blender_study_summaries": "Form L — Blender Summary",
+    "minimal_monitoring_day_logs": "Daily Monitoring Sheet (DMS)",
+    "resp_cv_neuro_day_logs": "Helper 2 — Resp/CV/Neuro",
+    "fio2_auc_logs": "Helper 3 — FiO₂ Logging",
+    "infect_gi_hema_day_logs": "Helper 4 — Infect/GI/Hema",
+    "metab_renal_vasc_eye_day_logs": "Helper 5 — Metab/Renal/Eye",
+    "sae_reports": "Form Y — SAE Report",
+    "adverse_events": "Adverse Events",
+    "sae_list": "SAE Listing",
 }
+
+# Latest INSERT/UPDATE is shown when a form was saved before SAVE-action logging.
+_FALLBACK_MODELS = (
+    (BirthResuscitation, "birth_resuscitation"),
+    (MaternalDetails, "maternal_details"),
+    (PostnatalDay1, "postnatal_day1"),
+    (NICUAdmission, "nicu_admission"),
+    (CranialUltrasound, "cranial_ultrasound"),
+    (ROPScreening, "rop_screening"),
+    (NeonatalMorbidities, "neonatal_morbidities"),
+    (StudyOutcomes, "study_outcomes"),
+    (ExternalHospitalAssessment, "external_hospital_assessments"),
+    (MRIBrainAssessment, "mri_brain_assessments"),
+    (BlenderStudySummary, "blender_study_summaries"),
+    (AdverseEvents, "adverse_events"),
+    (SAEReport, "sae_reports"),
+    (SAEList, "sae_list"),
+)
 
 
 def _is_explicit_save(log: AuditLog) -> bool:
@@ -159,11 +210,13 @@ def _is_explicit_save(log: AuditLog) -> bool:
 @router.get("/patient")
 def patient_save_history(
     screening_id: str,
+    enrollment_id: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Saves for one participant. Any user who can open that screening may read it.
-    Only explicit Save clicks are returned — not background autosave."""
+    Form A Save clicks are action SAVE. Other forms were logged as INSERT/UPDATE
+    until SAVE-on-explicit-save; those still appear (latest per form if needed)."""
     screening = (
         db.query(Screening)
         .filter(Screening.screening_id == screening_id, Screening.is_deleted.isnot(True))
@@ -176,21 +229,47 @@ def patient_save_history(
 
     filters = [AuditLog.screening_id == screening_id]
     # every baby of this mother (twins: babies.py)
-    eids = {screening.enrollment_id} | {
+    eids = {screening.enrollment_id, enrollment_id} | {
         e for (e,) in db.query(BirthResuscitation.enrollment_id)
         .filter(BirthResuscitation.screening_id == screening_id).all()}
     eids.discard(None)
     eids.discard("")
     if eids:
         filters.append(AuditLog.enrollment_id.in_(eids))
+    form_tables = list(_FORM_LABELS.keys())
     logs = (
         db.query(AuditLog)
         .filter(or_(*filters))
-        .order_by(AuditLog.created_at.desc())
-        .limit(200)
+        .filter(or_(AuditLog.action == "SAVE", AuditLog.table_name.in_(form_tables)))
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(500)
         .all()
     )
     saves = [log for log in logs if _is_explicit_save(log)]
+    have_save_tables = {log.table_name for log in saves}
+
+    def _log_when(log):
+        t = log.created_at
+        if t is None:
+            return datetime.min
+        return t.replace(tzinfo=None) if getattr(t, "tzinfo", None) else t
+
+    # Forms saved before SAVE-action logging: keep the latest INSERT/UPDATE.
+    latest_other = {}
+    for log in logs:
+        table = log.table_name
+        if table in have_save_tables or table == "screenings":
+            continue
+        if table not in _FORM_LABELS:
+            continue
+        if (log.action or "").upper() not in ("INSERT", "UPDATE", "SAVE"):
+            continue
+        prev = latest_other.get(table)
+        if prev is None or _log_when(log) > _log_when(prev) or (
+            _log_when(log) == _log_when(prev) and (log.id or 0) > (prev.id or 0)
+        ):
+            latest_other[table] = log
+    saves.extend(latest_other.values())
     # A new Save click also writes UPDATE. Keep the SAVE row and drop the twin UPDATE.
     save_marks = {
         (log.user_id, log.screening_id, log.created_at.replace(microsecond=0) if log.created_at else None)
@@ -234,7 +313,11 @@ def patient_save_history(
         )
 
     rows = []
-    for log in deduped:
+    for log in sorted(
+        deduped,
+        key=lambda log: (_log_when(log), log.id or 0),
+        reverse=True,
+    ):
         form = (log.new_values or {}).get("form") or _FORM_LABELS.get(log.table_name) or log.table_name
         rows.append({
             "id": log.id,
@@ -242,7 +325,8 @@ def patient_save_history(
             "saved_by": person_name(log),
             "saved_at": log.created_at.isoformat() if log.created_at else None,
         })
-    if not rows and screening.explicitly_saved and screening.updated_at:
+    shown_tables = {log.table_name for log in deduped}
+    if "screenings" not in shown_tables and screening.explicitly_saved and screening.updated_at:
         who = by_username.get(screening.updated_by or "") or by_username.get(screening.created_by or "") or "—"
         rows.append({
             "id": 0,
@@ -250,4 +334,29 @@ def patient_save_history(
             "saved_by": who,
             "saved_at": screening.updated_at.isoformat(),
         })
+    eid_list = list(eids)
+    for model, table in _FALLBACK_MODELS:
+        if table in shown_tables:
+            continue
+        rec = None
+        if eid_list and hasattr(model, "enrollment_id"):
+            rec = db.query(model).filter(model.enrollment_id.in_(eid_list)).first()
+        if rec is None and hasattr(model, "screening_id"):
+            rec = db.query(model).filter(model.screening_id == screening_id).first()
+        if rec is None:
+            continue
+        when = getattr(rec, "updated_at", None) or getattr(rec, "created_at", None)
+        if when is None:
+            continue
+        who_handle = getattr(rec, "updated_by", None) or getattr(rec, "created_by", None)
+        if who_handle:
+            handles.add(who_handle)
+        who = by_username.get(who_handle or "") or who_handle or "—"
+        rows.append({
+            "id": f"fallback-{table}-{getattr(rec, 'id', 0)}",
+            "form": _FORM_LABELS[table],
+            "saved_by": who,
+            "saved_at": when.isoformat() if hasattr(when, "isoformat") else str(when),
+        })
+    rows.sort(key=lambda r: r.get("saved_at") or "", reverse=True)
     return rows

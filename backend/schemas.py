@@ -573,6 +573,7 @@ class BirthResuscitationCreate(BaseModel):
     vaginal_delivery_type: Optional[str] = None
     lscs_type: Optional[str] = None
     gender: Optional[str] = None
+    designated_gender: Optional[str] = None
 
     poor_resp_efforts: Optional[bool] = None
     poor_muscle_tone: Optional[bool] = None
@@ -833,6 +834,13 @@ class BirthResuscitationCreate(BaseModel):
     def validate_spo2_exit(cls, v):
         if v is not None and not 1 <= v <= 100:
             raise ValueError("SpO2 at exit from trial gas must be between 1 and 100 percent")
+        return v
+
+    @field_validator("tpiece_flow")
+    @classmethod
+    def validate_tpiece_flow(cls, v):
+        if v is not None and not 0 <= v <= 99:
+            raise ValueError("T-piece flow rate must be between 0 and 99 L/min")
         return v
 
     @field_validator("cord_clamp_time")

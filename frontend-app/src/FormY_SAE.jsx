@@ -885,7 +885,7 @@ export default function FormY_SAE() {
       <SectionCard icon={ClipboardList} num="I" title="Event identification">
         <div className="fy-grid-4">
           <div className="form-group">
-            <label>Study ID</label>
+            <label>1. Study ID</label>
             <input
               className="fy-input"
               value={formData.study_id}
@@ -893,15 +893,15 @@ export default function FormY_SAE() {
             />
           </div>
           <div className="form-group">
-            <label>Enrollment ID</label>
+            <label>2. Enrollment ID</label>
             <input className="fy-input" value={formData.enrollment_id} readOnly />
           </div>
           <div className="form-group">
-            <label>Date of report</label>
+            <label>3. Date of report</label>
             <DateField value={formData.report_date} onChange={(v) => set("report_date", v)} />
           </div>
           <div className="form-group">
-            <label>Report type</label>
+            <label>4. Report type</label>
             <Chips
               options={REPORT_TYPES}
               value={formData.report_type}
@@ -961,7 +961,7 @@ export default function FormY_SAE() {
         })()}
         <div className="fy-block">
           <div className="form-group">
-            <label>Diagnosis / Event term</label>
+            <label>5. Diagnosis / Event term</label>
             <input
               className="fy-input"
               value={formData.diagnosis}
@@ -972,25 +972,37 @@ export default function FormY_SAE() {
         </div>
         <div className="fy-grid-2">
           <div className="form-group">
-            <label>Onset date &amp; time</label>
+            <label>6. Onset date &amp; time</label>
             <div className="fy-datetime">
-              <DateField value={formData.onset_date} onChange={(v) => set("onset_date", v)} />
-              <Time24Input value={formData.onset_time} onChange={(v) => set("onset_time", v)} />
+              <div>
+                <label>6 (a) Date</label>
+                <DateField value={formData.onset_date} onChange={(v) => set("onset_date", v)} />
+              </div>
+              <div>
+                <label>6 (b) Time</label>
+                <Time24Input value={formData.onset_time} onChange={(v) => set("onset_time", v)} />
+              </div>
             </div>
           </div>
           <div className="form-group">
-            <label>End date &amp; time</label>
+            <label>7. End date &amp; time</label>
             <div className="fy-datetime">
-              <DateField
-                value={formData.end_date}
-                onChange={(v) => set("end_date", v)}
-                disabled={endDisabled}
-              />
-              <Time24Input
-                value={formData.end_time}
-                onChange={(v) => set("end_time", v)}
-                disabled={endDisabled}
-              />
+              <div>
+                <label>7 (a) Date</label>
+                <DateField
+                  value={formData.end_date}
+                  onChange={(v) => set("end_date", v)}
+                  disabled={endDisabled}
+                />
+              </div>
+              <div>
+                <label>7 (b) Time</label>
+                <Time24Input
+                  value={formData.end_time}
+                  onChange={(v) => set("end_time", v)}
+                  disabled={endDisabled}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -1009,13 +1021,13 @@ export default function FormY_SAE() {
               }));
             }}
           />
-          Ongoing (event not yet ended)
+          8. Ongoing (event not yet ended)
         </label>
       </SectionCard>
 
       <SectionCard icon={ShieldAlert} num="III" title="Seriousness criteria">
         <p className="fy-note" style={{ marginTop: 0 }}>
-          Check all that apply.
+          9. Seriousness criteria — check all that apply.
         </p>
         <div className="fy-check-grid">
           {SERIOUSNESS_OPTIONS.map((item) => {
@@ -1035,6 +1047,9 @@ export default function FormY_SAE() {
       </SectionCard>
 
       <SectionCard icon={HeartPulse} num="IV" title="Severity">
+        <div className="form-group">
+          <label>10. Severity</label>
+        </div>
         <Chips
           options={SEVERITY_OPTIONS}
           value={formData.severity}
@@ -1047,6 +1062,9 @@ export default function FormY_SAE() {
       </SectionCard>
 
       <SectionCard icon={Link2} num="V" title="Causality (relationship to oxygen intervention)">
+        <div className="form-group">
+          <label>11. Causality</label>
+        </div>
         <div className={causalityOff ? "fy-dull" : undefined}>
           <Chips
             options={CAUSALITY_OPTIONS}
@@ -1059,6 +1077,9 @@ export default function FormY_SAE() {
       </SectionCard>
 
       <SectionCard icon={Wrench} num="VI" title="Action taken">
+        <div className="form-group">
+          <label>12. Action taken</label>
+        </div>
         <Chips
           options={ACTION_OPTIONS}
           value={formData.action_taken}
@@ -1067,6 +1088,9 @@ export default function FormY_SAE() {
       </SectionCard>
 
       <SectionCard icon={Activity} num="VII" title="Outcome">
+        <div className="form-group">
+          <label>13. Outcome</label>
+        </div>
         <Chips
           options={OUTCOME_OPTIONS}
           value={formData.outcome}
@@ -1074,7 +1098,7 @@ export default function FormY_SAE() {
         />
         {isFatal(formData) && (
           <div className="form-group" style={{ marginTop: 16 }}>
-            <label>Did this SAE lead to the death?</label>
+            <label>13 (a) Did this SAE lead to the death?</label>
             <Chips
               options={["Yes", "No"]}
               value={formData.death_from_event}
@@ -1095,7 +1119,7 @@ export default function FormY_SAE() {
         )}
         {isFatal(formData) && (
           <div className="form-group" style={{ marginTop: 16, maxWidth: 280 }}>
-            <label>If fatal — date of death</label>
+            <label>13 (b) If fatal — date of death</label>
             <DateField
               value={formData.date_of_death}
               onChange={(v) => set("date_of_death", v)}
@@ -1113,7 +1137,7 @@ export default function FormY_SAE() {
 
       <SectionCard icon={FileText} num="VIII" title="Narrative">
         <div className="form-group">
-          <label>Brief description of event, treatment given, and outcome</label>
+          <label>14. Brief description of event, treatment given, and outcome</label>
           <textarea
             value={formData.narrative}
             onChange={(e) => set("narrative", e.target.value)}
@@ -1167,7 +1191,7 @@ export default function FormY_SAE() {
       <SectionCard icon={UserRound} num="IX" title="Reporter information">
         <div className="fy-grid-3">
           <div className="form-group">
-            <label>Reported by</label>
+            <label>21. Reported by</label>
             <select
               className="fy-input"
               value={formData.reporter_name || ""}
@@ -1194,7 +1218,7 @@ export default function FormY_SAE() {
             </select>
           </div>
           <div className="form-group">
-            <label>Designation</label>
+            <label>21 (a) Designation</label>
             <input
               className="fy-input"
               value={formData.reporter_designation}
@@ -1202,7 +1226,7 @@ export default function FormY_SAE() {
             />
           </div>
           <div className="form-group">
-            <label>Contact no.</label>
+            <label>22. Contact no.</label>
             <input
               className="fy-input"
               value={formData.reporter_contact}
@@ -1210,7 +1234,7 @@ export default function FormY_SAE() {
             />
           </div>
           <div className="form-group">
-            <label>Date</label>
+            <label>23. Date</label>
             <DateField
               value={formData.reporter_date}
               onChange={(v) => set("reporter_date", v)}
@@ -1222,7 +1246,7 @@ export default function FormY_SAE() {
       <SectionCard icon={BadgeCheck} num="X" title="Investigator verification">
         <div className="fy-grid-3">
           <div className="form-group">
-            <label>Investigator name</label>
+            <label>24. Investigator name</label>
             <input
               className="fy-input"
               value={formData.investigator_name}
@@ -1231,14 +1255,14 @@ export default function FormY_SAE() {
             <small className="fy-hint">The site PI fills in by default. Change it if someone else verifies. Enter the date when verified.</small>
           </div>
           <div className="form-group">
-            <label>Date</label>
+            <label>24 (a) Date</label>
             <DateField
               value={formData.investigator_date}
               onChange={(v) => set("investigator_date", v)}
             />
           </div>
           <div className="form-group">
-            <label>Site</label>
+            <label>25. Site</label>
             <input
               className="fy-input"
               value={formData.site}

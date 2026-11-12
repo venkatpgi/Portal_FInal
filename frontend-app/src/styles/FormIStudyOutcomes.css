@@ -416,6 +416,9 @@
   text-transform: uppercase;
   letter-spacing: .03em;
 }
+.crf-mini-label .crf-subnum {
+  text-transform: none;
+}
 
 @media (max-width: 900px) {
   .crf-outcome-cell, .crf-def-cell, .crf-result-cell, .crf-info-cell {

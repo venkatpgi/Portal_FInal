@@ -390,11 +390,13 @@ function SideGradePanel({
   onIvh,
   ivhDate,
   onIvhDate,
+  ivhDateLabel,
   cpvlLabel,
   cpvlValue,
   onCpvl,
   cpvlDate,
   onCpvlDate,
+  cpvlDateLabel,
 }) {
   return (
     <div className="fj-panel">
@@ -404,7 +406,7 @@ function SideGradePanel({
         <div className="fj-field-label">{ivhLabel}</div>
         <ChipGroup options={IVH_GRADES} value={ivhValue} onChange={onIvh} />
         <div className="form-group fj-date-sm">
-          <label>Date</label>
+          <label>{ivhDateLabel}</label>
           <DateField value={ivhDate} onChange={onIvhDate} />
         </div>
       </div>
@@ -415,7 +417,7 @@ function SideGradePanel({
         <div className="fj-field-label">{cpvlLabel}</div>
         <ChipGroup options={CPVL_GRADES} value={cpvlValue} onChange={onCpvl} />
         <div className="form-group fj-date-sm">
-          <label>Date</label>
+          <label>{cpvlDateLabel}</label>
           <DateField value={cpvlDate} onChange={onCpvlDate} />
         </div>
       </div>
@@ -430,33 +432,36 @@ function EyeBlock({ side, data, set }) {
   const zoneKey = side === "right" ? "zone_right" : "zone_left";
   const treatKey = side === "right" ? "treat_right" : "treat_left";
   const dateKey = side === "right" ? "treat_date_right" : "treat_date_left";
+  const n = side === "right"
+    ? { stage: "7 (a) ROP stage", plus: "7 (b) Plus disease", arop: "7 (c) A-ROP", zone: "7 (d) Zone", treat: "7 (e) Treatment required", date: "7 (f) Treatment date" }
+    : { stage: "7 (g) ROP stage", plus: "7 (h) Plus disease", arop: "7 (i) A-ROP", zone: "7 (j) Zone", treat: "7 (k) Treatment required", date: "7 (l) Treatment date" };
 
   return (
     <div className="fj-panel">
       <h4 className="fj-side-title">{side === "right" ? "7.1 Right eye" : "7.2 Left eye"}</h4>
       <div className="fj-block">
-        <div className="fj-field-label">ROP stage</div>
+        <div className="fj-field-label">{n.stage}</div>
         <ChipGroup options={ROP_STAGES} value={data[stageKey]} onChange={(v) => set(stageKey, v)} />
       </div>
       <div className="fj-qa">
-        <span className="fj-q">Plus disease</span>
+        <span className="fj-q">{n.plus}</span>
         <YesNo value={data[plusKey]} onChange={(v) => set(plusKey, v)} />
       </div>
       <div className="fj-qa">
-        <span className="fj-q">A-ROP</span>
+        <span className="fj-q">{n.arop}</span>
         <YesNo value={data[aropKey]} onChange={(v) => set(aropKey, v)} />
       </div>
       <div className="fj-block">
-        <div className="fj-field-label">Zone</div>
+        <div className="fj-field-label">{n.zone}</div>
         <ChipGroup options={ZONES} value={data[zoneKey]} onChange={(v) => set(zoneKey, v)} />
       </div>
       <div className="fj-qa">
-        <span className="fj-q">Treatment required</span>
+        <span className="fj-q">{n.treat}</span>
         <YesNo value={data[treatKey]} onChange={(v) => set(treatKey, v)} />
       </div>
       {data[treatKey] === "Yes" && (
         <div className="form-group fj-date-sm" style={{ marginTop: 8 }}>
-          <label>Treatment date</label>
+          <label>{n.date}</label>
           <DateField value={data[dateKey]} onChange={(v) => set(dateKey, v)} />
         </div>
       )}
@@ -820,20 +825,20 @@ export default function FormJ() {
         {formData.death === "Yes" && (
           <div className="fj-sub">
             <div className="form-group" style={{ marginBottom: 14 }}>
-              <label>a) Cause of death</label>
+              <label>3 (a) Cause of death</label>
               <input value={formData.death_cause} onChange={(e) => set("death_cause", e.target.value)} placeholder="Enter cause of death" />
             </div>
             <div className="fj-grid-3">
               <div className="form-group">
-                <label>b) Date of death</label>
+                <label>3 (b) Date of death</label>
                 <DateField value={formData.death_date} onChange={(v) => set("death_date", v)} />
               </div>
               <div className="form-group">
-                <label>c) Time of death (HH:MM)</label>
+                <label>3 (c) Time of death (HH:MM)</label>
                 <Time24Input value={formData.death_time} onChange={(v) => set("death_time", v)} />
               </div>
               <div className="form-group">
-                <label>d) Age at death (days)</label>
+                <label>3 (d) Age at death (days)</label>
                 <input type="number" min="0" value={formData.death_age_days} onChange={(e) => set("death_age_days", e.target.value)} />
               </div>
             </div>
@@ -847,27 +852,27 @@ export default function FormJ() {
           <YesNo value={formData.resp_support} onChange={(v) => set("resp_support", v)} />
         </div>
         <div className="form-group" style={{ maxWidth: 240, marginTop: 10 }}>
-          <label>Date</label>
+          <label>4 (a) Date</label>
           <DateField value={formData.resp_support_date} onChange={(v) => set("resp_support_date", v)} />
         </div>
         {formData.resp_support === "Yes" && (
           <div className="fj-sub">
             <div className="fj-block">
-              <div className="fj-field-label">A · Mode</div>
+              <div className="fj-field-label">4 (b) Mode</div>
               <ChipGroup options={RESP_MODES} value={formData.resp_mode} onChange={(v) => set("resp_mode", v)} />
             </div>
             <div className="fj-grid-2">
               <div className="form-group">
-                <label>b) Flow rate (L/min)</label>
+                <label>4 (c) Flow rate (L/min)</label>
                 <input type="number" step="any" value={formData.flow_rate} onChange={(e) => set("flow_rate", e.target.value)} />
               </div>
               <div className="form-group">
-                <label>c) FiO₂ (%)</label>
+                <label>4 (d) FiO₂ (%)</label>
                 <input type="number" step="any" value={formData.fio2} onChange={(e) => set("fio2", e.target.value)} />
               </div>
             </div>
             <div className="fj-qa" style={{ marginTop: 8 }}>
-              <span className="fj-q">d) Radiographic parenchymal lung disease</span>
+              <span className="fj-q">4 (e) Radiographic parenchymal lung disease</span>
               <YesNo value={formData.radiographic_lung} onChange={(v) => set("radiographic_lung", v)} />
             </div>
           </div>
@@ -882,15 +887,15 @@ export default function FormJ() {
         {formData.nec === "Yes" && (
           <div className="fj-sub">
             <div className="fj-block">
-              <div className="fj-field-label">A · Stage</div>
+              <div className="fj-field-label">5 (a) Stage</div>
               <ChipGroup options={NEC_STAGES} value={formData.nec_stage} onChange={(v) => set("nec_stage", v)} />
             </div>
             <div className="form-group" style={{ maxWidth: 240, marginBottom: 10 }}>
-              <label>Date</label>
+              <label>5 (b) Date</label>
               <DateField value={formData.nec_date} onChange={(v) => set("nec_date", v)} />
             </div>
             <div className="fj-qa">
-              <span className="fj-q">b) Surgical intervention done</span>
+              <span className="fj-q">5 (c) Surgical intervention done</span>
               <YesNo value={formData.nec_surgery} onChange={(v) => set("nec_surgery", v)} />
             </div>
           </div>
@@ -901,29 +906,33 @@ export default function FormJ() {
         <div className="fj-grid-2">
           <SideGradePanel
             title="6.1 Right"
-            ivhLabel="A · IVH grade"
+            ivhLabel="6 (a) IVH grade"
             ivhValue={formData.ivh_right}
             onIvh={(v) => set("ivh_right", v)}
             ivhDate={formData.ivh_right_date}
             onIvhDate={(v) => set("ivh_right_date", v)}
-            cpvlLabel="C · cPVL grade"
+            ivhDateLabel="6 (b) Date"
+            cpvlLabel="6 (c) cPVL grade"
             cpvlValue={formData.cpvl_right}
             onCpvl={(v) => set("cpvl_right", v)}
             cpvlDate={formData.cpvl_right_date}
             onCpvlDate={(v) => set("cpvl_right_date", v)}
+            cpvlDateLabel="6 (d) Date"
           />
           <SideGradePanel
             title="6.2 Left"
-            ivhLabel="B · IVH grade"
+            ivhLabel="6 (e) IVH grade"
             ivhValue={formData.ivh_left}
             onIvh={(v) => set("ivh_left", v)}
             ivhDate={formData.ivh_left_date}
             onIvhDate={(v) => set("ivh_left_date", v)}
-            cpvlLabel="D · cPVL grade"
+            ivhDateLabel="6 (f) Date"
+            cpvlLabel="6 (g) cPVL grade"
             cpvlValue={formData.cpvl_left}
             onCpvl={(v) => set("cpvl_left", v)}
             cpvlDate={formData.cpvl_left_date}
             onCpvlDate={(v) => set("cpvl_left_date", v)}
+            cpvlDateLabel="6 (h) Date"
           />
         </div>
       </SectionCard>
@@ -942,7 +951,7 @@ export default function FormJ() {
         </div>
         {formData.sepsis === "Yes" && (
           <div className="form-group" style={{ maxWidth: 220, marginTop: 10 }}>
-            <label>No. of episodes</label>
+            <label>8 (a) No. of episodes</label>
             <input type="number" min="0" value={formData.sepsis_episodes} onChange={(e) => set("sepsis_episodes", e.target.value)} />
           </div>
         )}
