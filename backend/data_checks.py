@@ -305,6 +305,64 @@ def check_randomised_in_error(ctx):
     return out
 
 
+# ----------------------------------------------------------------- value ranges
+def _urine_day_weight(ctx, r):
+    import value_ranges as vr
+    dms = None
+    if r["date_of_birth"]:
+        as_of = (r["date_of_birth"] + timedelta(days=int(r["nicu_day"]) - 1)).isoformat()
+        dms = vr.dms_weight_on(ctx["dms_weights"].get(r["enrollment_id"], []), as_of)
+    return vr.effective_weight_kg(r["birth_weight"], dms)
+
+
+def check_urine_out_of_range(ctx):
+    """Helper 5 urine window above 6 or below 0.5 ml/kg/hr (value_ranges.py).
+    One query per window; facts carry the ml, so a later weight does not
+    reopen a value the site confirmed."""
+    import value_ranges as vr
+    out = []
+    for r in ctx["urine_days"]:
+        kg = _urine_day_weight(ctx, r)
+        for f in vr.flags(r, kg):
+            word = {"impossible": "impossible", "high": "high", "low": "low"}[f["level"]]
+            out.append(finding(
+                r["site_name"], "helper5_day", f"{r['enrollment_id']}/D{r['nicu_day']}/{f['label']}",
+                f"Urine output {word}: Helper 5 day {r['nicu_day']} {f['label']}",
+                f"{r['enrollment_id']} day {r['nicu_day']}, {f['label']}: {vr.fmt(f['ml'])} ml = "
+                f"{vr.fmt(f['rate'])} ml/kg/hr (weight {vr.fmt(kg)} kg). Expected {vr.fmt(vr.URINE_LOW_BELOW)}"
+                f"-{vr.fmt(vr.URINE_HIGH_ABOVE)} ml/kg/hr. Check the bedside chart: correct the ml, or confirm "
+                "the value is right.",
+                {"ml": f["ml"], "level": f["level"]}, ctx["now"]))
+    return out
+
+
+def check_urine_window_missing(ctx):
+    """Helper 5 day saved with a urine window blank and no status, once the
+    day is over (+24 h). One query per baby, listing the days."""
+    import value_ranges as vr
+    by_eid = defaultdict(list)
+    for r in ctx["urine_days"]:
+        if not r["date_of_birth"] or not r["nicu_day"]:
+            continue
+        over = vr.day_over(r["date_of_birth"], r["nicu_day"], ctx["now"])
+        if not over:
+            continue
+        gaps = [label for field, label, _h in vr.URINE_WINDOWS
+                if r.get(field) is None and not r.get(f"{field}_status")]
+        if gaps:
+            by_eid[r["enrollment_id"]].append((r["nicu_day"], gaps, over, r["site_name"]))
+    out = []
+    for eid, days in by_eid.items():
+        days.sort()
+        text_days = "; ".join(f"day {d} ({'all' if len(g) == 3 else ', '.join(g)})" for d, g, _o, _s in days)
+        out.append(finding(
+            days[0][3], "enrollment", eid, "Urine output windows blank (Helper 5)",
+            f"{eid}: urine output not entered for {text_days}. Enter the ml from the bedside chart, or tick "
+            "\"Not Recorded / Not Done\".",
+            {"missing": [[d, g] for d, g, _o, _s in days]}, days[0][2]))
+    return out
+
+
 CHECKS = [
     Check("GA_ELIGIBLE_NO_FORM_A", "Gestation Log", "Eligible woman, still pregnant, with no Form A", check_ga_eligible_no_form_a),
     Check("GA_NOW_ELIGIBLE", "Gestation Log", "Logged before 25 weeks, now in the window, no Form A", check_ga_now_eligible),
@@ -321,6 +379,8 @@ CHECKS = [
           check_randomised_in_error, second_signoff=True),
     Check("FORMB_NOT_ELIGIBLE", "Consent / eligibility", "Form B saved for a screening that is not Eligible", check_formb_not_eligible, second_signoff=True),
     Check("DAY1_DATE_MISMATCH", "Clinical consistency", "Form E Day 1 date differs from Form B date of birth", check_day1_date_mismatch),
+    Check("URINE_OUT_OF_RANGE", "Plausible values", "Urine output above 6 or below 0.5 ml/kg/hr", check_urine_out_of_range),
+    Check("URINE_WINDOW_MISSING", "Plausible values", "Urine output window left blank (no status)", check_urine_window_missing),
     Check("LOG_AFTER_STAY_END", "Clinical consistency", "DMS or Helper entries after death or discharge", check_entries_after_stay_end),
     Check("FORM_C_INCOMPLETE", "Form timeliness", "Form C (maternal details) not complete", _incomplete("Form C", "maternal_details"), raise_after=AMBER_AFTER),
     Check("FORM_D_INCOMPLETE", "Form timeliness", "Form D (postnatal day 1) not complete", _incomplete("Form D", "postnatal_day1", 1), raise_after=AMBER_AFTER),
@@ -371,6 +431,28 @@ def _entries_after_stay(db) -> list:
     return out
 
 
+def _urine_days(db) -> list:
+    """Helper 5 days of live babies with the urine windows, birth weight and site."""
+    return [dict(r) for r in db.execute(text("""
+        SELECT m.enrollment_id, m.nicu_day, b.birth_weight, b.date_of_birth, s.site_name,
+               m.urine_output_8am_2pm, m.urine_output_8am_2pm_status,
+               m.urine_output_2pm_8pm, m.urine_output_2pm_8pm_status,
+               m.urine_output_8pm_8am, m.urine_output_8pm_8am_status
+        FROM metab_renal_vasc_eye_day_logs m
+        JOIN birth_resuscitation b ON b.enrollment_id = m.enrollment_id
+        JOIN screenings s ON s.screening_id = b.screening_id
+        WHERE s.is_deleted IS NOT TRUE AND m.nicu_day IS NOT NULL
+    """)).mappings()]
+
+
+def _dms_weights(db) -> dict:
+    import value_ranges as vr
+    rows = defaultdict(list)
+    for eid, d, raw in db.execute(text("SELECT enrollment_id, record_date, entries_json "
+                                       "FROM minimal_monitoring_day_logs")):
+        rows[eid].append((d, raw))
+    return {eid: vr.dms_weights(r) for eid, r in rows.items()}
+
 def _context(db, now: datetime, today: date) -> dict:
     from birth_log_matching import refresh_birth_log_matches
     from models import BirthLogEntry, ParticipantPII, Screening
@@ -404,6 +486,8 @@ def _context(db, now: datetime, today: date) -> dict:
         "complete": complete,
         "screening_ga": screening_ga,
         "after_stay": _entries_after_stay(db),
+        "urine_days": _urine_days(db),
+        "dms_weights": _dms_weights(db),
         "day1_mismatch": db.execute(text("""
             SELECT n.enrollment_id, n.day1_date, b.date_of_birth
             FROM nicu_admission n JOIN birth_resuscitation b ON b.enrollment_id = n.enrollment_id

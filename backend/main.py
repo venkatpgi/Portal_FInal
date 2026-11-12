@@ -8590,6 +8590,16 @@ def get_metab_renal_vasc_eye_day(
     return record
  
  
+def _urine_range_rules(db, enrollment_id, nicu_day, sent: dict, prior) -> dict:
+    """value_ranges.py: refuse an impossible urine value (422), store the
+    total as ml/kg/hr worked out on the server."""
+    import value_ranges
+    try:
+        return value_ranges.check_urine_save(db, enrollment_id, nicu_day, sent, prior)
+    except value_ranges.RangeError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
 @app.post("/metab-renal-vasc-eye/")
 def create_metab_renal_vasc_eye_day(
     data: MetabRenalVascEyeDayCreate,
@@ -8605,14 +8615,16 @@ def create_metab_renal_vasc_eye_day(
     ).first()
     if existing:
         assert_fresh_write(existing.updated_at, expected_updated_at)
-        for key, value in data.model_dump(exclude_unset=True).items():
+        sent = _urine_range_rules(db, data.enrollment_id, data.nicu_day, data.model_dump(exclude_unset=True), existing)
+        for key, value in sent.items():
             if hasattr(existing, key): setattr(existing, key, value)
         sync_rop_screening_from_metab_log(
             db, existing.enrollment_id, existing.nicu_day, existing.rop_detected
         )
         db.commit(); db.refresh(existing); return existing
     refuse_blank_helper_day(data.model_dump())
-    record = MetabRenalVascEyeDayLog(**data.model_dump())
+    sent = _urine_range_rules(db, data.enrollment_id, data.nicu_day, data.model_dump(exclude_unset=True), None)
+    record = MetabRenalVascEyeDayLog(**{**data.model_dump(), **sent})
     db.add(record)
     db.flush()
     sync_rop_screening_from_metab_log(
@@ -8643,7 +8655,8 @@ def update_metab_renal_vasc_eye_day(
     if record.submission_status == "submitted" and not override_active:
         raise HTTPException(status_code=403, detail="Day is submitted and locked")
     assert_fresh_write(record.updated_at, expected_updated_at)
-    for key, value in data.model_dump(exclude_unset=True).items():
+    sent = _urine_range_rules(db, enrollment_id, nicu_day, data.model_dump(exclude_unset=True), record)
+    for key, value in sent.items():
         if hasattr(record, key) and key not in ("enrollment_id","nicu_day"):
             setattr(record, key, value)
     sync_rop_screening_from_metab_log(
