@@ -21,6 +21,8 @@ import json
 from datetime import date, datetime, time, timedelta
 from typing import Optional
 
+from fastapi import HTTPException
+
 URINE_WINDOWS = (
     ("urine_output_8am_2pm", "8am-2pm", 6),
     ("urine_output_2pm_8pm", "2pm-8pm", 6),
@@ -34,8 +36,15 @@ DAY_END_UTC = time(2, 30)
 MISSING_GRACE = timedelta(hours=24)
 
 
-class RangeError(ValueError):
-    """A save the range rules refuse; the caller turns it into a 422."""
+class RangeError(HTTPException):
+    """A save the range rules refuse: a 422 with a plain message. An
+    HTTPException, so endpoints that re-raise HTTPException pass it through."""
+
+    def __init__(self, message: str):
+        super().__init__(status_code=422, detail=message)
+
+    def __str__(self) -> str:
+        return str(self.detail)
 
 
 def _num(v) -> Optional[float]:

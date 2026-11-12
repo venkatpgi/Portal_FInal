@@ -64,6 +64,8 @@ import form_completion as fc
 from ae_terms import duplicate_of
 import audit_trail
 audit_trail.install()   # every form table audited when AUDIT_ALL_FORMS=1 (PI 2026-10-26)
+import range_rules
+range_rules.install()   # plausible ranges refused on every save (PI 2026-11-12)
 import composite_suggestion as cs
 import randomised_in_error
 import ready_reports
@@ -344,6 +346,8 @@ def rate_limit_error_handler(request: Request, exc: RateLimitExceeded):
     )
 
 app.add_exception_handler(RateLimitExceeded, rate_limit_error_handler)
+
+# range_rules / value_ranges raise RangeError, an HTTPException(422).
 
 # ============================================================================
 # FIX A4: RESTRICT CORS TO SPECIFIC ORIGINS
