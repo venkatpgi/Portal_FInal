@@ -487,7 +487,7 @@ def blender_check_report(db, sites):
 
 # --------------------------------------------------------------- data queries
 DQ_STATUS = {"open": "Open", "acknowledged": "Acknowledged", "awaiting_signoff": "Awaiting sign-off",
-             "resolved": "Corrected (resolved by itself)", "confirmed_correct": "Confirmed correct"}
+             "resolved": "No longer raised", "confirmed_correct": "Confirmed correct"}
 DQ_FLAG = {"new": "New", "amber": "Over 72 h", "red": "Over 7 days"}
 
 
@@ -542,7 +542,7 @@ def data_queries_report(db, sites, date_from=None, date_to=None, now=None):
 
     order = {"red": 0, "amber": 1, "new": 2, "": 3}
     opened.sort(key=lambda x: (x.status == "awaiting_signoff", order.get(colour(x, now), 3),
-                               x.first_seen_at or now, x.record_key))
+                               x.due_at or x.first_seen_at or now, x.record_key))
     list_rows = [[i + 1, site_label(x.site_name), x.record_key, check_name(x.check_id), x.detail or x.title,
                   _ist(x.first_seen_at), max(0, (now - (x.due_at or x.first_seen_at or now)).days),
                   DQ_STATUS.get(x.status, x.status)
@@ -557,19 +557,21 @@ def data_queries_report(db, sites, date_from=None, date_to=None, now=None):
     return [{
         "title": "Summary by site",
         "note": "As at the time of generation. Open = open, acknowledged or awaiting sign-off. Age counts from "
-                "when the query became due: amber after 72 h, red after 7 days. Corrected = the data was fixed "
-                "and the query closed by itself.",
+                "when the query became due: amber after 72 h, red after 7 days. No longer raised = the "
+                "check stopped finding it: the data was corrected, or the rule changed (e.g. a range widened).",
         "columns": ["Site", "Open: new", "Open: over 72 h", "Open: over 7 days", "Awaiting sign-off",
-                    "Open total", "Closed: corrected", "Closed: confirmed correct"],
+                    "Open total", "Closed: no longer raised", "Closed: confirmed correct"],
         "rows": summary_rows,
         "chart": {"title": "Open queries by age", "labels": [r[0] for r in by_site.values()],
                   "series": [{"name": n, "values": [r[i] for r in by_site.values()]}
-                             for n, i in (("New", 1), ("Over 72 h", 2), ("Over 7 days", 3), ("Awaiting sign-off", 4))],
+                             for n, i in (("New", 1), ("Over 72 h", 2), ("Over 7 days", 3), ("Awaiting sign-off", 4))
+                             if any(r[i] for r in by_site.values())],
                   "unit": ""},
     }, {
         "title": "Open queries by check",
         "note": "Which rule raised them, most first.",
         "columns": ["Check", "Area"] + ([site_label(s) for s in present] if len(present) > 1 else []) + ["Open"],
+        "widths": [18, 9] + ([4] * len(present) if len(present) > 1 else []) + [4],
         "rows": check_rows,
         "chart": {"title": "Open queries by check", "labels": chart_labels,
                   "series": [{"name": "Open", "values": [r[-1] for r in check_rows[:12]]}], "unit": ""},
@@ -582,7 +584,8 @@ def data_queries_report(db, sites, date_from=None, date_to=None, now=None):
         "rows": list_rows,
     }, {
         "title": f"Closed in the last 7 days ({len(closed_rows)})",
-        "note": "Corrected in the data, or confirmed correct by the site (and signed off where needed).",
+        "note": "No longer raised (data corrected or rule changed), or confirmed correct by the site (and "
+                "signed off where needed).",
         "columns": ["Site", "Record", "Check", "How closed", "Closed (IST)", "By", "Reason given"],
         "widths": [6, 10, 18, 12, 10, 10, 24],
         "rows": closed_rows,
