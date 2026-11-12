@@ -409,7 +409,7 @@ def check_stay_days(ctx):
     out = []
     for r in ctx["ranged_rows"].get("neonatal_morbidities", []):
         los = r.get("total_los_days")
-        if los is None:
+        if not los:   # stay not finished (0 or blank)
             continue
         over = [f"{lab} {r[c]:g}" for c, lab in (("vent_days", "ventilation"), ("cpap_days", "CPAP"),
                                                   ("oxygen_days", "oxygen"), ("pn_days", "PN"))

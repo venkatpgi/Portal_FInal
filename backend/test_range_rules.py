@@ -102,3 +102,23 @@ def test_cross_checks():
     assert "900 g after 40 days" in data_checks.check_discharge_weight(ctx)[0]["detail"]
     assert "mean 60 outside 30-50" in data_checks.check_dms_bp_order(ctx)[0]["detail"]
     assert "1000 g to 2026-11-10" in data_checks.check_dms_weight_jump(ctx)[0]["detail"]
+
+
+def test_frontend_table_matches_backend():
+    """frontend-app/src/utils/valueRanges.js must carry the same limits."""
+    import os
+    import re
+    path = os.path.join(os.path.dirname(__file__), "..", "frontend-app", "src", "utils", "valueRanges.js")
+    js = open(path, encoding="utf-8").read()
+    conv = lambda x: None if x.strip() == "null" else float(x)
+    fe = {k: tuple(conv(x) for x in lim) for k, *lim in
+          re.findall(r'R\("(\w+)", "[^"]*", "[^"]*", ([^,]+), ([^,]+), ([^,]+), ([^,\)]+)', js)}
+    be = {tuple(None if v is None else float(v) for v in (r.confirm_lo, r.confirm_hi, r.refuse_lo, r.refuse_hi))
+          for r in rr.RULES}
+    assert len(fe) >= 35
+    assert [k for k, lim in fe.items() if lim not in be] == []
+    for k in fe:   # same key means the same limits
+        if k in RULE:
+            r = RULE[k]
+            assert fe[k] == tuple(None if v is None else float(v)
+                                  for v in (r.confirm_lo, r.confirm_hi, r.refuse_lo, r.refuse_hi)), k

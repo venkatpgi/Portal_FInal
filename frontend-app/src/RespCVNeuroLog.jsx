@@ -706,7 +706,7 @@ function validatePh(value) {
   if (value === "" || value === null || value === undefined) return null;
   const num = Number(value);
   if (!Number.isFinite(num)) return "Enter a valid number";
-  if (num < 6.6 || num > 7.8) return "pH is usually 6.6–7.8 — please double-check this value";
+  if (num < 6.5 || num > 7.9) return "pH must be 6.5–7.9 (PI range 2026-11-12)";
   return null;
 }
 
@@ -716,7 +716,7 @@ function validateBloodGasValue(value, { min, max, label }) {
   if (value === "" || value === null || value === undefined) return null;
   const num = Number(value);
   if (!Number.isFinite(num)) return "Enter a valid number";
-  if (num < min || num > max) return `${label} is usually ${min}–${max} mmHg — please double-check`;
+  if (num < min || num > max) return `${label} must be ${min}–${max} mmHg (PI range 2026-11-12)`;
   return null;
 }
 
@@ -1914,11 +1914,11 @@ export default function RespCVNeuroLog() {
   const maxFio2Error = isRespSupportYes && !maxFio2Status ? validateMaxFio2(maxFio2) : null;
   const maxFlowError = isRespSupportYes && !maxFlowStatus ? validateMaxFlow(maxFlow) : null;
   const phError = lowestPhNotDone ? null : validatePh(lowestPh);
-  const pao2LowError  = pao2NotDone ? null : validateBloodGasValue(pao2Low,  { min: 20, max: 600, label: "PaO₂ lowest" });
-  const pao2HighError = pao2NotDone ? null : validateBloodGasValue(pao2High, { min: 20, max: 600, label: "PaO₂ highest" });
+  const pao2LowError  = pao2NotDone ? null : validateBloodGasValue(pao2Low,  { min: 10, max: 600, label: "PaO₂ lowest" });
+  const pao2HighError = pao2NotDone ? null : validateBloodGasValue(pao2High, { min: 10, max: 600, label: "PaO₂ highest" });
   const pao2OrderError = pao2NotDone ? null : validateRangeOrder(pao2Low, pao2High);
-  const paco2LowError  = paco2NotDone ? null : validateBloodGasValue(paco2Low,  { min: 15, max: 150, label: "PaCO₂ lowest" });
-  const paco2HighError = paco2NotDone ? null : validateBloodGasValue(paco2High, { min: 15, max: 150, label: "PaCO₂ highest" });
+  const paco2LowError  = paco2NotDone ? null : validateBloodGasValue(paco2Low,  { min: 10, max: 150, label: "PaCO₂ lowest" });
+  const paco2HighError = paco2NotDone ? null : validateBloodGasValue(paco2High, { min: 10, max: 150, label: "PaCO₂ highest" });
   const paco2OrderError = paco2NotDone ? null : validateRangeOrder(paco2Low, paco2High);
   const apneaCountError = apneaCountNotDone ? null : validateCount(apneaCount, { max: 50, label: "Apnea episode count" });
   const desatCountError = desatCountNotDone ? null : validateCount(desatCount, { max: 50, label: "Desaturation count" });
@@ -2976,6 +2976,7 @@ export default function RespCVNeuroLog() {
                         <input
                           type="number" placeholder="21"
                           value={maxFio2}
+                          data-range="h2_max_fio2"
                           onChange={e => isFieldEditable && isRespSupportYes && setMaxFio2(e.target.value)}
                           min="21" max="100"
                           readOnly={!isFieldEditable || !isRespSupportYes}
@@ -3008,6 +3009,7 @@ export default function RespCVNeuroLog() {
                         <input
                           type="number" placeholder="0"
                           value={maxFlow}
+                          data-range="h2_max_flow"
                           onChange={e => isFieldEditable && isRespSupportYes && setMaxFlow(e.target.value)}
                           min="0" max="30"
                           readOnly={!isFieldEditable || !isRespSupportYes}
@@ -3056,6 +3058,7 @@ export default function RespCVNeuroLog() {
                       <input
                         type="number" placeholder="7.25" step="0.01"
                         value={lowestPh}
+                        data-range="dms_ph"
                         onChange={e => {
                           if (!isFieldEditable) return;
                           setBloodGasAutofilled(p => ({ ...p, ph: false }));
@@ -3103,6 +3106,7 @@ export default function RespCVNeuroLog() {
                         <input
                           type="number" placeholder="Lowest"
                           value={pao2Low}
+                          data-range="dms_pao2"
                           onChange={e => {
                             if (!isFieldEditable) return;
                             setBloodGasAutofilled(p => ({ ...p, pao2: false }));
@@ -3116,6 +3120,7 @@ export default function RespCVNeuroLog() {
                         <input
                           type="number" placeholder="Highest"
                           value={pao2High}
+                          data-range="dms_pao2"
                           onChange={e => {
                             if (!isFieldEditable) return;
                             setBloodGasAutofilled(p => ({ ...p, pao2: false }));
@@ -3167,6 +3172,7 @@ export default function RespCVNeuroLog() {
                         <input
                           type="number" placeholder="Lowest"
                           value={paco2Low}
+                          data-range="dms_paco2"
                           onChange={e => {
                             if (!isFieldEditable) return;
                             setBloodGasAutofilled(p => ({ ...p, paco2: false }));
@@ -3180,6 +3186,7 @@ export default function RespCVNeuroLog() {
                         <input
                           type="number" placeholder="Highest"
                           value={paco2High}
+                          data-range="dms_paco2"
                           onChange={e => {
                             if (!isFieldEditable) return;
                             setBloodGasAutofilled(p => ({ ...p, paco2: false }));

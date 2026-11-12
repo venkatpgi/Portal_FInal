@@ -69,8 +69,9 @@ const RULES = {
       const n = Number(v);
       if (!v) return "Required";
       if (n <= 0) return "Dose must be greater than 0";
-      if (n < 50) return { msg: "Below recommended range (50–200 mg/kg)", level: "warn" };
-      if (n > 200) return { msg: "Above recommended range (50–200 mg/kg)", level: "warn" };
+      if (n < 50 || n > 300) return "Not possible: 50–300 mg/kg (PI range 2026-11-12)";
+      if (n < 100) return { msg: "Below the usual range (100–200 mg/kg)", level: "warn" };
+      if (n > 200) return { msg: "Above the usual range (100–200 mg/kg)", level: "warn" };
       return null;
     },
   },
@@ -79,9 +80,9 @@ const RULES = {
     validate: v => {
       const n = Number(v);
       if (!v) return "Required";
-      if (n > 20) return "Maximum value is 20 cmH₂O";
-      if (n < 4)  return { msg: "Low MAP — typical range 4–12 cmH₂O", level: "warn" };
-      if (n > 12) return { msg: "High MAP — typical range 4–12 cmH₂O", level: "warn" };
+      if (n > 15) return "Maximum value is 15 cmH₂O (PI range 2026-11-12)";
+      if (n < 4)  return { msg: "Low — usual range 4–10 cmH₂O", level: "warn" };
+      if (n > 10) return { msg: "High — usual range 4–10 cmH₂O", level: "warn" };
       return null;
     },
   },
@@ -90,7 +91,7 @@ const RULES = {
     validate: v => {
       if (!v && v !== 0) return "Required";
       const n = Number(v);
-      if (n < 0 || n > 100) return "Value must be between 0 and 100";
+      if (n < 21 || n > 100) return "FiO₂ must be 21–100% (room air is 21%)";
       return null;
     },
   },
@@ -117,7 +118,7 @@ const RULES = {
     validate: v => {
       if (!v && v !== 0) return "Required";
       const n = Number(v);
-      if (n < 0 || n > 100) return "Value must be between 0 and 100";
+      if (n < 21 || n > 100) return "FiO₂ must be 21–100% (room air is 21%)";
       return null;
     },
   },

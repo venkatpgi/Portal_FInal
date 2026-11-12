@@ -872,7 +872,7 @@ export default function FormE() {
       if (!isNaN(date)) updatedValue = toDateTimeLocalValue(date);
     }
     if (["temp_dr","temp_skin","temp_axillary"].includes(name))
-      if (value && (Number(value) < 30 || Number(value) > 40)) errorMsg = "Must be between 30–40 °C";
+      if (value && (Number(value) < 25 || Number(value) > 42)) errorMsg = "Must be between 25–42 °C";
     if (name === "mode_of_transport_other" && formData.mode_of_transport === "Other" && !value)
       errorMsg = "Specify mode of transport";
     if (["transport_fio2","nicu_fio2"].includes(name)) {
@@ -887,14 +887,14 @@ export default function FormE() {
     const requiredFields = ["admission_datetime","area_of_admission","temp_dr","temp_skin","additional_heating",
       "mode_of_transport","transport_adverse_event","transport_mode_resp","nicu_mode_resp","completed_by"];
     if (requiredFields.includes(name) && !value) errorMsg = "This field is required";
-    if (name === "transport_cpap" && value && (Number(value) < 2 || Number(value) > 12)) errorMsg = "Range: 2–12";
-    if (name === "transport_pip" && value && (Number(value) < 10 || Number(value) > 40)) errorMsg = "Range: 10–40";
-    if (name === "transport_peep" && value && (Number(value) < 2 || Number(value) > 10)) errorMsg = "Range: 2–10";
-    if (name === "transport_map" && value && (Number(value) < 5 || Number(value) > 20)) errorMsg = "Range: 5–20";
-    if (name === "nicu_cpap" && value && (Number(value) < 2 || Number(value) > 12)) errorMsg = "Range: 2–12";
-    if (name === "nicu_pip" && value && (Number(value) < 10 || Number(value) > 40)) errorMsg = "Range: 10–40";
-    if (name === "nicu_peep" && value && (Number(value) < 2 || Number(value) > 10)) errorMsg = "Range: 2–10";
-    if (name === "nicu_map" && value && (Number(value) < 5 || Number(value) > 20)) errorMsg = "Range: 5–20";
+    if (name === "transport_cpap" && value && (Number(value) < 0 || Number(value) > 15)) errorMsg = "Range: 0–15";
+    if (name === "transport_pip" && value && (Number(value) < 5 || Number(value) > 40)) errorMsg = "Range: 5–40";
+    if (name === "transport_peep" && value && (Number(value) < 0 || Number(value) > 15)) errorMsg = "Range: 0–15";
+    if (name === "transport_map" && value && (Number(value) < 0 || Number(value) > 30)) errorMsg = "Range: 0–30";
+    if (name === "nicu_cpap" && value && (Number(value) < 0 || Number(value) > 15)) errorMsg = "Range: 0–15";
+    if (name === "nicu_pip" && value && (Number(value) < 5 || Number(value) > 40)) errorMsg = "Range: 5–40";
+    if (name === "nicu_peep" && value && (Number(value) < 0 || Number(value) > 15)) errorMsg = "Range: 0–15";
+    if (name === "nicu_map" && value && (Number(value) < 0 || Number(value) > 30)) errorMsg = "Range: 0–30";
     if (["transport_amplitude","nicu_amplitude"].includes(name) && value && (Number(value) < 2 || Number(value) > 80)) errorMsg = "Range: 2–80";
     if (["transport_frequency","nicu_frequency"].includes(name) && value && (Number(value) < 5 || Number(value) > 20)) errorMsg = "Range: 5–20";
     if (name === "heating_type" && formData.additional_heating === "Yes" && !(Array.isArray(value) ? value.length : value)) errorMsg = "Select heating type";

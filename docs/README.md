@@ -23,6 +23,7 @@ the same commit.
 | [07_ae_sae.md](07_ae_sae.md) | AE detection (41 terms), grading, SAE reports, IEC/CDSCO documents |
 | [08_screening_logs_and_consort.md](08_screening_logs_and_consort.md) | Gestation (Inclusion Criteria) Screening Log, Log of All Births, matching, CR-number rules, CONSORT boxes |
 | [09_data_integrity_playbook.md](09_data_integrity_playbook.md) | Known failure modes, checks to run, how to investigate and repair |
+| [10_value_ranges.md](10_value_ranges.md) | Plausible ranges for typed numbers: refused on save, warned, data queries (PI 2026-11-12) |
 
 ## Trial site vs training site (PI 2026-10-14)
 - **portaltrial.in** holds the real trial data. Only staff of **live sites**

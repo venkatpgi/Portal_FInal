@@ -296,7 +296,7 @@ function NumRow({ label, value, onChange, disabled, unit, placeholder="0",
 /** Text/numeric row for creatinine / glucose — accepts a number, or a
  *  sentinel set via the toggle ("Result Awaited", "Not Recorded / Not
  *  Done", or glucose "Not Tested"). Sentinels never live in the input. */
-function GlucoseTextRow({ label, value, onChange, disabled, unit, autofilled, placeholder = "—", allowAwaited = false, allowNotDone = false, allowNotTested = false }) {
+function GlucoseTextRow({ label, value, onChange, disabled, unit, autofilled, placeholder = "—", allowAwaited = false, allowNotDone = false, allowNotTested = false, range }) {
   const isGlucoseStatus = allowNotTested && isGlucoseSentinel(value);
   const isSentinel = isStatusSentinel(value) || isGlucoseStatus;
   const isAwaited  = value === STATUS_AWAITED;
@@ -336,6 +336,7 @@ function GlucoseTextRow({ label, value, onChange, disabled, unit, autofilled, pl
           <>
             <input
               type="text"
+              data-range={range}
               value={value ?? ""}
               onChange={e => !disabled && onChange(e.target.value === "" ? null : e.target.value)}
               readOnly={disabled}
@@ -2543,7 +2544,7 @@ export default function MetabRenalVascEyeLog() {
                       <label className="mml-meta-field">
                         <span>Value</span>
                         <div className="rcn-num-input">
-                          <input type="number" step="0.01" value={e.value ?? ""}
+                          <input type="number" step="0.01" data-range="h5_sodium" value={e.value ?? ""}
                             disabled={!isFieldEditable}
                             onChange={ev => setReadingField("sodium_readings", i, "value",
                               ev.target.value === "" ? "" : Number(ev.target.value))} />
@@ -2579,7 +2580,7 @@ export default function MetabRenalVascEyeLog() {
                       <label className="mml-meta-field">
                         <span>Value</span>
                         <div className="rcn-num-input">
-                          <input type="number" step="0.01" value={e.value ?? ""}
+                          <input type="number" step="0.01" data-range="h5_potassium" value={e.value ?? ""}
                             disabled={!isFieldEditable}
                             onChange={ev => setReadingField("potassium_readings", i, "value",
                               ev.target.value === "" ? "" : Number(ev.target.value))} />
@@ -2615,7 +2616,7 @@ export default function MetabRenalVascEyeLog() {
                       <label className="mml-meta-field">
                         <span>Value</span>
                         <div className="rcn-num-input">
-                          <input type="number" step="0.01" value={e.value ?? ""}
+                          <input type="number" step="0.01" data-range="h5_calcium" value={e.value ?? ""}
                             disabled={!isFieldEditable}
                             onChange={ev => setReadingField("calcium_readings", i, "value",
                               ev.target.value === "" ? "" : Number(ev.target.value))} />
@@ -2644,6 +2645,7 @@ export default function MetabRenalVascEyeLog() {
                 <GlucoseTextRow
                   label="12. Serum Creatinine (mg/dL)"
                   value={renalData.creatinine_value}
+                  range="h5_creatinine"
                   onChange={v => setRenal("creatinine_value", v)}
                   disabled={!isFieldEditable}
                   unit="mg/dL"

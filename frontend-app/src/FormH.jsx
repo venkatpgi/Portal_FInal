@@ -693,7 +693,7 @@ validateJaundice(name, val, updatedForm);
 }
 
 if (name === "discharge_weight") {
-  if (value === "" || (Number(value) >= 500 && Number(value) <= 6000)) {
+  if (value === "" || (Number(value) >= 0 && Number(value) <= 8000)) {
     updatedForm[name] = value;
   } else return;
 }
@@ -1133,7 +1133,7 @@ const validateSummary = (name, value, updatedForm = formData) => {
     case "discharge_weight":
       if (value) {
         if (!isNumber(value)) error = "Only numbers";
-        else if (value < 500 || value > 6000) error = "500–6000 g";
+        else if (value < 800 || value > 8000) error = "800–8000 g";
       }
       break;
 
