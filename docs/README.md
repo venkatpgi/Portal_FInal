@@ -144,6 +144,13 @@ nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
   and missing numbers (a gap may be an activation never entered; the number
   is the blender's own allocation number, PI 2026-11-11); list of
   babies randomised in error with time, reason and who activated.
+- **Data queries** (PI 2026-11-12): a snapshot when generated. Summary by site
+  (open new / over 72 h / over 7 days, awaiting sign-off, closed no longer raised /
+  confirmed correct), open queries by check, the open list (oldest first,
+  awaiting sign-off last) and queries closed in the last 7 days with who and
+  why. Dates filter by when a query was first raised. Same people as the Data
+  queries page (Global PI, Project Scientist, global scientist, site PI, site
+  scientist; site roles see their own site).
 - **At a glance**: per site, screened / excluded / not approached / refused /
   eligible (Box 5) / consented / randomised babies / randomised in error
   (not counted as randomised); Form I status at 36 / 40 /

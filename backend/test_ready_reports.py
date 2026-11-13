@@ -94,3 +94,49 @@ def test_not_asked_reason_uses_reason_not_approached():
 def test_gap_ranges():
     assert rr._ranges([1, 2, 3, 7, 9, 10]) == "001–003, 007, 009–010"
     assert rr._ranges([]) == ""
+
+
+# ---------------------------------------------------------------- data queries
+def test_data_queries_report_snapshot():
+    from datetime import datetime, timedelta
+    from types import SimpleNamespace as NS
+
+    now = datetime(2026, 11, 12, 10, 0)
+
+    def dq(i, status, site="PGIMER", check="VALUE_OUT_OF_RANGE", age_h=1, **kw):
+        t = now - timedelta(hours=age_h)
+        base = dict(id=i, check_id=check, site_name=site, record_key=f"01-B-00{i}/x", title="t",
+                    detail=f"01-B-00{i}: detail {i}", status=status, due_at=t, first_seen_at=t,
+                    resolved_at=None, confirmed_at=None, signoff_at=None, confirmed_by=None,
+                    signoff_by=None, confirmed_reason=None)
+        base.update(kw)
+        return NS(**base)
+
+    rows = [dq(1, "open"), dq(2, "open", age_h=100), dq(3, "open", age_h=200, check="DMS_WEIGHT_JUMP"),
+            dq(4, "awaiting_signoff", check="RANDOMISED_IN_ERROR", confirmed_by="pi.pgimer"),
+            dq(5, "resolved", resolved_at=now - timedelta(days=1)),
+            dq(6, "confirmed_correct", confirmed_at=now - timedelta(days=2), confirmed_by="sci", confirmed_reason="chart ok"),
+            dq(7, "resolved", resolved_at=now - timedelta(days=20))]
+
+    class Q:
+        def filter(self, *a):
+            return self
+
+        def all(self):
+            return rows
+
+    class DB:
+        def query(self, *a):
+            return Q()
+
+    secs = rr.data_queries_report(DB(), ["PGIMER"], now=now)
+    summary, by_check, open_list, closed = secs
+    assert summary["rows"] == [["PGIMER", 1, 1, 1, 1, 4, 2, 1]]
+    assert by_check["rows"][0] == ["Typed number outside the approved range", "Plausible values", 2]
+    # oldest first, awaiting sign-off last
+    assert [r[2] for r in open_list["rows"]] == ["01-B-003/x", "01-B-002/x", "01-B-001/x", "01-B-004/x"]
+    assert open_list["rows"][0][-1] == "Over 7 days" and "pi.pgimer" in open_list["rows"][-1][7]
+    assert [r[1] for r in closed["rows"]] == ["01-B-005/x", "01-B-006/x"]   # 20-day-old closure left out
+    assert closed["rows"][1][-1] == "chart ok"
+    pdf = rr.to_pdf(rr._report("data_queries", ["PGIMER"], "all queries", secs))
+    assert pdf[:4] == b"%PDF"

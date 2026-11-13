@@ -13,6 +13,9 @@
                 weeks, outcomes (components of the composites).
   ae_summary    Monthly AE / SAE summary for the IEC and DSMB, with the
                 literature baseline (ae_summary.py; dates = AE start date).
+  data_queries  Data queries as they stand when generated (PI 2026-11-12):
+                by site, by check, the open list, closed in the last 7 days
+                (dates = when a query was first raised).
 
 Same definitions as the Trial Monitoring CONSORT (routers/dashboard.py):
 excluded = Box 4a (gestation outside 25+0 to 31+6 weeks, or not recorded)
@@ -48,6 +51,9 @@ REPORTS = [
     {"key": "blender_check", "title": "Blender check",
      "description": "Enrollment IDs used on each blender (randomised and randomised in error), with gaps "
                     "that may be activations never entered."},
+    {"key": "data_queries", "title": "Data queries",
+     "description": "Snapshot at the time of generation: open queries by site and check, ageing (new, over "
+                    "72 h, over 7 days), awaiting sign-off, the full list, and queries closed in the last 7 days."},
     {"key": "ae_summary", "title": "AE summary for IEC / DSMB",
      "description": "Monthly: AEs and SAEs by term and site, pooled (blinded), with the literature baseline. "
                     "Dates = AE start date."},
@@ -479,6 +485,113 @@ def blender_check_report(db, sites):
     }]
 
 
+# --------------------------------------------------------------- data queries
+DQ_STATUS = {"open": "Open", "acknowledged": "Acknowledged", "awaiting_signoff": "Awaiting sign-off",
+             "resolved": "No longer raised", "confirmed_correct": "Confirmed correct"}
+DQ_FLAG = {"new": "New", "amber": "Over 72 h", "red": "Over 7 days"}
+
+
+def _ist(dt) -> str:
+    """data_queries times are naive UTC."""
+    from datetime import timedelta
+    return (dt + timedelta(hours=5, minutes=30)).strftime("%d-%m-%Y %H:%M") if dt else ""
+
+
+def data_queries_report(db, sites, date_from=None, date_to=None, now=None):
+    """Data queries as they stand now (PI 2026-11-12). IDs only: details carry
+    ids, numbers and dates (data_checks.py), never names."""
+    from datetime import timedelta
+
+    from data_checks import CHECKS_BY_ID, OPEN_STATES, colour
+    from models import DataQuery
+    now = now or datetime.utcnow()
+    q = db.query(DataQuery).filter(DataQuery.site_name.in_(list(sites)))
+    if date_from:
+        q = q.filter(DataQuery.first_seen_at >= datetime.combine(date_from, datetime.min.time()) - timedelta(hours=5, minutes=30))
+    if date_to:
+        q = q.filter(DataQuery.first_seen_at < datetime.combine(date_to, datetime.min.time()) + timedelta(hours=18, minutes=30))
+    queries = q.all()
+    opened = [x for x in queries if x.status in OPEN_STATES]
+    week = now - timedelta(days=7)
+    closed7 = [x for x in queries if x.status not in OPEN_STATES
+               and ((x.resolved_at and x.resolved_at >= week) or (x.confirmed_at and x.confirmed_at >= week)
+                    or (x.signoff_at and x.signoff_at >= week))]
+
+    def check_name(cid):
+        c = CHECKS_BY_ID.get(cid)
+        return c.description if c else cid
+
+    present = _site_order({x.site_name for x in queries}, sites)
+    by_site = {}
+    for s in present:
+        mine = [x for x in queries if x.site_name == s]
+        op = [x for x in mine if x.status in OPEN_STATES]
+        flags = Counter(colour(x, now) for x in op if x.status != "awaiting_signoff")
+        by_site[s] = [site_label(s), flags["new"], flags["amber"], flags["red"],
+                      sum(x.status == "awaiting_signoff" for x in op), len(op),
+                      sum(x.status == "resolved" for x in mine), sum(x.status == "confirmed_correct" for x in mine)]
+    total = ["Total"] + [sum(r[i] for r in by_site.values()) for i in range(1, 8)]
+    summary_rows = _with_total(by_site, present, 8, total)
+
+    by_check = defaultdict(Counter)
+    for x in opened:
+        by_check[x.check_id][x.site_name] += 1
+    check_rows = sorted(([check_name(c), CHECKS_BY_ID[c].area if c in CHECKS_BY_ID else ""]
+                         + ([cnt[s] for s in present] if len(present) > 1 else [])
+                         + [sum(cnt.values())] for c, cnt in by_check.items()), key=lambda r: -r[-1])
+
+    order = {"red": 0, "amber": 1, "new": 2, "": 3}
+    opened.sort(key=lambda x: (x.status == "awaiting_signoff", order.get(colour(x, now), 3),
+                               x.due_at or x.first_seen_at or now, x.record_key))
+    list_rows = [[i + 1, site_label(x.site_name), x.record_key, check_name(x.check_id), x.detail or x.title,
+                  _ist(x.first_seen_at), max(0, (now - (x.due_at or x.first_seen_at or now)).days),
+                  DQ_STATUS.get(x.status, x.status)
+                  + (f" ({x.confirmed_by})" if x.status == "awaiting_signoff" and x.confirmed_by else ""),
+                  DQ_FLAG.get(colour(x, now), "")]
+                 for i, x in enumerate(opened)]
+    closed7.sort(key=lambda x: x.resolved_at or x.confirmed_at or now, reverse=True)
+    closed_rows = [[site_label(x.site_name), x.record_key, check_name(x.check_id), DQ_STATUS.get(x.status, x.status),
+                    _ist(x.signoff_at or x.confirmed_at or x.resolved_at),
+                    x.signoff_by or x.confirmed_by or "", x.confirmed_reason or ""] for x in closed7]
+    chart_labels = [r[0] for r in check_rows[:12]]
+    return [{
+        "title": "Summary by site",
+        "note": "As at the time of generation. Open = open, acknowledged or awaiting sign-off. Age counts from "
+                "when the query became due: amber after 72 h, red after 7 days. No longer raised = the "
+                "check stopped finding it: the data was corrected, or the rule changed (e.g. a range widened).",
+        "columns": ["Site", "Open: new", "Open: over 72 h", "Open: over 7 days", "Awaiting sign-off",
+                    "Open total", "Closed: no longer raised", "Closed: confirmed correct"],
+        "rows": summary_rows,
+        "chart": {"title": "Open queries by age", "labels": [r[0] for r in by_site.values()],
+                  "series": [{"name": n, "values": [r[i] for r in by_site.values()]}
+                             for n, i in (("New", 1), ("Over 72 h", 2), ("Over 7 days", 3), ("Awaiting sign-off", 4))
+                             if any(r[i] for r in by_site.values())],
+                  "unit": ""},
+    }, {
+        "title": "Open queries by check",
+        "note": "Which rule raised them, most first.",
+        "columns": ["Check", "Area"] + ([site_label(s) for s in present] if len(present) > 1 else []) + ["Open"],
+        "widths": [18, 9] + ([4] * len(present) if len(present) > 1 else []) + [4],
+        "rows": check_rows,
+        "chart": {"title": "Open queries by check", "labels": chart_labels,
+                  "series": [{"name": "Open", "values": [r[-1] for r in check_rows[:12]]}], "unit": ""},
+    }, {
+        "title": f"Open queries ({len(list_rows)})",
+        "note": "Oldest and most overdue first; queries awaiting the Global PI's sign-off at the end. "
+                "Days = days since due.",
+        "columns": ["#", "Site", "Record", "Check", "Query", "Raised (IST)", "Days", "Status", "Age"],
+        "widths": [3, 6, 9, 14, 40, 9, 4, 9, 6],
+        "rows": list_rows,
+    }, {
+        "title": f"Closed in the last 7 days ({len(closed_rows)})",
+        "note": "No longer raised (data corrected or rule changed), or confirmed correct by the site (and "
+                "signed off where needed).",
+        "columns": ["Site", "Record", "Check", "How closed", "Closed (IST)", "By", "Reason given"],
+        "widths": [6, 10, 18, 12, 10, 10, 24],
+        "rows": closed_rows,
+    }]
+
+
 def completeness_report(babies, sites, status_for):
     ticks = {eid: status_for(eid) or {} for _, eid in babies}
     per_site = defaultdict(list)
@@ -602,6 +715,10 @@ def build(key, db, sites, date_from=None, date_to=None, *, status_for=None, comp
         period = ("AEs starting " + " to ".join(d.strftime("%d-%m-%Y") for d in (date_from, date_to) if d)
                   + " · cumulative to the end date" if date_from or date_to else "all AEs to date")
         return _report(key, sites, period, sections)
+    if key == "data_queries":
+        period = ("queries raised " + " to ".join(d.strftime("%d-%m-%Y") for d in (date_from, date_to) if d)
+                  if date_from or date_to else "all queries")
+        return _report(key, sites, period, data_queries_report(db, sites, date_from, date_to))
     if key == "blender_check":
         return _report(key, sites, "all Form B to date", blender_check_report(db, sites))
     rows = screenings(db, sites, date_from, date_to)
