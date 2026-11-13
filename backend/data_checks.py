@@ -363,6 +363,123 @@ def check_urine_window_missing(ctx):
     return out
 
 
+# ----------------------------------------------------------- range_rules.py
+def _where(r):
+    if r.get("nicu_day") is not None:
+        return f"day {r['nicu_day']}"
+    if r.get("record_date"):
+        return str(r["record_date"])[:10]
+    return ""
+
+
+def check_value_out_of_range(ctx):
+    """Typed numbers outside the PI's confirm range (range_rules.RULES).
+    One query per baby, field and record (DMS / readings: per day, listing
+    the times). Facts carry the values only."""
+    import range_rules as rr
+    from value_ranges import fmt
+    out = []
+    for rule in rr.RULES:
+        for r in ctx["ranged_rows"].get(rule.table, []):
+            eid = r["enrollment_id"]
+            kg = ctx["weight_kg"].get(eid) if rule.kind == "per_kg" else None
+            bad = [(d, t, v, rr.level(rule, v)) for d, t, v in rr.values_of(rule, r.get(rule.attr), kg)]
+            bad = [b for b in bad if b[3]]
+            if not bad:
+                continue
+            by_day = defaultdict(list)
+            for d, t, v, lv in bad:
+                by_day[(d or _where(r))].append((t, v, lv))
+            for day, items in by_day.items():
+                worst = "impossible" if any(i[2] == "impossible" for i in items) else items[0][2]
+                unit = f" {rule.unit}" if rule.unit else ""
+                vals = ", ".join(f"{fmt(v)}{unit}" + (f" at {t}" if t else "") for t, v, _l in items)
+                where = f" {day}" if day else ""
+                out.append(finding(
+                    r["site_name"], "range", f"{eid}/{rule.key}" + (f"/{day}" if day else ""),
+                    f"{rule.label} {'not possible' if worst == 'impossible' else worst}: {rule.form}{where}",
+                    f"{eid} {rule.form}{where}: {rule.label} {vals}. Expected {rr.expected(rule)}{unit}. Check the "
+                    "chart: correct the value, or confirm it is right.",
+                    {"values": [[t, v] for t, v, _l in items]}, ctx["now"]))
+    return out
+
+
+def check_stay_days(ctx):
+    """Form H: days on support longer than the stay."""
+    out = []
+    for r in ctx["ranged_rows"].get("neonatal_morbidities", []):
+        los = r.get("total_los_days")
+        if not los:   # stay not finished (0 or blank)
+            continue
+        over = [f"{lab} {r[c]:g}" for c, lab in (("vent_days", "ventilation"), ("cpap_days", "CPAP"),
+                                                  ("oxygen_days", "oxygen"), ("pn_days", "PN"))
+                if r.get(c) is not None and r[c] > los]
+        if over:
+            out.append(finding(r["site_name"], "enrollment", r["enrollment_id"], "Form H: support days longer than the stay",
+                               f"{r['enrollment_id']}: length of stay {los} days but " + ", ".join(over) + " days.",
+                               {"los": los, "over": over}, ctx["now"]))
+    return out
+
+
+def check_discharge_weight(ctx):
+    """Form H discharge weight below birth weight after more than 21 days."""
+    out = []
+    for r in ctx["ranged_rows"].get("neonatal_morbidities", []):
+        dw, los = r.get("discharge_weight"), r.get("total_los_days")
+        bw = (ctx["weight_kg"].get(r["enrollment_id"]) or 0) * 1000
+        if dw and bw and los and los > 21 and dw < bw:
+            out.append(finding(r["site_name"], "enrollment", r["enrollment_id"], "Form H: discharge weight below birth weight",
+                               f"{r['enrollment_id']}: discharge weight {dw:g} g after {los} days, birth weight {bw:g} g.",
+                               {"dw": dw, "bw": bw}, ctx["now"]))
+    return out
+
+
+def check_dms_bp_order(ctx):
+    """DMS 5.1.A: diastolic not below systolic, or mean outside them. Per baby and day."""
+    import range_rules as rr
+    out = []
+    for r in ctx["ranged_rows"].get("minimal_monitoring_day_logs", []):
+        parsed = rr._json(r.get("entries_json"))
+        rows = parsed.get("cv_a") if isinstance(parsed, dict) else None
+        bad = []
+        for e in rows if isinstance(rows, list) else []:
+            if not isinstance(e, dict):
+                continue
+            s_, d_, m_ = (rr._num(e.get(k)) for k in ("sbp", "dbp", "map_value"))
+            if s_ is not None and d_ is not None and d_ >= s_:
+                bad.append(f"{e.get('time') or '?'} {d_:g} not below {s_:g}")
+            elif s_ is not None and d_ is not None and m_ is not None and not (d_ <= m_ <= s_):
+                bad.append(f"{e.get('time') or '?'} mean {m_:g} outside {d_:g}-{s_:g}")
+        if bad:
+            day = str(r.get("record_date"))[:10]
+            out.append(finding(r["site_name"], "range", f"{r['enrollment_id']}/bp_order/{day}",
+                               f"DMS blood pressure readings do not fit: {day}",
+                               f"{r['enrollment_id']} DMS {day}: " + "; ".join(bad) + " (mmHg). Check the readings.",
+                               {"bad": bad}, ctx["now"]))
+    return out
+
+
+def check_dms_weight_jump(ctx):
+    """DMS 5.7.A: weight changes more than 10% from the previous weight. Per baby."""
+    import range_rules as rr
+    weights = defaultdict(list)
+    site = {}
+    for r in ctx["ranged_rows"].get("minimal_monitoring_day_logs", []):
+        site[r["enrollment_id"]] = r["site_name"]
+        for d, t, v in rr.dms_values(r.get("entries_json"), "growth_a", "weight_g"):
+            weights[r["enrollment_id"]].append((d or str(r.get("record_date"))[:10], t, v))
+    out = []
+    for eid, ws in weights.items():
+        ws.sort()
+        jumps = [f"{p[0]} {p[2]:g} g to {c[0]} {c[1]} {c[2]:g} g" for p, c in zip(ws, ws[1:])
+                 if p[2] > 0 and abs(c[2] - p[2]) / p[2] > 0.10]
+        if jumps:
+            out.append(finding(site[eid], "enrollment", eid, "DMS weight changes more than 10%",
+                               f"{eid}: weight changed more than 10% from the previous weight: " + "; ".join(jumps)
+                               + ". Check the weights (grams).", {"jumps": jumps}, ctx["now"]))
+    return out
+
+
 CHECKS = [
     Check("GA_ELIGIBLE_NO_FORM_A", "Gestation Log", "Eligible woman, still pregnant, with no Form A", check_ga_eligible_no_form_a),
     Check("GA_NOW_ELIGIBLE", "Gestation Log", "Logged before 25 weeks, now in the window, no Form A", check_ga_now_eligible),
@@ -381,6 +498,11 @@ CHECKS = [
     Check("DAY1_DATE_MISMATCH", "Clinical consistency", "Form E Day 1 date differs from Form B date of birth", check_day1_date_mismatch),
     Check("URINE_OUT_OF_RANGE", "Plausible values", "Urine output above 6 or below 0.5 ml/kg/hr", check_urine_out_of_range),
     Check("URINE_WINDOW_MISSING", "Plausible values", "Urine output window left blank (no status)", check_urine_window_missing),
+    Check("VALUE_OUT_OF_RANGE", "Plausible values", "Typed number outside the approved range", check_value_out_of_range),
+    Check("STAY_DAYS_OVER_LOS", "Plausible values", "Form H support days longer than the stay", check_stay_days),
+    Check("DISCHARGE_WEIGHT_LOW", "Plausible values", "Form H discharge weight below birth weight after 21 days", check_discharge_weight),
+    Check("DMS_BP_ORDER", "Plausible values", "DMS diastolic not below systolic, or mean outside them", check_dms_bp_order),
+    Check("DMS_WEIGHT_JUMP", "Plausible values", "DMS weight change over 10% from the previous weight", check_dms_weight_jump),
     Check("LOG_AFTER_STAY_END", "Clinical consistency", "DMS or Helper entries after death or discharge", check_entries_after_stay_end),
     Check("FORM_C_INCOMPLETE", "Form timeliness", "Form C (maternal details) not complete", _incomplete("Form C", "maternal_details"), raise_after=AMBER_AFTER),
     Check("FORM_D_INCOMPLETE", "Form timeliness", "Form D (postnatal day 1) not complete", _incomplete("Form D", "postnatal_day1", 1), raise_after=AMBER_AFTER),
@@ -453,6 +575,34 @@ def _dms_weights(db) -> dict:
         rows[eid].append((d, raw))
     return {eid: vr.dms_weights(r) for eid, r in rows.items()}
 
+def _ranged_rows(db) -> dict:
+    """Rows of every table with range rules, with enrollment id, site and
+    (helpers) day; live babies only."""
+    import range_rules as rr
+    extra = {"neonatal_morbidities": ["vent_days", "cpap_days", "oxygen_days", "pn_days"],
+             "minimal_monitoring_day_logs": ["record_date"]}
+    out = {}
+    for table, rules in rr.BY_TABLE.items():
+        cols = sorted({r.column for r in rules if r.kind != "dms"} | set(extra.get(table, [])))
+        if table == "minimal_monitoring_day_logs":
+            cols = sorted(set(cols) | {"entries_json"})
+        if table.endswith("_day_logs") and table != "minimal_monitoring_day_logs":
+            cols.append("nicu_day")
+        sel = ", ".join(f"t.{c}" for c in cols)
+        out[table] = [dict(r) for r in db.execute(text(f"""
+            SELECT t.enrollment_id, s.site_name, {sel}
+            FROM {table} t
+            JOIN birth_resuscitation b ON b.enrollment_id = t.enrollment_id
+            JOIN screenings s ON s.screening_id = b.screening_id
+            WHERE s.is_deleted IS NOT TRUE
+        """)).mappings()]
+    return out
+
+
+def formb_w(db) -> list:
+    return [dict(r) for r in db.execute(text(
+        "SELECT enrollment_id, birth_weight FROM birth_resuscitation WHERE birth_weight > 0")).mappings()]
+
 def _context(db, now: datetime, today: date) -> dict:
     from birth_log_matching import refresh_birth_log_matches
     from models import BirthLogEntry, ParticipantPII, Screening
@@ -488,6 +638,8 @@ def _context(db, now: datetime, today: date) -> dict:
         "after_stay": _entries_after_stay(db),
         "urine_days": _urine_days(db),
         "dms_weights": _dms_weights(db),
+        "ranged_rows": _ranged_rows(db),
+        "weight_kg": {r["enrollment_id"]: (r["birth_weight"] / 1000.0) for r in formb_w(db)},
         "day1_mismatch": db.execute(text("""
             SELECT n.enrollment_id, n.day1_date, b.date_of_birth
             FROM nicu_admission n JOIN birth_resuscitation b ON b.enrollment_id = n.enrollment_id

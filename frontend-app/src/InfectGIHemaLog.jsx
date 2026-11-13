@@ -480,7 +480,7 @@ function validateFeedVolume(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "Enter a valid number";
   if (num < 0) return "Value can't be negative";
-  if (num > 220) return "Feed Volume is usually up to ~200ml/kg/d — please double-check this value";
+  if (num > 300) return "Feed Volume above 300 ml/kg/d is not possible (PI range 2026-11-12)";
   return null;
 }
 
@@ -490,8 +490,8 @@ function validateHbValue(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "Enter a valid number";
   if (num < 0) return "Value can't be negative";
-  if (num > 30) return "Hb Value above 30g/dL is implausible — please double-check";
-  if (num < 3) return "Hb Value below 3g/dL is extremely rare — please double-check";
+  if (num > 28) return "Hb above 28 g/dL is not possible (PI range 2026-11-12)";
+  if (num < 3) return "Hb below 3 g/dL is not possible (PI range 2026-11-12)";
   return null;
 }
 
@@ -501,7 +501,7 @@ function validatePeakTsb(value) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "Enter a valid number";
   if (num < 0) return "Value can't be negative";
-  if (num > 35) return "Peak TSB above 35mg/dL is extremely rare — please double-check";
+  if (num > 40) return "Peak TSB above 40 mg/dL is not possible (PI range 2026-11-12)";
   return null;
 }
 
@@ -574,7 +574,7 @@ const STATUS_NOT_DONE = "Not Recorded / Not Done";
  *  When a status is active, the numeric input is cleared/disabled and the
  *  status string — not a number — is what gets treated as the answer. */
 function NumRow({ label, value, onChange, disabled, unit, placeholder = "0", error, width = 140,
-  status = null, onStatusChange = null, allowAwaited = false, autofilled = false }) {
+  status = null, onStatusChange = null, allowAwaited = false, autofilled = false, range }) {
   const isAwaited  = status === STATUS_AWAITED;
   const isNotDone  = status === STATUS_NOT_DONE;
   const isSentinel = isAwaited || isNotDone;
@@ -613,6 +613,7 @@ function NumRow({ label, value, onChange, disabled, unit, placeholder = "0", err
           ) : (
             <>
               <input
+                data-range={range}
                 type="number" min="0" step="0.1"
                 placeholder={placeholder}
                 value={value ?? ""}
@@ -2559,7 +2560,7 @@ export default function InfectGIHemaLog() {
                     <NumRow label="7 (d) Cumulative Feed Volume (ml)" value={giData.cumulative_feed_volume} onChange={v => setGi("cumulative_feed_volume", v)} disabled={!isFieldEditable} unit="ml" placeholder="0" error={cumulativeFeedVolumeError} width={220}
                       status={giData.cumulative_feed_volume_status} onStatusChange={v => setGi("cumulative_feed_volume_status", v)}
                       autofilled={!!feedVolumeAutofilled} />
-                    <NumRow label="7 (e) Feed Volume (ml/kg/d)" value={giData.feed_volume} onChange={v => setGi("feed_volume", v)} disabled={!isFieldEditable} unit="ml/kg/d" placeholder="0" error={feedVolumeError} width={220}
+                    <NumRow label="7 (e) Feed Volume (ml/kg/d)" value={giData.feed_volume} range="h4_feed" onChange={v => setGi("feed_volume", v)} disabled={!isFieldEditable} unit="ml/kg/d" placeholder="0" error={feedVolumeError} width={220}
                       status={giData.feed_volume_status} onStatusChange={v => setGi("feed_volume_status", v)}
                       autofilled={!!feedVolumeCalcAutofilled} />
                   </div>
@@ -2624,7 +2625,7 @@ export default function InfectGIHemaLog() {
               answered={hemaAnswered} total={hemaTotal} defaultOpen={true}>
 
               <div className="rcn-yn-list">
-                <NumRow label="14. Hb Value (g/dL)" value={hemaData.hb_value} onChange={v => setHema("hb_value", v)} disabled={!isFieldEditable} unit="g/dL" placeholder="0.0" error={hbValueError}
+                <NumRow label="14. Hb Value (g/dL)" value={hemaData.hb_value} range="h4_hb" onChange={v => setHema("hb_value", v)} disabled={!isFieldEditable} unit="g/dL" placeholder="0.0" error={hbValueError}
                   status={hemaData.hb_value_status} onStatusChange={v => setHema("hb_value_status", v)} allowAwaited={true} />
                 <YNRow label="15. Jaundice" value={hemaData.jaundice}
                   onChange={v => {
@@ -2644,7 +2645,7 @@ export default function InfectGIHemaLog() {
               )}
 
               <div className="rcn-yn-list">
-                <NumRow label="16. Peak TSB (mg/dL)" value={hemaData.peak_tsb} onChange={v => setHema("peak_tsb", v)} disabled={!isFieldEditable} unit="mg/dL" placeholder="0.0" error={peakTsbError}
+                <NumRow label="16. Peak TSB (mg/dL)" value={hemaData.peak_tsb} range="h4_tsb" onChange={v => setHema("peak_tsb", v)} disabled={!isFieldEditable} unit="mg/dL" placeholder="0.0" error={peakTsbError}
                   status={hemaData.peak_tsb_status} onStatusChange={v => setHema("peak_tsb_status", v)} allowAwaited={true} />
                 <YNRow label="17. Exchange Transfusion" value={hemaData.exchange_transfusion} onChange={v => setHema("exchange_transfusion", v)} disabled={!isFieldEditable} />
                 <YNRow label="18. PRBC Transfusion" value={hemaData.prbc_transfusion}

@@ -300,7 +300,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <label>{serial} (c) CPAP</label>
         <UnitInput name={`${prefix}_cpap`} value={formData[`${prefix}_cpap`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("cpap")} error={errors[`${prefix}_cpap`]}
-          placeholder="2–12"
+          placeholder="4–10"
           onChange={e => {
             const v = e.target.value;
             if (v === "" || (/^\d+$/.test(v) && Number(v) <= 20)) handleChange(e);
@@ -316,7 +316,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <label>{serial} (d) PIP</label>
         <UnitInput name={`${prefix}_pip`} value={formData[`${prefix}_pip`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("pip")} error={errors[`${prefix}_pip`]}
-          placeholder="10–40"
+          placeholder="12–30"
           onChange={e => {
             const v = e.target.value;
             if (v === "" || (/^\d+$/.test(v) && Number(v) <= 50)) handleChange(e);
@@ -332,7 +332,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <label>{serial} (e) PEEP</label>
         <UnitInput name={`${prefix}_peep`} value={formData[`${prefix}_peep`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("peep")} error={errors[`${prefix}_peep`]}
-          placeholder="2–10"
+          placeholder="4–10"
           onChange={e => {
             const v = e.target.value;
             if (v === "" || (/^\d+$/.test(v) && Number(v) <= 15)) handleChange(e);
@@ -348,7 +348,7 @@ function RespParamGrid({ prefix, serial, mode, formData, errors, isFieldEditable
         <label>{serial} (f) MAP</label>
         <UnitInput name={`${prefix}_map`} value={formData[`${prefix}_map`]} unit="cmH₂O"
           readOnly={!isFieldEditable || dulled.includes("map")} error={errors[`${prefix}_map`]}
-          placeholder="5–20"
+          placeholder="6–18"
           onChange={e => {
             const v = e.target.value;
             if (v === "" || (/^\d+$/.test(v) && Number(v) <= 25)) handleChange(e);
@@ -888,7 +888,7 @@ export default function FormE() {
       if (!isNaN(date)) updatedValue = toDateTimeLocalValue(date);
     }
     if (["temp_dr","temp_skin","temp_axillary"].includes(name))
-      if (value && (Number(value) < 30 || Number(value) > 40)) errorMsg = "Must be between 30–40 °C";
+      if (value && (Number(value) < 25 || Number(value) > 42)) errorMsg = "Must be between 25–42 °C";
     if (name === "mode_of_transport_other" && formData.mode_of_transport === "Other" && !value)
       errorMsg = "Specify mode of transport";
     if (["transport_fio2","nicu_fio2"].includes(name)) {
@@ -903,14 +903,14 @@ export default function FormE() {
     const requiredFields = ["admission_datetime","area_of_admission","temp_dr","temp_skin","additional_heating",
       "mode_of_transport","transport_adverse_event","transport_mode_resp","nicu_mode_resp","completed_by"];
     if (requiredFields.includes(name) && !value) errorMsg = "This field is required";
-    if (name === "transport_cpap" && value && (Number(value) < 2 || Number(value) > 12)) errorMsg = "Range: 2–12";
-    if (name === "transport_pip" && value && (Number(value) < 10 || Number(value) > 40)) errorMsg = "Range: 10–40";
-    if (name === "transport_peep" && value && (Number(value) < 2 || Number(value) > 10)) errorMsg = "Range: 2–10";
-    if (name === "transport_map" && value && (Number(value) < 5 || Number(value) > 20)) errorMsg = "Range: 5–20";
-    if (name === "nicu_cpap" && value && (Number(value) < 2 || Number(value) > 12)) errorMsg = "Range: 2–12";
-    if (name === "nicu_pip" && value && (Number(value) < 10 || Number(value) > 40)) errorMsg = "Range: 10–40";
-    if (name === "nicu_peep" && value && (Number(value) < 2 || Number(value) > 10)) errorMsg = "Range: 2–10";
-    if (name === "nicu_map" && value && (Number(value) < 5 || Number(value) > 20)) errorMsg = "Range: 5–20";
+    if (name === "transport_cpap" && value && (Number(value) < 0 || Number(value) > 15)) errorMsg = "Range: 0–15";
+    if (name === "transport_pip" && value && (Number(value) < 5 || Number(value) > 40)) errorMsg = "Range: 5–40";
+    if (name === "transport_peep" && value && (Number(value) < 0 || Number(value) > 15)) errorMsg = "Range: 0–15";
+    if (name === "transport_map" && value && (Number(value) < 0 || Number(value) > 30)) errorMsg = "Range: 0–30";
+    if (name === "nicu_cpap" && value && (Number(value) < 0 || Number(value) > 15)) errorMsg = "Range: 0–15";
+    if (name === "nicu_pip" && value && (Number(value) < 5 || Number(value) > 40)) errorMsg = "Range: 5–40";
+    if (name === "nicu_peep" && value && (Number(value) < 0 || Number(value) > 15)) errorMsg = "Range: 0–15";
+    if (name === "nicu_map" && value && (Number(value) < 0 || Number(value) > 30)) errorMsg = "Range: 0–30";
     if (["transport_amplitude","nicu_amplitude"].includes(name) && value && (Number(value) < 2 || Number(value) > 80)) errorMsg = "Range: 2–80";
     if (["transport_frequency","nicu_frequency"].includes(name) && value && (Number(value) < 5 || Number(value) > 20)) errorMsg = "Range: 5–20";
     if (name === "heating_type" && formData.additional_heating === "Yes" && !(Array.isArray(value) ? value.length : value)) errorMsg = "Select heating type";
@@ -1371,7 +1371,7 @@ export default function FormE() {
                     </label>
                     <UnitInput name="temp_dr" value={formData.temp_dr} unit="°C"
                       readOnly={!isFieldEditable} error={!!errors.temp_dr}
-                      placeholder="30–40" onChange={handleChange} />
+                      placeholder="35–38" onChange={handleChange} />
                     <FieldErr msg={errors.temp_dr} />
                   </div>
 
@@ -1384,14 +1384,14 @@ export default function FormE() {
                       <label>7 (a) Skin <span className="required">*</span></label>
                       <UnitInput name="temp_skin" value={formData.temp_skin} unit="°C"
                         readOnly={!isFieldEditable} error={!!errors.temp_skin}
-                        placeholder="30–40" onChange={handleChange} />
+                        placeholder="35–38" onChange={handleChange} />
                       <FieldErr msg={errors.temp_skin} />
                     </div>
                     <div className="form-group">
                       <label>7 (b) Axillary</label>
                       <UnitInput name="temp_axillary" value={formData.temp_axillary} unit="°C"
                         readOnly={!isFieldEditable} error={!!errors.temp_axillary}
-                        placeholder="30–40" onChange={handleChange} />
+                        placeholder="35–38" onChange={handleChange} />
                       <FieldErr msg={errors.temp_axillary} />
                     </div>
                   </div>

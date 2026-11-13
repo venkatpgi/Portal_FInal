@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import DataQueryBanner from '../components/DataQueryBanner';
 import DeathReportBanner from '../components/DeathReportBanner';
 import SaeDeadlineBanner from '../components/SaeDeadlineBanner';
+import RangeWatch from '../components/RangeWatch';
 import './FormLayout.css';
 import '../styles/Theme.css';
 import { useAuth } from '../context/AuthContext';
@@ -53,7 +54,7 @@ const FormLayout = ({ children, currentForm, headerProps }) => {
           <DeathReportBanner />
           <SaeDeadlineBanner />
           <DataQueryBanner />
-          {children}
+          <RangeWatch>{children}</RangeWatch>
         </main>
       </div>
     </div>

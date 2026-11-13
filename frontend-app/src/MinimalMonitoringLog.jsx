@@ -174,7 +174,7 @@ function mmlValidatePh(value) {
   if (value === "" || value == null) return null;
   const num = Number(value);
   if (!Number.isFinite(num)) return "Enter a valid number";
-  if (num < 6.6 || num > 7.8) return "pH is usually 6.6–7.8 — please double-check this value";
+  if (num < 6.5 || num > 7.9) return "pH must be 6.5–7.9 (PI range 2026-11-12)";
   return null;
 }
 
@@ -183,7 +183,7 @@ function mmlValidateBloodGasMmHg(value, { min, max, label }) {
   const num = Number(value);
   if (!Number.isFinite(num)) return "Enter a valid number";
   if (num < min || num > max) {
-    return `${label} is usually ${min}–${max} mmHg — please double-check`;
+    return `${label} must be ${min}–${max} mmHg (PI range 2026-11-12)`;
   }
   return null;
 }
@@ -243,11 +243,11 @@ function buildRespBBloodGasWarnings(entries) {
     const phErr = mmlValidatePh(e.ph);
     if (phErr) next[`resp_b.${i}.ph`] = phErr;
     const pao2Err = mmlValidateBloodGasMmHg(e.pao2, {
-      min: 20, max: 600, label: "PaO₂",
+      min: 10, max: 600, label: "PaO₂",
     });
     if (pao2Err) next[`resp_b.${i}.pao2`] = pao2Err;
     const paco2Err = mmlValidateBloodGasMmHg(e.paco2, {
-      min: 15, max: 150, label: "PaCO₂",
+      min: 10, max: 150, label: "PaCO₂",
     });
     if (paco2Err) next[`resp_b.${i}.paco2`] = paco2Err;
   });
@@ -701,10 +701,10 @@ function Item({ n, label, sub, error, children, wide, hint }) {
   );
 }
 
-function Num({ value, onChange, disabled, unit, placeholder = "0", step, error }) {
+function Num({ value, onChange, disabled, unit, placeholder = "0", step, error, range }) {
   return (
     <div className={`rcn-num-input${error ? " rcn-num-input--error" : ""}`}>
-      <input type="number" value={value ?? ""} placeholder={placeholder} step={step}
+      <input type="number" value={value ?? ""} placeholder={placeholder} step={step} data-range={range}
         disabled={disabled} onChange={e => onChange(e.target.value)} />
       {unit && <span className="rcn-num-unit">{unit}</span>}
     </div>
@@ -1399,6 +1399,12 @@ const MET_A_COLUMNS = [
   { key: "glucose", label: "Glucose", unit: "mg/dL" },
 ];
 
+// utils/valueRanges.js keys for the flowsheet columns (PI 2026-11-12)
+const DMS_RANGE_KEYS = {
+  "cv_a.axillary_temp": "dms_temp", "cv_a.sbp": "dms_sbp", "cv_a.dbp": "dms_dbp",
+  "cv_a.map_value": "dms_map", "met_a.glucose": "dms_glucose", "growth_a.weight_g": "dms_weight",
+};
+
 const CV_A_COLUMNS = [
   { key: "axillary_temp", label: "Skin/Axillary", unit: "°C", group: "Temperature" },
   { key: "sbp", label: "SBP", unit: "mm Hg", group: "Blood pressure" },
@@ -1581,6 +1587,7 @@ function ScheduledFlowsheet({
                   {columns.map(col => (
                     <td key={col.key}>
                       <input type="number" step="any" className="mml-flowsheet-num-input"
+                        data-range={DMS_RANGE_KEYS[`${blockKey}.${col.key}`]}
                         value={e[col.key] ?? ""} disabled={disabled}
                         onChange={ev => onChangeField(e.id, col.key, ev.target.value)} />
                     </td>
@@ -2351,11 +2358,11 @@ export default function MinimalMonitoringLog() {
       const phErr = mmlValidatePh(e.ph);
       if (phErr) next[`resp_b.${i}.ph`] = phErr;
       const pao2Err = mmlValidateBloodGasMmHg(e.pao2, {
-        min: 20, max: 600, label: "PaO₂",
+        min: 10, max: 600, label: "PaO₂",
       });
       if (pao2Err) next[`resp_b.${i}.pao2`] = pao2Err;
       const paco2Err = mmlValidateBloodGasMmHg(e.paco2, {
-        min: 15, max: 150, label: "PaCO₂",
+        min: 10, max: 150, label: "PaCO₂",
       });
       if (paco2Err) next[`resp_b.${i}.paco2`] = paco2Err;
     });
@@ -2748,16 +2755,16 @@ export default function MinimalMonitoringLog() {
             blankFactory={() => freshEntry({ ph: "", pao2: "", paco2: "" }, sheetDate)}>
             {(e, i) => (
               <>
-                <Item n={1} label="pH" hint="Usually 6.6–7.8" error={err("resp_b", i, "ph")}>
-                  <Num value={e.ph} onChange={v => setEntryField("resp_b", i, "ph", v)}
+                <Item n={1} label="pH" hint="Usually 6.8–7.6" error={err("resp_b", i, "ph")}>
+                  <Num value={e.ph} range="dms_ph" onChange={v => setEntryField("resp_b", i, "ph", v)}
                     disabled={!isEditable} step="0.01" error={err("resp_b", i, "ph")} />
                 </Item>
-                <Item n={2} label="PaO₂" hint="Usually 20–600 mmHg" error={err("resp_b", i, "pao2")}>
-                  <Num value={e.pao2} onChange={v => setEntryField("resp_b", i, "pao2", v)}
+                <Item n={2} label="PaO₂" hint="Usually 25–200 mmHg" error={err("resp_b", i, "pao2")}>
+                  <Num value={e.pao2} range="dms_pao2" onChange={v => setEntryField("resp_b", i, "pao2", v)}
                     disabled={!isEditable} unit="mm Hg" error={err("resp_b", i, "pao2")} />
                 </Item>
-                <Item n={3} label="PaCO₂" hint="Usually 15–150 mmHg" error={err("resp_b", i, "paco2")}>
-                  <Num value={e.paco2} onChange={v => setEntryField("resp_b", i, "paco2", v)}
+                <Item n={3} label="PaCO₂" hint="Usually 20–100 mmHg" error={err("resp_b", i, "paco2")}>
+                  <Num value={e.paco2} range="dms_paco2" onChange={v => setEntryField("resp_b", i, "paco2", v)}
                     disabled={!isEditable} unit="mm Hg" error={err("resp_b", i, "paco2")} />
                 </Item>
               </>
