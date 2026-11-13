@@ -379,7 +379,8 @@ export default function FormF() {
         gaD = ga.days ?? null;
         bw  = b.birth_weight != null ? Number(b.birth_weight) : null;
         dob = b.date_of_birth || "";
-        setPatientInfo({ enrollmentId, gaWeeks: gaW, gaDays: gaD, birthWeight: bw, dob });
+        setPatientInfo({ enrollmentId, gaWeeks: gaW, gaDays: gaD, birthWeight: bw, dob,
+          endDate: b.discharge_date ? String(b.discharge_date).slice(0, 10) : "" });
         if (gaW !== null) {
           setScheduleKey((gaW < 28 || (bw !== null && bw < 1000)) ? "lt28" : "w28_31");
         }
@@ -494,6 +495,17 @@ export default function FormF() {
   /* ── Schedule step status (compact reference) ── */
   const stepStatus = (step) => {
     if (step.pmaWk !== null) {
+      // Discharge or death before 39 wk PMA: a scan in the last 2 days of the
+      // stay is the final scan (backend site_summary.missed_cranial_windows).
+      const endDol = patientInfo.endDate ? calcDOL(patientInfo.endDate, patientInfo.dob) : null;
+      const teaFirstDol = patientInfo.gaWeeks != null
+        ? 39 * 7 - (patientInfo.gaWeeks * 7 + (patientInfo.gaDays || 0)) + 1 : null;
+      if (endDol != null && teaFirstDol != null && endDol > 30 && endDol < teaFirstDol) {
+        return enrichedScans.some(e => {
+          const d = e.dolCalc ?? (e.dol !== undefined && e.dol !== null ? Number(e.dol) : NaN);
+          return !isNaN(d) && d >= endDol - 2 && d <= endDol;
+        });
+      }
       return enrichedScans.some(e => {
         if (e.pmaCalc && Math.abs(e.pmaCalc.weeks - step.pmaWk) <= 1) return true;
         if (e.pma) { const p = parseInt(e.pma); if (!isNaN(p) && Math.abs(p - step.pmaWk) <= 1) return true; }
