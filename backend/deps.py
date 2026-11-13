@@ -69,6 +69,13 @@ def is_superadmin(user: User) -> bool:
     return _role(user) == ROLE_SUPERADMIN
 
 
+def can_override_helper_day(user: User) -> bool:
+    """Override & Unlock a locked Helper 2/4/5 day: Global PI, or the site PI
+    for own-site babies (site checked by require_enrollment_access). Not
+    scientists (PI 2026-11-12)."""
+    return _role(user) in (ROLE_SUPERADMIN, ROLE_SITE_PI)
+
+
 def is_read_only(user: User) -> bool:
     return _role(user) in READ_ONLY_ROLES
 
