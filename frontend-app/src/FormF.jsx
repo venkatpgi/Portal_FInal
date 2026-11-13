@@ -7,7 +7,7 @@ import {
   ArrowLeft, ArrowRight, Save,
   AlertTriangle, X, Lock,
   Plus, Trash2, Pencil, FileText, Check,
-  Info, Activity, ClipboardList, Brain, CalendarDays
+  Activity, ClipboardList, Brain, CalendarDays
 } from "lucide-react";
 import "./styles/FormF.css";
 import { designationForCompletedBy } from "./utils/completedByDesignation";
@@ -25,29 +25,21 @@ const getGradeNum = g => ({ None: 0, I: 1, II: 2, III: 3, IV: 4 }[g] ?? 0);
 const STATUS = { EMPTY: "empty", DRAFT: "draft", COMPLETE: "complete", SUBMITTED: "submitted" };
 const MAX_SCANS = 10;
 
-// CRF-exact schedules — Scan 6 (36wk) added for lt28
+// Same 3-scan protocol for <28 wks and 28–31 wks (PI 2026-11-13).
+const SHARED_STEPS = [
+  { label: "Scan 1", sub: "Day 7 ± 1 of life", dolMin: 6, dolMax: 8, pmaWk: null },
+  { label: "Scan 2", sub: "Day 28 ± 2 of life", dolMin: 26, dolMax: 30, pmaWk: null },
+  {
+    label: "Final",
+    sub: "Discharge or 40 ± 1 wk PMA / TEA, whichever earlier",
+    dolMin: null,
+    dolMax: null,
+    pmaWk: 40,
+  },
+];
 const SCHEDULES = {
-  lt28: {
-    label: "< 28 wks or < 1000 g",
-    steps: [
-      { label: "Scan 1", sub: "Day 1–3",              dolMin: 1,   dolMax: 3,   pmaWk: null },
-      { label: "Scan 2", sub: "Day 4–7",              dolMin: 4,   dolMax: 7,   pmaWk: null },
-      { label: "Scan 3", sub: "Day 10–14",            dolMin: 10,  dolMax: 14,  pmaWk: null },
-      { label: "Scan 4", sub: "Day 21 (if unstable)", dolMin: 19,  dolMax: 23,  pmaWk: null },
-      { label: "Scan 5", sub: "Day 28",               dolMin: 26,  dolMax: 30,  pmaWk: null },
-      { label: "Scan 6", sub: "36 wks PMA",           dolMin: null, dolMax: null, pmaWk: 36 },
-      { label: "Final",  sub: "40 wks PMA",           dolMin: null, dolMax: null, pmaWk: 40 },
-    ],
-  },
-  w28_31: {
-    label: "28–31 wks",
-    steps: [
-      { label: "Scan 1", sub: "Day 4–7 (opt. 1–3)", dolMin: 1,  dolMax: 7,   pmaWk: null },
-      { label: "Scan 2", sub: "Day 10–14",           dolMin: 10, dolMax: 14,  pmaWk: null },
-      { label: "Scan 3", sub: "Day 28 (or unwell)",  dolMin: 25, dolMax: 32,  pmaWk: null },
-      { label: "Final",  sub: "40 wks PMA",          dolMin: null, dolMax: null, pmaWk: 40 },
-    ],
-  },
+  lt28: { label: "< 28 wks or < 1000 g", steps: SHARED_STEPS },
+  w28_31: { label: "28–31 wks", steps: SHARED_STEPS },
 };
 
 /* ══════════════════════════════════════════════════════
@@ -794,7 +786,6 @@ export default function FormF() {
                     })}
                   </div>
                 )}
-                <div className="cu-ref-note"><Info size={11} /> Auto-selected: {(patientInfo.gaWeeks != null && (patientInfo.gaWeeks < 28 || (patientInfo.birthWeight != null && patientInfo.birthWeight < 1000))) ? "< 28 wks or < 1000 g" : "28–31 wks"} protocol.</div>
               </div>
 
               <div className="cu-legend-grid">

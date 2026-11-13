@@ -148,17 +148,50 @@ def _fmt_pma(days) -> str:
 # ------------------------------------------------------------- cranial USG
 def cranial_windows(ga_days: int | None, birth_weight: float | None) -> list[tuple[str, int, int]]:
     """Form F scan schedule (page SCHEDULES) as (label, first DOL, last DOL).
-    < 28 wk or < 1000 g: Day 1-3, 4-7, 10-14, 28, 36 wk and 40 wk PMA;
-    otherwise: Day 4-7, 10-14, 28, 40 wk PMA. A PMA scan is the week from
-    that PMA (DOL = PMA days - GA days + 1)."""
+    Same 3 scans for every baby (PI 2026-11-13): Day 7 ± 1, Day 28 ± 2, then
+    discharge or 40 ± 1 wk PMA / TEA, whichever is earlier. A PMA window is
+    DOL of 40+0 ± 7 days (DOL = PMA days − GA days + 1). Discharge-before-TEA
+    is handled by skipping windows that start after the stay ended."""
     if ga_days is None:
         return []
-    small = ga_days < 28 * 7 or (birth_weight is not None and 0 < birth_weight < 1000)
-    out = ([("Day 1-3", 1, 3)] if small else []) + [("Day 4-7", 4, 7), ("Day 10-14", 10, 14), ("Day 28", 28, 28)]
-    for wk in ((36, 40) if small else (40,)):
-        dol = wk * 7 - ga_days + 1
-        out.append((f"{wk} wk PMA", dol, dol + 6))
-    return out
+    _ = birth_weight  # both GA bands now share the same 3 windows
+    tea_dol = 40 * 7 - ga_days + 1
+    return [
+        ("Day 7 ± 1", 6, 8),
+        ("Day 28 ± 2", 26, 30),
+        ("40 ± 1 wk PMA / TEA", tea_dol - 7, tea_dol + 7),
+    ]
+
+
+def missed_cranial_windows(
+    ga_days: int | None,
+    birth_weight: float | None,
+    dob: date | None,
+    today: date,
+    scan_dates: list,
+    end: date | None,
+) -> list[str]:
+    """Schedule windows that have closed (plus 2 days) with no scan in them.
+    Third scan is discharge or 40 ± 1 wk PMA / TEA, whichever is earlier:
+    if the stay ended after the Day 28 window and before TEA starts, the
+    last window is discharge ± 2 days."""
+    if dob is None:
+        return []
+    dol_today = (today - dob).days + 1
+    end_dol = (end - dob).days + 1 if end else None
+    scan_dols = sorted((d - dob).days + 1 for d in scan_dates if d)
+    wins = list(cranial_windows(ga_days, birth_weight))
+    if end_dol is not None and wins:
+        _lab, first, _last = wins[-1]
+        if first > end_dol and end_dol > 30:
+            wins[-1] = ("Discharge / TEA", max(1, end_dol - 2), end_dol)
+    missed = []
+    for label, first, last in wins:
+        if end_dol is not None and first > end_dol:
+            continue
+        if dol_today > last + 2 and not any(first - 1 <= d <= last + 2 for d in scan_dols):
+            missed.append(label)
+    return missed
 
 
 # ------------------------------------------------------------------ rules
@@ -344,12 +377,9 @@ def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> d
 
     scans = [_iso((s or {}).get("scanDate")) for s in (b.get("scan_entries") or [])]
     scan_dols = sorted((d - dob).days + 1 for d in scans if d and dob)
-    if dol_today:
-        for label, first, last in cranial_windows(b.get("ga_days"), b.get("birth_weight")):
-            if end_dol is not None and first > end_dol:
-                continue
-            if dol_today > last + 2 and not any(first - 1 <= d <= last + 2 for d in scan_dols):
-                missed.append(("M2", f"Cranial USG {label} not done"))
+    for label in missed_cranial_windows(
+            b.get("ga_days"), b.get("birth_weight"), dob, today, scans, end):
+        missed.append(("M2", f"Cranial USG {label} not done"))
     if b.get("helper2_brain_flag") and not scan_dols:
         missed.append(("M3", "Helper 2 flagged IVH / cPVL, Form F has no scan"))
 

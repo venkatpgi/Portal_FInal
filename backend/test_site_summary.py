@@ -141,14 +141,14 @@ def test_active_morbidities():
 
 
 def test_cranial_schedule():
-    assert [w[0] for w in cranial_windows(27 * 7, 900)] == ["Day 1-3", "Day 4-7", "Day 10-14", "Day 28",
-                                                           "36 wk PMA", "40 wk PMA"]
-    assert [w[0] for w in cranial_windows(30 * 7, 1300)] == ["Day 4-7", "Day 10-14", "Day 28", "40 wk PMA"]
-    # 28 wk / 1100 g baby at DOL 20 scanned DOL 5 and 12: nothing missed yet
+    same = ["Day 7 ± 1", "Day 28 ± 2", "40 ± 1 wk PMA / TEA"]
+    assert [w[0] for w in cranial_windows(27 * 7, 900)] == same
+    assert [w[0] for w in cranial_windows(30 * 7, 1300)] == same
+    # 28 wk / 1100 g baby at DOL 20 scanned DOL 5 and 12: Day 7 ± 1 covered
+    # (scan DOL 5 is inside first−1 … last+2); Day 28 not due yet
     assert "M2" not in codes(evaluate(baby(), TODAY, NOW, None), "missed")
     r = evaluate(baby(scan_entries=[]), TODAY, NOW, None)
-    assert [t for c, t in r["missed"] if c == "M2"] == ["Cranial USG Day 4-7 not done",
-                                                       "Cranial USG Day 10-14 not done"]
+    assert [t for c, t in r["missed"] if c == "M2"] == ["Cranial USG Day 7 ± 1 not done"]
 
 
 def test_m4_rop_by_dol_30():
