@@ -65,6 +65,10 @@ DEFAULT_LOGIN_USERS: list[tuple[str, str, str, str | None]] = [
     ("pompy.amc", "Pompy Sonowal", "nurse", "AMC"),
     ("rajashree.amc", "Rajashree Boruah", "nurse", "AMC"),
     ("supriya.amc", "Supriya Neog", "nurse", "AMC"),
+    # Debika Kurmi already has an AMC login (created in Manage Staff).
+    # Do not add a second username here — seed_login_users would create
+    # another account. Site-staff seed puts her on the AMC dropdowns;
+    # backfill_existing_staff_names fills her display name if it is blank.
 
     # ---- Institute of Obstetrics and Gynaecology (IOG), Chennai ----
     ("sobhana.iog", "Sobhana", "site_scientist", "IOG"),
@@ -85,6 +89,14 @@ DEFAULT_LOGIN_USERS: list[tuple[str, str, str, str | None]] = [
 KNOWN_STAFF_EMAILS: dict[str, str] = {
     "shalini.pgimer": "portaloxygen@gmail.com",
 }
+
+# Existing logins (already in `users`) whose Completed-by display name
+# should be this string. Never creates an account. Match is by site plus
+# username hint or a name that already contains the same first/last token.
+# (site_name, full_name, username_hints)
+EXISTING_STAFF_DISPLAY_NAMES: list[tuple[str, str, tuple[str, ...]]] = [
+    ("AMC", "Debika Kurmi", ("debika.amc", "debika")),
+]
 
 # Named overrides (PGIMER nodal titles). Everyone else is filled from role
 # via designation_for_account() so Completion Details autofill works at

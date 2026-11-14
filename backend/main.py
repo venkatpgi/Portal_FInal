@@ -83,7 +83,7 @@ from models import (
     FiO2AUC, RespCVNeuroLog, RespCVNeuroDayLog, InfectGIHemaLog,InfectGIHemaDayLog,
     MetabRenalVascEyeLog,MetabRenalVascEyeDayLog, MinimalMonitoringDayLog,
     CranialUSGRecord, SAEReport, AdverseEvents,
-    SAEList, User, MRIBrainAssessment, BlenderStudySummary, ParticipantPII, BirthLogEntry, GACheckEntry
+    SAEList, User, SiteStaff, MRIBrainAssessment, BlenderStudySummary, ParticipantPII, BirthLogEntry, GACheckEntry
 )
 from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, PregnancyFollowUpUpdate, BirthResuscitationCreate,MetabRenalVascEyeDayCreate, MetabRenalVascEyeDaySubmit, MinimalMonitoringDayCreate, MinimalMonitoringDayOut, BirthResuscitationOut, MaternalDetailsCreate, MaternalDetailsOut, PostnatalDay1Create, PostnatalDay1Out,NICUAdmissionCreate,NICUAdmissionOut,NeonatalMorbiditiesCreate,NeonatalMorbiditiesOut,StudyOutcomesCreate, CranialUSGCreate, CranialUSGSubmit, StudyOutcomesOut,CranialUltrasoundCreate, CranialUltrasoundOut,ROPScreeningCreate, ROPScreeningOut,CompositeOutcomeCreate, CompositeOutcomeOut, ExternalHospitalAssessmentCreate, ExternalHospitalAssessmentOut, FiO2AUCLogCreate, FiO2AUCLogOut, RespCVNeuroLogCreate,RespCVNeuroDayCreate, RespCVNeuroDaySubmit, DischargeUpdate, EndOfStayRecord, RespCVNeuroLogOut,InfectGIHemaLogCreate, InfectGIHemaLogOut,MetabRenalVascEyeLogCreate,MetabRenalVascEyeLogOut,SAEReportCreate, SAEReportOut, AdverseEventsCreate, AdverseEventsOut ,SAEListCreate, SAEListOut, AdverseEventRow, SAEListRow, UserCreate, UserUpdate, UserOut, UserRosterOut, SitePiContactOut, LoginRequest, LoginResponse, RefreshTokenRequest, TokenRefreshResponse, RespiratoryLogCreate, RespiratoryLogBulkCreate, InfectGIHemaDayCreate, InfectGIHemaDaySubmit,  SteroidDataCreate, FirebaseScreeningImportCreate, MRIBrainCreate, MRIBrainSubmit, MRIBrainOut, BlenderSummaryCreate, BlenderSummarySubmit, BlenderSummaryOut, HelperFormRecordOut, HelperFormRecordsPage, BirthLogEntryCreate, BirthLogEntryOut, GACheckEntryCreate, GACheckEntryOut, GACheckLinkRequest
 from pydantic import BaseModel
@@ -138,14 +138,22 @@ from staff_service import (
     seed_site_staff,
     deactivate_stale_site_staff,
     strip_dr_from_site_staff,
+    sync_dropdowns_for_user,
+    deactivate_dropdowns_for_user,
 )
 from user_service import (
     seed_login_users,
     backfill_pilot_designations,
     backfill_staff_emails,
     backfill_scientist_names,
+    backfill_existing_staff_names,
 )
-from user_seed import completed_by_sort_key, display_name_for_role, name_without_dr
+from user_seed import (
+    completed_by_sort_key,
+    designation_for_account,
+    display_name_for_role,
+    name_without_dr,
+)
 import security_monitor
 from crypto import decrypt_value
 from screening_status import compute_screening_status
@@ -294,6 +302,9 @@ def on_startup_migrations():
         stripped = backfill_scientist_names(db)
         if stripped:
             logger.info("Removed Dr. prefix from %s scientist name(s)", stripped)
+        named = backfill_existing_staff_names(db)
+        if named:
+            logger.info("Filled display name on %s existing staff account(s)", named)
         designated = backfill_pilot_designations(db)
         if designated:
             logger.info("Backfilled designation on %s user account(s)", designated)
@@ -872,6 +883,29 @@ def list_site_roster(
             continue
         seen.add(key)
         out.append({"full_name": u.full_name, "designation": u.designation})
+    # Site-staff names (screened-by) also belong on Completed-by, so a
+    # nurse already in Manage Staff but missing users.full_name still
+    # appears after seed_site_staff. Deduped by name against logins.
+    if roster_site:
+        staff_rows = (
+            db.query(SiteStaff)
+            .filter(
+                SiteStaff.site_name == roster_site,
+                SiteStaff.is_active.is_(True),
+            )
+            .all()
+        )
+        for row in staff_rows:
+            key = name_without_dr(row.name).strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append({
+                "full_name": row.name,
+                "designation": designation_for_account(
+                    row.name, row.role if row.role in ("nurse", "site_scientist") else "nurse", roster_site
+                ),
+            })
     out.sort(key=lambda r: completed_by_sort_key(r["full_name"]))
     return out
 
@@ -945,6 +979,7 @@ def remove_user(
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
 
+    deactivate_dropdowns_for_user(db, target)
     if hard_delete:
         db.delete(target)
         db.commit()
@@ -975,6 +1010,8 @@ def create_user(
         raise HTTPException(status_code=400, detail="Username or email already exists")
 
     hashed_pwd = hash_password(user.password)
+    full_name = display_name_for_role(user.full_name or user.username, role)
+    designation = user.designation or designation_for_account(full_name, role, user.site_name)
 
     db_user = User(
         username=user.username,
@@ -982,13 +1019,16 @@ def create_user(
         hashed_password=hashed_pwd,
         role=role,
         site_name=user.site_name,
-        full_name=display_name_for_role(user.full_name or user.username, role),
+        full_name=full_name,
         mobile=user.mobile,
-        designation=user.designation,
+        designation=designation,
         must_change_password=bool(user.must_change_password),
+        is_active=True,
     )
 
     db.add(db_user)
+    db.flush()
+    sync_dropdowns_for_user(db, db_user)
     db.commit()
     db.refresh(db_user)
 
@@ -1020,11 +1060,20 @@ def update_user(
         if dupe:
             raise HTTPException(status_code=400, detail="Email already in use by another account")
 
+    previous_name = target.full_name
+    previous_site = target.site_name
     for key, value in payload.items():
         if hasattr(target, key):
             setattr(target, key, value)
 
     target.full_name = display_name_for_role(target.full_name, target.role)
+    if not (target.designation or "").strip():
+        target.designation = designation_for_account(
+            target.full_name, target.role, target.site_name
+        )
+    sync_dropdowns_for_user(
+        db, target, previous_name=previous_name, previous_site=previous_site
+    )
 
     db.commit()
     db.refresh(target)

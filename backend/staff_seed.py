@@ -49,6 +49,7 @@ DEFAULT_SITE_STAFF: dict[str, list[str]] = {
     ],
     "AMC": [
         "Bristina Pegu",
+        "Debika Kurmi",
         "Oli Konwar",
         "Pompy Sonowal",
         "Rajashree Boruah",

@@ -15,7 +15,7 @@ from user_seed import (
     name_without_dr,
     sort_completed_by_names,
 )
-from user_service import backfill_scientist_names
+from user_service import backfill_existing_staff_names, backfill_scientist_names
 
 
 def test_pgimer_nurse_matches_tanvi_yashvi():
@@ -26,6 +26,7 @@ def test_pgimer_nurse_matches_tanvi_yashvi():
 def test_other_site_nurses_same_as_tanvi():
     assert designation_for_account("Anosh", "nurse", "GMCH") == DESIGNATION_NURSE
     assert designation_for_account("Oli Konwar", "nurse", "AMC") == DESIGNATION_NURSE
+    assert designation_for_account("Debika Kurmi", "nurse", "AMC") == DESIGNATION_NURSE
     assert (
         designation_for_account("Samiksha Deepak Khandagale", "nurse", "GMCH-A")
         == DESIGNATION_NURSE
@@ -69,6 +70,11 @@ def test_pgimer_named_scientist_titles_unchanged():
         designation_for_account("Dr. Shalini Dhiman", "site_scientist", "PGIMER")
         == "Project Research Scientist III (Non-Medical)"
     )
+
+
+def test_amc_login_users_do_not_create_debika_account():
+    usernames = [username for username, _n, _r, site in DEFAULT_LOGIN_USERS if site == "AMC"]
+    assert "debika.amc" not in usernames
 
 
 def test_seeded_scientist_names_have_no_dr_prefix():
@@ -144,3 +150,28 @@ def test_backfill_scientist_names_strips_dr(users_db):
         == "Shalini Dhiman"
     )
     assert backfill_scientist_names(users_db) == 0
+
+
+def test_backfill_existing_staff_names_fills_debika_without_creating(users_db):
+    users_db.add(
+        models.User(
+            username="debika.amc",
+            hashed_password="x",
+            role="nurse",
+            site_name="AMC",
+            full_name="",
+            is_active=True,
+        )
+    )
+    users_db.commit()
+    assert backfill_existing_staff_names(users_db) == 1
+    row = users_db.query(models.User).filter_by(username="debika.amc").one()
+    assert row.full_name == "Debika Kurmi"
+    assert row.designation == DESIGNATION_NURSE
+    assert users_db.query(models.User).count() == 1
+    assert backfill_existing_staff_names(users_db) == 0
+
+
+def test_backfill_existing_staff_names_does_not_create_account(users_db):
+    assert backfill_existing_staff_names(users_db) == 0
+    assert users_db.query(models.User).count() == 0
