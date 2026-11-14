@@ -19,7 +19,9 @@ from models import User
 from user_seed import (
     DEFAULT_LOGIN_USERS,
     KNOWN_STAFF_EMAILS,
+    SCIENTIST_ROLES,
     designation_for_account,
+    display_name_for_role,
 )
 
 CREDENTIALS_DIR = os.path.join(os.path.dirname(__file__), "credentials")
@@ -49,7 +51,7 @@ def seed_login_users(db: Session) -> int:
             hashed_password=hash_password(temp_password),
             role=role,
             site_name=site_name,
-            full_name=full_name,
+            full_name=display_name_for_role(full_name, role),
             designation=designation_for_account(full_name, role, site_name),
             must_change_password=True,
             is_active=True,
@@ -70,6 +72,29 @@ def seed_login_users(db: Session) -> int:
             f.write(",".join(field if field is not None else "" for field in row) + "\n")
 
     return len(created_rows)
+
+
+def backfill_scientist_names(db: Session) -> int:
+    """Strip a leading Dr. from scientist full_name rows already in users.
+
+    Seed skips existing usernames, so live accounts keep the old title
+    until this runs. Idempotent; does not touch nurses, PIs, or admins.
+    """
+    updated = 0
+    rows = (
+        db.query(User)
+        .filter(User.role.in_(tuple(SCIENTIST_ROLES)))
+        .all()
+    )
+    for row in rows:
+        wanted = display_name_for_role(row.full_name, row.role)
+        if not wanted or wanted == (row.full_name or "").strip():
+            continue
+        row.full_name = wanted
+        updated += 1
+    if updated:
+        db.commit()
+    return updated
 
 
 def backfill_pilot_designations(db: Session) -> int:

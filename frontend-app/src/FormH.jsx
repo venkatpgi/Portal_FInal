@@ -7,11 +7,12 @@ import "./styles/FormComponents.css";
 import "./styles/FormH.css";
 import { usePatient } from "./context/PatientContext";
 import { isUsableEnrollmentId } from "./utils/enrollmentId";
-import { designationForCompletedBy } from "./utils/completedByDesignation";
+import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
 import { useParams } from "react-router-dom";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly, formatDateToDDMMYYYY } from "./utils/datetime";
+import { dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
 import { Plus, Trash2, Brain, Wind, Utensils, Activity, HeartPulse, Droplets, Eye, Thermometer, Syringe, Bug, ClipboardList, Home, CheckCircle2, Circle, AlertTriangle } from "lucide-react";
 import FormNavBar from "./components/FormNavBar";
 import { PillSelect, ChipMultiSelect, CollapsibleCard, FieldRow } from "./components/formh/FormHFields";
@@ -5073,9 +5074,7 @@ const num = (v) => {
   };
 
 const nurses = roster.map(r => r.full_name);
-const completedByOptions = formData.completed_by && !nurses.includes(formData.completed_by)
-  ? [...nurses, formData.completed_by]
-  : nurses;
+const completedByOptions = completedByNameOptions(roster, formData.completed_by);
 
 const getDesignation = (name) => designationForCompletedBy(name, roster);
 
@@ -11496,6 +11495,8 @@ const peripheralStatus= getPeripheralStatus();
           const v = date ? toDateOnlyValue(date) : "";
           setFormData((prev) => ({ ...prev, completion_date: v }));
         }}
+        minDate={dobOnwardMinDate(patientData?.date_of_birth || patientData?.dob)}
+        maxDate={dobOnwardMaxDate()}
         dateFormat="dd-MM-yyyy"
         placeholderText="Select date"
       />

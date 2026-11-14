@@ -15,6 +15,11 @@ from DEFAULT_LOGIN_USERS below.
 username = firstname.sitecode, lowercase, no spaces/periods within the name.
 The nodal scientist has no site, so her username has no site suffix.
 """
+import re
+
+SCIENTIST_ROLES = frozenset({"site_scientist", "project_scientist"})
+# "Dr." / "Dr " only — not names that merely start with "Dr" (e.g. Drake).
+_DR_PREFIX = re.compile(r"^(?:dr\.\s*|dr\s+)", re.IGNORECASE)
 
 # (username, full_name, role, site_name)
 DEFAULT_LOGIN_USERS: list[tuple[str, str, str, str | None]] = [
@@ -22,7 +27,7 @@ DEFAULT_LOGIN_USERS: list[tuple[str, str, str, str | None]] = [
     ("mannat", "Mannat Guliani", "project_scientist", None),
 
     # ---- PGIMER Chandigarh ----
-    ("shalini.pgimer", "Dr. Shalini Dhiman", "site_scientist", "PGIMER"),
+    ("shalini.pgimer", "Shalini Dhiman", "site_scientist", "PGIMER"),
     ("geetika.pgimer", "Geetika", "nurse", "PGIMER"),
     ("tanvi.pgimer", "Tanvi Saini", "nurse", "PGIMER"),
     ("seemran.pgimer", "Seemran Kaur", "nurse", "PGIMER"),
@@ -31,7 +36,7 @@ DEFAULT_LOGIN_USERS: list[tuple[str, str, str, str | None]] = [
     ("yashvi.pgimer", "Yashvi Jolly", "nurse", "PGIMER"),
 
     # ---- GMCH Aurangabad ----
-    ("kirti.gmcha", "Dr. Kirti Vishnu Rathod", "site_scientist", "GMCH-A"),
+    ("kirti.gmcha", "Kirti Vishnu Rathod", "site_scientist", "GMCH-A"),
     ("samiksha.gmcha", "Samiksha Deepak Khandagale", "nurse", "GMCH-A"),
     ("pratiksha.gmcha", "Pratiksha Manoj Khare", "nurse", "GMCH-A"),
     ("saurabh.gmcha", "Saurabh Joseph Sable", "nurse", "GMCH-A"),
@@ -46,7 +51,7 @@ DEFAULT_LOGIN_USERS: list[tuple[str, str, str, str | None]] = [
     # error, then deactivate manually via ManageStaff if appropriate.
 
     # ---- GMCH Chandigarh ----
-    ("manpreet.gmch", "Dr. Manpreet Kaur", "site_scientist", "GMCH"),
+    ("manpreet.gmch", "Manpreet Kaur", "site_scientist", "GMCH"),
     ("anosh.gmch", "Anosh", "nurse", "GMCH"),
     ("vanika.gmch", "Vanika", "nurse", "GMCH"),
     ("muskan.gmch", "Muskan", "nurse", "GMCH"),
@@ -62,7 +67,7 @@ DEFAULT_LOGIN_USERS: list[tuple[str, str, str, str | None]] = [
     ("supriya.amc", "Supriya Neog", "nurse", "AMC"),
 
     # ---- Institute of Obstetrics and Gynaecology (IOG), Chennai ----
-    ("sobhana.iog", "Dr. Sobhana", "site_scientist", "IOG"),
+    ("sobhana.iog", "Sobhana", "site_scientist", "IOG"),
     ("immanuel.iog", "M. Immanuel", "nurse", "IOG"),
     ("poovaran.iog", "K. Poovaran", "nurse", "IOG"),
     ("kanmani.iog", "C. Kanmani", "nurse", "IOG"),
@@ -102,10 +107,37 @@ PILOT_COMPLETED_BY_DESIGNATIONS: dict[str, str] = {
 }
 
 
+MANNAT_NAME_KEY = "mannat guliani"
+
+
+def name_without_dr(full_name: str | None) -> str:
+    """Strip a leading Dr. / Dr prefix from a person's name."""
+    return _DR_PREFIX.sub("", (full_name or "").strip()).strip()
+
+
 def _name_without_dr(full_name: str | None) -> str:
+    return name_without_dr(full_name)
+
+
+def is_mannat_guliani(full_name: str | None) -> bool:
+    return name_without_dr(full_name).strip().lower() == MANNAT_NAME_KEY
+
+
+def completed_by_sort_key(full_name: str | None) -> tuple[int, str]:
+    """Alphabetical by Dr.-stripped name; Mannat Guliani always last."""
+    key = name_without_dr(full_name).strip().lower()
+    return (1 if key == MANNAT_NAME_KEY else 0, key)
+
+
+def sort_completed_by_names(names: list[str]) -> list[str]:
+    return sorted(names, key=completed_by_sort_key)
+
+
+def display_name_for_role(full_name: str | None, role: str | None) -> str:
+    """Scientists are stored and shown without a Dr. title."""
     raw = (full_name or "").strip()
-    if raw.lower().startswith("dr."):
-        return raw[3:].strip()
+    if (role or "").strip().lower() in SCIENTIST_ROLES:
+        return name_without_dr(raw)
     return raw
 
 

@@ -1,5 +1,5 @@
 """DMS (Daily Monitoring Sheet, `MinimalMonitoringLog.jsx`) block 5.3.A
-(glucose) / 5.1.A (vitals, temperature only) -> Helper 5 (Metab/Renal/
+(glucose) / 5.1.B (temperature, still stored on cv_a.axillary_temp) -> Helper 5 (Metab/Renal/
 Vasc/Eye, `MetabRenalVascEyeLog.jsx`) #1/#4/#15.
 
 NOTE ON NAMING (2026-09-19): this module and its functions are still

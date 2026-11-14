@@ -12,9 +12,9 @@ import NotesBox from "./components/NotesBox";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import { relativeTime, toDateOnlyValue, parseDateOnly } from "./utils/datetime";
-import { calendarDateError } from "./utils/clinicalDateBounds";
+import { calendarDateError, dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
 import { formatCaffeineMgPerKg, typicalCaffeineLoadingMg } from "./utils/caffeineDose";
-import { designationForCompletedBy } from "./utils/completedByDesignation";
+import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
 import { helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import { classifyVeryPretermCentile } from "./data/intergrowthVeryPreterm";
@@ -154,7 +154,7 @@ const RULES = {
       if (kg > 0) {
         const mpk = n / kg;
         if (mpk < 5 || mpk > 10) {
-          return { msg: `Outside recommended maintenance dose (5–10 mg/kg/day) — currently ${mpk.toFixed(1)} mg/kg/day`, level: "warn" };
+          return { msg: `Outside recommended maintenance dose (5–10 mg/kg) — currently ${mpk.toFixed(1)} mg/kg`, level: "warn" };
         }
       }
       return null;
@@ -409,6 +409,7 @@ export default function FormD() {
     caffeine_loading: "", caffeine_loading_abs: "", caffeine_maint_abs: "",
     caffeine_date: "", caffeine_time: "", caffeine_maint_frequency: "",
     completed_by: "", designation: "", date: "",
+    date_of_birth: "",
   });
 
   const [formData, setFormData] = useState(emptyFormD);
@@ -601,6 +602,7 @@ export default function FormD() {
           sga_centile:     growth.sga_centile || "",
           baby_name:       motherName ? `Baby of ${motherName}` : "",
           site_name:       siteName,
+          date_of_birth:   b?.date_of_birth ? String(b.date_of_birth).slice(0, 10) : "",
         });
       } catch (err) { console.log("❌ No Form B data found", err); }
 
@@ -996,9 +998,7 @@ export default function FormD() {
   };
 
   const nurses = roster.map(r => r.full_name);
-  const completedByOptions = formData.completed_by && !nurses.includes(formData.completed_by)
-    ? [...nurses, formData.completed_by]
-    : nurses;
+  const completedByOptions = completedByNameOptions(roster, formData.completed_by);
   const getDesignation = (name) => designationForCompletedBy(name, roster);
   const handleCompletedByChange = (e) => {
     const name = e.target.value;
@@ -1775,10 +1775,12 @@ export default function FormD() {
                             touch("caffeine_date");
                             setFormData(p => ({ ...p, caffeine_date: date ? toDateOnlyValue(date) : "" }));
                           }}
-                          minDate={parseDateOnly(formData.date_of_birth) || undefined}
-                          maxDate={new Date()}
-                          dateFormat="dd-MM-yyyy" placeholderText="Select date"
-                          readOnly={!isFieldEditable} />
+                          minDate={dobOnwardMinDate(formData.date_of_birth)}
+                          maxDate={dobOnwardMaxDate()}
+                          dateFormat="dd-MM-yyyy"
+                          placeholderText={formData.date_of_birth ? "Select date" : "Date of birth required"}
+                          disabled={!formData.date_of_birth}
+                          readOnly={!isFieldEditable || !formData.date_of_birth} />
                       </FieldWrap>
                       <div />
                     </div>
@@ -1801,11 +1803,11 @@ export default function FormD() {
                           onChange={e => { touch("caffeine_maint_abs"); handleChange(e); }} />
                       </FieldWrap>
                       <div className="form-group">
-                        <label>16 (<span className="crf-subnum">f</span>) Dose (in mg/kg/day) <FieldLogicBadge type="auto" title="Maintenance is total daily dose: absolute mg ÷ birth weight kg (not split by OD/BD)" /></label>
+                        <label>16 (<span className="crf-subnum">f</span>) Dose (in mg/kg) <FieldLogicBadge type="auto" title="Absolute mg ÷ birth weight kg." /></label>
                         <div style={{ position:"relative" }}>
                           <input value={formatCaffeineMgPerKg(formData.caffeine_maint_abs, formData.birth_weight)}
                             readOnly className="readonly-input" style={{ paddingRight:72 }} />
-                          <span style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"#94a3b8",fontWeight:600 }}>mg/kg/day</span>
+                          <span style={{ position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"#94a3b8",fontWeight:600 }}>mg/kg</span>
                         </div>
                       </div>
                     </div>
@@ -1916,10 +1918,12 @@ export default function FormD() {
                         touch("date");
                         setFormData(p => ({ ...p, date: date ? toDateOnlyValue(date) : "" }));
                       }}
-                      minDate={parseDateOnly(formData.date_of_birth) || undefined}
-                      maxDate={new Date()}
-                      dateFormat="dd-MM-yyyy" placeholderText="Select date"
-                      readOnly={!isFieldEditable} />
+                      minDate={dobOnwardMinDate(formData.date_of_birth)}
+                      maxDate={dobOnwardMaxDate()}
+                      dateFormat="dd-MM-yyyy"
+                      placeholderText={formData.date_of_birth ? "Select date" : "Date of birth required"}
+                      disabled={!formData.date_of_birth}
+                      readOnly={!isFieldEditable || !formData.date_of_birth} />
                   </FieldWrap>
                   <div />
                 </div>

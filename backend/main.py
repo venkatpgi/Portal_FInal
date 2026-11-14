@@ -134,8 +134,18 @@ from audit_service import (
 from schema_patches import apply_schema_patches
 import email_service
 import data_checks_trigger
-from staff_service import seed_site_staff, deactivate_stale_site_staff
-from user_service import seed_login_users, backfill_pilot_designations, backfill_staff_emails
+from staff_service import (
+    seed_site_staff,
+    deactivate_stale_site_staff,
+    strip_dr_from_site_staff,
+)
+from user_service import (
+    seed_login_users,
+    backfill_pilot_designations,
+    backfill_staff_emails,
+    backfill_scientist_names,
+)
+from user_seed import completed_by_sort_key, display_name_for_role, name_without_dr
 import security_monitor
 from crypto import decrypt_value
 from screening_status import compute_screening_status
@@ -264,6 +274,9 @@ def on_startup_migrations():
                 "Migrated PII for %s screening record(s) into participant_pii",
                 migrated,
             )
+        renamed = strip_dr_from_site_staff(db)
+        if renamed:
+            logger.info("Removed Dr. prefix from %s site staff name(s)", renamed)
         seeded = seed_site_staff(db)
         if seeded:
             logger.info("Seeded %s site staff record(s)", seeded)
@@ -278,6 +291,9 @@ def on_startup_migrations():
                 "and delete that file after distributing passwords.",
                 new_accounts,
             )
+        stripped = backfill_scientist_names(db)
+        if stripped:
+            logger.info("Removed Dr. prefix from %s scientist name(s)", stripped)
         designated = backfill_pilot_designations(db)
         if designated:
             logger.info("Backfilled designation on %s user account(s)", designated)
@@ -846,16 +862,17 @@ def list_site_roster(
             )
         else:
             query = query.filter(User.site_name == roster_site)
-    query = query.order_by(User.full_name)
     # One entry per name: two accounts can share a full_name (e.g. a nodal
-    # and a site account), which showed "Mannat Guliani" twice.
+    # and a site account), which showed "Mannat Guliani" twice. Match with
+    # or without a leftover Dr. prefix. Alphabetical, Mannat last.
     seen, out = set(), []
     for u in query.all():
-        key = u.full_name.strip().lower()
-        if key in seen:
+        key = name_without_dr(u.full_name).strip().lower()
+        if not key or key in seen:
             continue
         seen.add(key)
         out.append({"full_name": u.full_name, "designation": u.designation})
+    out.sort(key=lambda r: completed_by_sort_key(r["full_name"]))
     return out
 
 
@@ -965,7 +982,7 @@ def create_user(
         hashed_password=hashed_pwd,
         role=role,
         site_name=user.site_name,
-        full_name=user.full_name or user.username,
+        full_name=display_name_for_role(user.full_name or user.username, role),
         mobile=user.mobile,
         designation=user.designation,
         must_change_password=bool(user.must_change_password),
@@ -1006,6 +1023,8 @@ def update_user(
     for key, value in payload.items():
         if hasattr(target, key):
             setattr(target, key, value)
+
+    target.full_name = display_name_for_role(target.full_name, target.role)
 
     db.commit()
     db.refresh(target)
@@ -8042,6 +8061,46 @@ def get_sae_alerts(
             "unreported": sae_rules.unreported_sae(ae.events if ae else None, reports)}
 
 
+@app.get("/enrollment/{enrollment_id}/cranial-usg-due")
+def get_cranial_usg_due(
+    enrollment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Form banner: a Form F surveillance window is open today and has no scan."""
+    require_enrollment_access(enrollment_id, db, current_user)
+    from site_summary import _iso, open_cranial_windows
+    birth = db.query(BirthResuscitation).filter(
+        BirthResuscitation.enrollment_id == enrollment_id
+    ).first()
+    if not birth or not birth.date_of_birth:
+        return {"due": []}
+    usg = db.query(CranialUSGRecord).filter(
+        CranialUSGRecord.enrollment_id == enrollment_id
+    ).first()
+    form_h = (
+        db.query(NeonatalMorbidities)
+        .filter(NeonatalMorbidities.enrollment_id == enrollment_id)
+        .order_by(NeonatalMorbidities.id.desc())
+        .first()
+    )
+    end = _iso(form_h.discharge_date) if form_h else None
+    ga_days = (
+        birth.gestation_weeks * 7 + (birth.gestation_days or 0)
+        if birth.gestation_weeks is not None else None
+    )
+    scans = [
+        _iso((s or {}).get("scanDate"))
+        for s in ((usg.scan_entries if usg else None) or [])
+    ]
+    return {
+        "due": open_cranial_windows(
+            ga_days, birth.birth_weight, birth.date_of_birth,
+            clinical_today(), scans, end,
+        )
+    }
+
+
 @app.post("/enrollment/{enrollment_id}/end-of-stay")
 def record_end_of_stay(
     enrollment_id: str,
@@ -8977,7 +9036,7 @@ def get_minimal_monitoring_on_date(
 # DMS entry blocks (MinimalMonitoringLog.jsx BLOCK_TO_SECTION) that can be
 # marked "Not required today".
 DMS_BLOCK_KEYS = frozenset({
-    "cv_a", "cv_b", "cv_c", "cv_d", "resp_a", "resp_b", "resp_c", "resp_d",
+    "cv_a", "cv_a_temp", "cv_b", "cv_c", "cv_d", "resp_a", "resp_b", "resp_c", "resp_d",
     "met_a", "met_b", "gi_a", "gi_b", "neuro_a", "neuro_b", "heme_a", "growth_a",
 })
 

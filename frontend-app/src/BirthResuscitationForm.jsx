@@ -17,7 +17,12 @@ import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext
 import { relativeTime, toDateOnlyValue, parseDateOnly, normalizeClockTimeHms } from "./utils/datetime";
 import { babyIdLabel, isUsableEnrollmentId, nrEnrollmentId } from "./utils/enrollmentId";
 import { classifyVeryPretermCentile } from "./data/intergrowthVeryPreterm";
-import { calendarDateError } from "./utils/clinicalDateBounds";
+import {
+  randomisationDateError,
+  randomisationDateMaxYmd,
+  isBirthDateTimeInFuture,
+  maxBirthClockHms,
+} from "./utils/clinicalDateBounds";
 import {
   ArrowLeft, ArrowRight, Save, Home, User, Baby, Pencil,
   Heart, Activity, BarChart2, Droplets, AlertTriangle, Shuffle,
@@ -579,13 +584,21 @@ export default function BirthResuscitationForm() {
      fact). Different (later) days are always fine at the time level —
      the DatePicker already stops earlier days from being chosen. */
   const handleTimeOfBirthChange = (h, m, s) => {
+    const hh = String(h ?? 0).padStart(2, "0");
+    const mm = String(m ?? 0).padStart(2, "0");
+    const ss = String(s ?? 0).padStart(2, "0");
+    const clock = `${hh}:${mm}:${ss}`;
+    if (formData.date_of_birth && isBirthDateTimeInFuture(formData.date_of_birth, clock)) {
+      setErrors(p => ({
+        ...p,
+        time_of_birth: "Cannot be in the future",
+      }));
+      return;
+    }
     if (formData.date_of_birth && formData.screening_datetime) {
       const screeningMoment = new Date(formData.screening_datetime);
       if (!isNaN(screeningMoment)) {
-        const hh = String(h ?? 0).padStart(2, "0");
-        const mm = String(m ?? 0).padStart(2, "0");
-        const ss = String(s ?? 0).padStart(2, "0");
-        const candidate = new Date(`${formData.date_of_birth}T${hh}:${mm}:${ss}`);
+        const candidate = new Date(`${formData.date_of_birth}T${clock}`);
         if (!isNaN(candidate) && candidate < screeningMoment) {
           setErrors(p => ({
             ...p,
@@ -598,6 +611,8 @@ export default function BirthResuscitationForm() {
     setErrors(p => (p.time_of_birth ? { ...p, time_of_birth: "" } : p));
     handleTimeChange("time_of_birth", h, m, s);
   };
+
+  const birthClockCap = maxBirthClockHms(formData.date_of_birth);
 
   const endParticipation = formData.required_resuscitation === "No";
   const times = ["1","5","10","15","20"];
@@ -1018,6 +1033,10 @@ export default function BirthResuscitationForm() {
       add("B2. Birth Weight must be 300–6000 g", "birth_weight");
     if(formData.date_of_birth && new Date(`${formData.date_of_birth}T00:00:00`) > new Date())
       add("B2. Date of Birth cannot be in the future", "date_of_birth");
+    if (formData.date_of_birth && formData.time_of_birth
+        && isBirthDateTimeInFuture(formData.date_of_birth, formData.time_of_birth)) {
+      add("B2. Date & Time of Birth cannot be in the future", "time_of_birth");
+    }
     if(formData.date_of_birth && formData.time_of_birth && formData.screening_datetime) {
       const birthMoment     = new Date(`${formData.date_of_birth}T${formData.time_of_birth}`);
       const screeningMoment = new Date(formData.screening_datetime);
@@ -1068,9 +1087,10 @@ export default function BirthResuscitationForm() {
           add(`B3. Enrollment ID must be ${siteCode}-A-001`, "enrollment_id");
         if(!formData.randomisation_date) add("B3. Randomization Date","randomisation_date");
         else {
-          const randDateErr = calendarDateError(formData.randomisation_date, {
-            minYmd: formData.date_of_birth,
-          });
+          const randDateErr = randomisationDateError(
+            formData.randomisation_date,
+            formData.date_of_birth,
+          );
           if (randDateErr === "Cannot be before date of birth") {
             add("B3. Randomization Date cannot be before Date of Birth", "randomisation_date");
           } else if (randDateErr) {
@@ -2010,7 +2030,15 @@ export default function BirthResuscitationForm() {
                           if (picked < screeningDateOnly) return; // reject — cannot predate screening
                         }
                         setErrors(p => (p.date_of_birth ? { ...p, date_of_birth: "" } : p));
-                        set({date_of_birth:toDateOnlyValue(d)});
+                        const dobYmd = toDateOnlyValue(d);
+                        const patch = { date_of_birth: dobYmd };
+                        if (formData.randomisation_date && randomisationDateError(formData.randomisation_date, dobYmd)) {
+                          patch.randomisation_date = "";
+                        }
+                        if (formData.time_of_birth && isBirthDateTimeInFuture(dobYmd, formData.time_of_birth)) {
+                          patch.time_of_birth = "";
+                        }
+                        set(patch);
                       }}
                       minDate={screeningDateOnly || undefined}
                       maxDate={todayEnd}
@@ -2025,6 +2053,9 @@ export default function BirthResuscitationForm() {
                       minute={getTimePart("time_of_birth","m")}
                       second={getTimePart("time_of_birth","s")}
                       onChange={handleTimeOfBirthChange}
+                      maxHour={birthClockCap.hour}
+                      maxMinute={birthClockCap.minute}
+                      maxSecond={birthClockCap.second}
                       disabled={!isFieldEditable}/>
                     {errors.time_of_birth && <div className="field-error">{errors.time_of_birth}</div>}
                   </div>
@@ -2387,9 +2418,11 @@ export default function BirthResuscitationForm() {
                             selected={formData.randomisation_date?parseDateOnly(formData.randomisation_date):null}
                             onChange={d=>set({randomisation_date:d?toDateOnlyValue(d):""})}
                             minDate={parseDateOnly(formData.date_of_birth) || undefined}
-                            maxDate={new Date()}
-                            dateFormat="dd-MM-yyyy" placeholderText="dd-MM-yyyy"
-                            readOnly={!isFieldEditable}/>
+                            maxDate={parseDateOnly(randomisationDateMaxYmd(formData.date_of_birth)) || undefined}
+                            dateFormat="dd-MM-yyyy"
+                            placeholderText={formData.date_of_birth ? "dd-MM-yyyy" : "Select date of birth first"}
+                            disabled={!formData.date_of_birth}
+                            readOnly={!isFieldEditable || !formData.date_of_birth}/>
                           {errors.randomisation_date && <div className="field-error">{errors.randomisation_date}</div>}
                         </div>
                         <div className="form-group">

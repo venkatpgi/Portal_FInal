@@ -1,4 +1,4 @@
-/** Caffeine citrate: loading is a single mg/kg dose; maintenance is mg/kg/day. */
+/** Caffeine citrate: loading and maintenance are both mg/kg (absolute mg ÷ birth weight kg). */
 
 export function caffeineMgPerKg(absMg, birthWeightG) {
   const n = Number(absMg);

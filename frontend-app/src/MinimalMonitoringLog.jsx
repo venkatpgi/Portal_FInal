@@ -35,10 +35,10 @@ import "./styles/MinimalMonitoring.css";
 
 /** Server still uses NICU_DAY_GRACE_HOUR for legacy GET/PUT .../today only. */
 
-// Vitals is its own module (PI 2026-11-06); it keeps its CRF item 5.1.A and
-// the stored block key cv_a, so only the page grouping changed.
+// Vitals is its own module (PI 2026-11-06). Temperature is 5.1.B on its own
+// flowsheet; both 5.1.A (BP) and 5.1.B still store on cv_a (do not rename).
 const SECTION_META = {
-  vitals: { code: "5.1.A", title: "Vitals", icon: Activity },
+  vitals: { code: "5.1", title: "Vitals", icon: Activity },
   cardiovascular: { code: "5.1", title: "Cardiovascular", icon: Heart },
   respiratory: { code: "5.2", title: "Respiratory", icon: Wind },
   metabolic: { code: "5.3", title: "Metabolic", icon: Beaker },
@@ -51,7 +51,8 @@ const SECTION_META = {
 const SECTION_KEYS = Object.keys(SECTION_META);
 
 const BLOCK_TO_SECTION = {
-  cv_a: "vitals", cv_b: "cardiovascular", cv_c: "cardiovascular", cv_d: "cardiovascular",
+  cv_a: "vitals", cv_a_temp: "vitals",
+  cv_b: "cardiovascular", cv_c: "cardiovascular", cv_d: "cardiovascular",
   resp_a: "respiratory", resp_b: "respiratory", resp_c: "respiratory", resp_d: "respiratory",
   met_a: "metabolic", met_b: "metabolic",
   gi_a: "gastrointestinal", gi_b: "gastrointestinal",
@@ -65,7 +66,7 @@ const BLOCK_TO_SECTION = {
  *  second-level "choose a field" list (e.g. Metabolic → Glucose / Lab
  *  Reports / Electrolyte abnormality). */
 const BLOCKS_BY_SECTION = {
-  vitals: ["cv_a"],
+  vitals: ["cv_a", "cv_a_temp"],
   cardiovascular: ["cv_b", "cv_c", "cv_d"],
   respiratory: ["resp_a", "resp_b", "resp_c", "resp_d"],
   metabolic: ["met_a", "met_b"],
@@ -77,13 +78,17 @@ const BLOCKS_BY_SECTION = {
 
 /** Friendly label + one-line description shown in the field-picker list. */
 // Blocks rendered as scheduled flowsheets (slot-based rows, not a "new reading" draft).
-const FLOWSHEET_BLOCKS = new Set(["cv_a", "met_a", "gi_a", "growth_a"]);
+const FLOWSHEET_BLOCKS = new Set(["cv_a", "cv_a_temp", "met_a", "gi_a", "growth_a"]);
+const CV_A_BP_KEYS = ["sbp", "dbp", "map_value"];
+const CV_A_TEMP_KEYS = ["axillary_temp"];
+const CV_A_BLANK = { axillary_temp: "", sbp: "", dbp: "", map_value: "" };
 
 const BLOCK_META = {
-  cv_a: { code: "5.1.A", label: "Vitals", desc: "Temperature separate from SBP / DBP / MAP" },
-  cv_b: { code: "5.1.B", label: "Fluid Bolus", desc: "Fluid bolus volume given" },
-  cv_c: { code: "5.1.C", label: "Vasoactive Drugs", desc: "Agent, dose & unit" },
-  cv_d: { code: "5.1.D", label: "PDA Medical Rx", desc: "Agent for medical Rx of PDA & dose" },
+  cv_a: { code: "5.1.A", label: "Blood Pressure", desc: "SBP / DBP / MAP — same hourly cadence as temperature" },
+  cv_a_temp: { code: "5.1.B", label: "Temperature", desc: "Skin/axillary temperature — same cadence, ranges, and before-birth rules as 5.1.A" },
+  cv_b: { code: "5.1.C", label: "Fluid Bolus", desc: "Fluid bolus volume given" },
+  cv_c: { code: "5.1.D", label: "Vasoactive Drugs", desc: "Agent, dose & unit" },
+  cv_d: { code: "5.1.E", label: "PDA Medical Rx", desc: "Agent for medical Rx of PDA & dose" },
   resp_a: { code: "5.2.A", label: "Respiratory Support", desc: "Time, mode, max MAP/CPAP, max FiO₂" },
   resp_b: { code: "5.2.B", label: "Blood Gas", desc: "pH, PaO₂, PaCO₂" },
   resp_c: { code: "5.2.C", label: "Apnea / Desaturation", desc: "Apnea and desaturation episodes" },
@@ -513,12 +518,21 @@ function mergeServerOnlyEntries(local, server, skipIds) {
   return changed ? next : local;
 }
 
-/** Stored blocks behind a picker block (5.5 Neurological = neuro_a + neuro_b). */
+/** Stored blocks behind a picker block (5.5 Neurological = neuro_a + neuro_b).
+ *  5.1.B Temperature is a UI block; readings still live on cv_a. */
 function storedBlocks(blockKey) {
   return blockKey === "neuro_combined" ? ["neuro_a", "neuro_b"] : [blockKey];
 }
 
-const blockHasData = (entries, block) => (entries[block] || []).some(hasEntryData);
+function entryHasKeys(entry, keys) {
+  return (keys || []).some(k => ans(entry?.[k]));
+}
+
+const blockHasData = (entries, block) => {
+  if (block === "cv_a_temp") return (entries.cv_a || []).some(e => entryHasKeys(e, CV_A_TEMP_KEYS));
+  if (block === "cv_a") return (entries.cv_a || []).some(e => entryHasKeys(e, CV_A_BP_KEYS));
+  return (entries[block] || []).some(hasEntryData);
+};
 
 /** Blocks marked "Not required today" that still have no reading — a block
  *  that gets a reading drops out of the list (PI 2026-10-20). */
@@ -544,6 +558,7 @@ function countProgress(entries, notRequired = []) {
     if (ok) { done += 1; bySection[section].done += 1; byBlock[block].done += 1; }
   };
 
+  const nr = new Set(notRequired);
   Object.entries(entries).forEach(([block, list]) => {
     const section = BLOCK_TO_SECTION[block];
     const arr = list || [];
@@ -571,14 +586,25 @@ function countProgress(entries, notRequired = []) {
         if (entry.stopped && DRUG_BLOCKS[block]
             && (k === DRUG_BLOCKS[block].dose || k === DRUG_BLOCKS[block].unit)) return;
         if (k === "prbc_volume" && !(entry.transfusion_products || []).includes("PRBC")) return;
+        if (block === "cv_a" && k === "axillary_temp") {
+          if (nr.has("cv_a_temp") && !ans(v)) return;
+          bump(section, "cv_a_temp", ans(v));
+          return;
+        }
+        if (block === "cv_a" && CV_A_BP_KEYS.includes(k) && nr.has("cv_a") && !ans(v)) return;
         bump(section, block, ans(v));
       });
     });
   });
 
-  const nr = new Set(notRequired);
   Object.keys(BLOCK_TO_SECTION).forEach(block => {
-    if (block === "neuro_combined" || blockHasData(entries, block)) return;
+    if (block === "neuro_combined") return;
+    if (block === "cv_a" || block === "cv_a_temp") {
+      if ((entries.cv_a || []).some(hasEntryData)) return;
+      bump(BLOCK_TO_SECTION[block], block, nr.has(block));
+      return;
+    }
+    if (blockHasData(entries, block)) return;
     bump(BLOCK_TO_SECTION[block], block, nr.has(block));
   });
 
@@ -1149,13 +1175,23 @@ function expectedSlots(frequencyHours) {
  *  slot_time doesn't match the current frequency's own boundaries (e.g. left
  *  over from a since-changed cadence) shown as its own row rather than
  *  dropped. */
-function buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes, minMinutes = null) {
+function occupiesFlowsheetView(entry, valueKeys, openedSlots) {
+  if (!valueKeys || !valueKeys.length) return true;
+  if (valueKeys.some(k => ans(entry?.[k]))) return true;
+  // A just-tapped blank row has no clinical values yet — still render it.
+  if (!hasEntryData(entry)) return true;
+  const slot = entry.slot_time || "";
+  return !!(openedSlots && slot && openedSlots.has(slot));
+}
+
+function buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes, minMinutes = null, valueKeys = null, openedSlots = null) {
   const real = entries || [];
   const slots = expectedSlots(frequencyHours);
   const bySlot = new Map();
   const orphans = [];
   const stepMin = Math.max(1, Number(frequencyHours) || 2) * 60;
   for (const e of real) {
+    if (!occupiesFlowsheetView(e, valueKeys, openedSlots)) continue;
     // A reading from the tablet has a time but no slot_time (the app has no
     // slots): file it under the slot its time falls in (PI 2026-10-21).
     let slot = e.slot_time;
@@ -1402,14 +1438,18 @@ const MET_A_COLUMNS = [
 // utils/valueRanges.js keys for the flowsheet columns (PI 2026-11-12)
 const DMS_RANGE_KEYS = {
   "cv_a.axillary_temp": "dms_temp", "cv_a.sbp": "dms_sbp", "cv_a.dbp": "dms_dbp",
-  "cv_a.map_value": "dms_map", "met_a.glucose": "dms_glucose", "growth_a.weight_g": "dms_weight",
+  "cv_a.map_value": "dms_map", "cv_a_temp.axillary_temp": "dms_temp",
+  "met_a.glucose": "dms_glucose", "growth_a.weight_g": "dms_weight",
 };
 
-const CV_A_COLUMNS = [
-  { key: "axillary_temp", label: "Skin/Axillary", unit: "°C", group: "Temperature" },
-  { key: "sbp", label: "SBP", unit: "mm Hg", group: "Blood pressure" },
-  { key: "dbp", label: "DBP", unit: "mm Hg", group: "Blood pressure" },
-  { key: "map_value", label: "MAP", unit: "mm Hg", group: "Blood pressure" },
+const CV_A_BP_COLUMNS = [
+  { key: "sbp", label: "SBP", unit: "mm Hg" },
+  { key: "dbp", label: "DBP", unit: "mm Hg" },
+  { key: "map_value", label: "MAP", unit: "mm Hg" },
+];
+
+const CV_A_TEMP_COLUMNS = [
+  { key: "axillary_temp", label: "Skin/Axillary", unit: "°C" },
 ];
 
 const GROWTH_A_COLUMNS = [
@@ -1486,7 +1526,7 @@ function columnGroups(columns) {
 function ScheduledFlowsheet({
   blockKey, columns, entries, frequencyHours, onChangeFrequency, onChangeField, onAdd, onRemove,
   disabled, sheetDate, errors, frequencyOptions = HOURLY_FREQUENCY_OPTIONS,
-  allowAdd = true, dolSwitch = null, minTimeHm = "00:00",
+  allowAdd = true, dolSwitch = null, minTimeHm = "00:00", openedSlots = null,
 }) {
   const isToday = sheetDate === realCalendarDateYmd();
   const nowMinutes = (() => {
@@ -1494,8 +1534,9 @@ function ScheduledFlowsheet({
     return d.getHours() * 60 + d.getMinutes();
   })();
   const minMinutes = hhmmToMinutes(minTimeHm);
+  const valueKeys = (columns || []).map(c => c.key);
   const rows = withDolDivider(
-    buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes, minMinutes),
+    buildFlowsheetRows(entries, frequencyHours, isToday, nowMinutes, minMinutes, valueKeys, openedSlots),
     dolSwitch,
   );
   const summary = computeMinMaxSummary(entries, columns);
@@ -1961,6 +2002,7 @@ export default function MinimalMonitoringLog() {
   const [giFeedFrequencyHours, setGiFeedFrequencyHours] = useState(2);
   const [glucoseFrequencyHours, setGlucoseFrequencyHours] = useState(2);
   const [vitalsFrequencyHours, setVitalsFrequencyHours] = useState(2);
+  const [openedVitalsSlots, setOpenedVitalsSlots] = useState({ bp: new Set(), temp: new Set() });
   const [weightFrequencyHours, setWeightFrequencyHours] = useState(24);
   const [notRequiredBlocks, setNotRequiredBlocks] = useState([]);
   const [patientInfo, setPatientInfo] = useState({ enrollmentId, motherName: "", babyUid: "", gestation: "" });
@@ -2147,19 +2189,66 @@ export default function MinimalMonitoringLog() {
   };
 
   const addFlowsheetEntry = (block, slotTime, extraFields = {}) => {
-    setEntries(prev => ({
-      ...prev,
-      [block]: [
-        ...(prev[block] || []),
-        freshEntry({ slot_time: slotTime, time: slotTime, ...extraFields }, sheetDate),
-      ],
-    }));
+    setEntries(prev => {
+      const list = prev[block] || [];
+      if (list.some(e => (e.slot_time || "") === slotTime)) return prev;
+      return {
+        ...prev,
+        [block]: [
+          ...list,
+          freshEntry({ slot_time: slotTime, time: slotTime, ...extraFields }, sheetDate),
+        ],
+      };
+    });
     // No autosave for a blank row — see addEntry.
   };
 
   const removeFlowsheetEntry = (block, id) => {
     deletedIdsRef.current.add(id);
     setEntries(prev => ({ ...prev, [block]: (prev[block] || []).filter(e => e.id !== id) }));
+    setSaveTick(t => t + 1);
+    dirtyRef.current = true;
+  };
+
+  const openVitalsSlot = (view, slot) => {
+    setOpenedVitalsSlots(prev => {
+      const next = new Set(prev[view]);
+      next.add(slot);
+      return { ...prev, [view]: next };
+    });
+  };
+
+  const addVitalsSlot = (view, slot) => {
+    addFlowsheetEntry("cv_a", slot, { ...CV_A_BLANK });
+    openVitalsSlot(view, slot);
+  };
+
+  /** 5.1.A / 5.1.B share cv_a rows: clearing one view must not wipe the other. */
+  const removeVitalsView = (id, keys, view) => {
+    let slotToClose = "";
+    setEntries(prev => {
+      const list = prev.cv_a || [];
+      const next = [];
+      list.forEach(e => {
+        if (e.id !== id) {
+          next.push(e);
+          return;
+        }
+        slotToClose = e.slot_time || "";
+        const cleared = { ...e };
+        keys.forEach(k => { cleared[k] = ""; });
+        if (hasEntryData(cleared)) next.push(cleared);
+        else if (e.id) deletedIdsRef.current.add(e.id);
+      });
+      return { ...prev, cv_a: next };
+    });
+    if (slotToClose) {
+      setOpenedVitalsSlots(prevOpen => {
+        const n = new Set(prevOpen[view]);
+        n.delete(slotToClose);
+        return { ...prevOpen, [view]: n };
+      });
+    }
     setSaveTick(t => t + 1);
     dirtyRef.current = true;
   };
@@ -2279,6 +2368,7 @@ export default function MinimalMonitoringLog() {
       setGiFeedFrequencyHours(data.gi_feed_frequency_hours || 2);
       setGlucoseFrequencyHours(data.glucose_frequency_hours || 2);
       setVitalsFrequencyHours(data.vitals_frequency_hours || 2);
+      setOpenedVitalsSlots({ bp: new Set(), temp: new Set() });
       setWeightFrequencyHours(data.weight_frequency_hours || 24);
       setNotRequiredBlocks(Array.isArray(data.not_required_blocks) ? data.not_required_blocks : []);
       rememberMmlSheetDate(enrollmentId, recordDate);
@@ -2289,6 +2379,7 @@ export default function MinimalMonitoringLog() {
       setGiFeedFrequencyHours(2);
       setGlucoseFrequencyHours(2);
       setVitalsFrequencyHours(2);
+      setOpenedVitalsSlots({ bp: new Set(), temp: new Set() });
       setWeightFrequencyHours(24);
       setNotRequiredBlocks([]);
       setMessage("Could not load sheet for this date. Please try again.");
@@ -2602,24 +2693,45 @@ export default function MinimalMonitoringLog() {
         return (
           <ScheduledFlowsheet
             blockKey="cv_a"
-            columns={CV_A_COLUMNS}
+            columns={CV_A_BP_COLUMNS}
             entries={entries.cv_a}
             frequencyHours={vitalsFrequencyHours}
             onChangeFrequency={changeVitalsFrequency}
             onChangeField={(id, k, v) => setFlowsheetEntryField("cv_a", id, k, v)}
-            onAdd={slot => addFlowsheetEntry("cv_a", slot, { axillary_temp: "", sbp: "", dbp: "", map_value: "" })}
-            onRemove={id => removeFlowsheetEntry("cv_a", id)}
+            onAdd={slot => addVitalsSlot("bp", slot)}
+            onRemove={id => removeVitalsView(id, CV_A_BP_KEYS, "bp")}
             disabled={!isEditable}
             sheetDate={sheetDate}
             allowAdd={allowNew}
             dolSwitch={dolSwitch}
             errors={errors}
             minTimeHm={mmlMinAllowedTimeForSheetDate(sheetDate, dobYmd, tobHm)}
+            openedSlots={openedVitalsSlots.bp}
+          />
+        );
+      case "cv_a_temp":
+        return (
+          <ScheduledFlowsheet
+            blockKey="cv_a"
+            columns={CV_A_TEMP_COLUMNS}
+            entries={entries.cv_a}
+            frequencyHours={vitalsFrequencyHours}
+            onChangeFrequency={changeVitalsFrequency}
+            onChangeField={(id, k, v) => setFlowsheetEntryField("cv_a", id, k, v)}
+            onAdd={slot => addVitalsSlot("temp", slot)}
+            onRemove={id => removeVitalsView(id, CV_A_TEMP_KEYS, "temp")}
+            disabled={!isEditable}
+            sheetDate={sheetDate}
+            allowAdd={allowNew}
+            dolSwitch={dolSwitch}
+            errors={errors}
+            minTimeHm={mmlMinAllowedTimeForSheetDate(sheetDate, dobYmd, tobHm)}
+            openedSlots={openedVitalsSlots.temp}
           />
         );
       case "cv_b":
         return (
-          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="cv_b" code="5.1.B" entries={entries.cv_b} disabled={!isEditable}
+          <EntryBlock allowNew={allowNew} fixedDate={sheetDate || ""} blockKey="cv_b" code="5.1.C" entries={entries.cv_b} disabled={!isEditable}
             errors={errors}
             onChangeEntry={(i, k, v) => setEntryField("cv_b", i, k, v)}
             onAdd={blank => addEntry("cv_b", blank)} onRemove={i => removeEntry("cv_b", i)}
@@ -2640,7 +2752,7 @@ export default function MinimalMonitoringLog() {
         return (
           <EntryBlock allowNew={allowNew} addLabel="Add" drugCfg={DRUG_BLOCKS.cv_c}
             onStartDrugRow={(fields, save) => startDrugRow("cv_c", fields, save)}
-            fixedDate={sheetDate || ""} blockKey="cv_c" code="5.1.C" entries={entries.cv_c} disabled={!isEditable}
+            fixedDate={sheetDate || ""} blockKey="cv_c" code="5.1.D" entries={entries.cv_c} disabled={!isEditable}
             errors={drugErrors}
             onChangeEntry={(i, k, v) => setEntryField("cv_c", i, k, v)}
             onAdd={blank => addEntry("cv_c", blank)} onRemove={i => removeEntry("cv_c", i)}
@@ -2670,7 +2782,7 @@ export default function MinimalMonitoringLog() {
         return (
           <EntryBlock allowNew={allowNew} addLabel="Add" drugCfg={DRUG_BLOCKS.cv_d}
             onStartDrugRow={(fields, save) => startDrugRow("cv_d", fields, save)}
-            fixedDate={sheetDate || ""} blockKey="cv_d" code="5.1.D" entries={entries.cv_d} disabled={!isEditable}
+            fixedDate={sheetDate || ""} blockKey="cv_d" code="5.1.E" entries={entries.cv_d} disabled={!isEditable}
             errors={drugErrors}
             onChangeEntry={(i, k, v) => setEntryField("cv_d", i, k, v)}
             onAdd={blank => addEntry("cv_d", blank)} onRemove={i => removeEntry("cv_d", i)}

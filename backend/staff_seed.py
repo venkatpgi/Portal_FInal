@@ -17,8 +17,8 @@ DEFAULT_SITE_STAFF: dict[str, list[str]] = {
         "Seemran Kaur",
         "Tanvi Saini",
         "Yashvi Jolly",
-        "Dr. Mannat Guliani",
-        "Dr. Shalini Dhiman",
+        "Shalini Dhiman",
+        "Mannat Guliani",
     ],
     "GMCH": [
         "Anosh",
@@ -26,7 +26,7 @@ DEFAULT_SITE_STAFF: dict[str, list[str]] = {
         "Arzoo",
         "Muskan",
         "Vanika",
-        "Dr. Manpreet Kaur",
+        "Manpreet Kaur",
     ],
     "IOG": [
         "C. Kanmani",
@@ -35,7 +35,7 @@ DEFAULT_SITE_STAFF: dict[str, list[str]] = {
         "P. Durga Devi",
         "S. Durga",
         "S. Keerthana",
-        "Dr. Sobhana",
+        "Sobhana",
     ],
     "AFMC": [],  # no staff listed in source PDF yet; Mannat is PGIMER-only
     "GMCH-A": [
@@ -45,7 +45,7 @@ DEFAULT_SITE_STAFF: dict[str, list[str]] = {
         "Rohit Pawar",
         "Samiksha Deepak Khandagale",
         "Saurabh Joseph Sable",
-        "Dr. Kirti Vishnu Rathod",
+        "Kirti Vishnu Rathod",
     ],
     "AMC": [
         "Bristina Pegu",

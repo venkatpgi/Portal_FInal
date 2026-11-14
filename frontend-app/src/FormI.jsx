@@ -13,7 +13,8 @@ import { useFormProgress } from "./context/FormProgressContext";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
-import { fallbackCompletedByDesignation as getDesignation } from "./utils/completedByDesignation";
+import { dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
+import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList } from "./utils/completedByDesignation";
 import { resolveEffectiveGestation } from "./utils/gestation";
 import { ageUpdates, deathDetailUpdates } from "./utils/deathDetails";
 import {
@@ -864,7 +865,7 @@ export default function FormI() {
     }
     api
       .get(`/sites/${encodeURIComponent(site)}/screeners`)
-      .then((r) => setAssessors(Array.isArray(r.data) ? r.data : []))
+      .then((r) => setAssessors(withMannatLast(Array.isArray(r.data) ? r.data : [])))
       .catch(() => setAssessors([]));
   }, [siteName, patientData?.site_name, patientData?.site]);
 
@@ -2234,13 +2235,9 @@ export default function FormI() {
                 onChange={handleAssessedByChange}
               >
                 <option value="">-- Select --</option>
-                {assessors.map((n) => (
+                {completedByNameList(assessors, formData.completed_by).map((n) => (
                   <option key={n} value={n}>{n}</option>
                 ))}
-                {/* Keep a previously saved name visible even if not in current roster */}
-                {formData.completed_by && !assessors.includes(formData.completed_by) && (
-                  <option value={formData.completed_by}>{formData.completed_by}</option>
-                )}
               </select>
               {!siteName && !patientData?.site_name && !patientData?.site && (
                 <div className="field-note">Site not loaded yet — assessor list will appear when site is known.</div>
@@ -2260,6 +2257,8 @@ export default function FormI() {
               <DatePicker
                 selected={formData.completion_date ? parseDateOnly(formData.completion_date) : null}
                 onChange={(date) => setFormData((p) => ({ ...p, completion_date: date ? toDateOnlyValue(date) : "" }))}
+                minDate={dobOnwardMinDate(formData.dob)}
+                maxDate={dobOnwardMaxDate()}
                 dateFormat="dd/MM/yyyy"
                 placeholderText="dd/mm/yyyy"
               />

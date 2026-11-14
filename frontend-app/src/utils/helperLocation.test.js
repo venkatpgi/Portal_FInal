@@ -1,5 +1,6 @@
 import {
   LOCATION_AREAS,
+  formDAdmissionArea,
   helperLocationOptions,
   isPgimerBaby,
   locationLabel,
@@ -31,4 +32,12 @@ test("earlier labels map onto the generic areas; unknown values are kept", () =>
   expect(normalizeHelperLocations(["Step-down/Nursery", "KMC-N", "AMCC-4A (NICU)", "AMCC-1C(NURSERY)"]))
     .toEqual(["Nursery", "KMC nursery", "NICU", "Transitional nursery"]);
   expect(helperLocationOptions({ selected: ["NICU", "Other"] })).toEqual([...LOCATION_AREAS, "Other"]);
+});
+
+test("Form E area autofills from Form D only when transferred out is Yes", () => {
+  expect(formDAdmissionArea({ transferred_out_day1: true, transferred_out_location: "HDU" })).toBe("HDU");
+  expect(formDAdmissionArea({ transferred_out_day1: "Yes", transferred_out_location: "AMCC-4A (NICU)" })).toBe("NICU");
+  expect(formDAdmissionArea({ transferred_out_day1: false, transferred_out_location: "HDU" })).toBe("");
+  expect(formDAdmissionArea({ transferred_out_day1: "No", transferred_out_location: "HDU" })).toBe("");
+  expect(formDAdmissionArea({ transferred_out_day1: true, transferred_out_location: "" })).toBe("");
 });

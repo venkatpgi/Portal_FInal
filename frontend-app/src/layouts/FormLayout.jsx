@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import DataQueryBanner from '../components/DataQueryBanner';
 import DeathReportBanner from '../components/DeathReportBanner';
 import SaeDeadlineBanner from '../components/SaeDeadlineBanner';
+import CranialUsgDueBanner from '../components/CranialUsgDueBanner';
 import RangeWatch from '../components/RangeWatch';
 import './FormLayout.css';
 import '../styles/Theme.css';
@@ -53,6 +54,7 @@ const FormLayout = ({ children, currentForm, headerProps }) => {
         <main className="form-layout-content">
           <DeathReportBanner />
           <SaeDeadlineBanner />
+          <CranialUsgDueBanner />
           <DataQueryBanner />
           <RangeWatch>{children}</RangeWatch>
         </main>

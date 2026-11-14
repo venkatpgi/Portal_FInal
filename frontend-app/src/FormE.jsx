@@ -12,9 +12,9 @@ import "react-datepicker/dist/react-datepicker.css";
 import OfflineBanner from "./components/OfflineBanner";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { toDateOnlyValue, parseDateOnly, toDateTimeLocalValue, isDateTimeInFuture } from "./utils/datetime";
-import { calendarDateError } from "./utils/clinicalDateBounds";
-import { designationForCompletedBy } from "./utils/completedByDesignation";
-import { helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
+import { calendarDateError, dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
+import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
+import { formDAdmissionArea, helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import {
   ArrowLeft, ArrowRight, Save, Home,
@@ -836,20 +836,24 @@ export default function FormE() {
         setHasFormERecord(false);
         setIsFormELoaded(true);
         resetInitialRender();
-      });
-
-    api.get(`/postnatal-day1/${enrollmentId}`)
-      .then(res => {
-        if (cancelled) return;
-        const d = res.data || {};
-        const transferred = d.transferred_out_day1 === true || d.transferred_out_day1 === "Yes";
-        if (!transferred) return;
-        const loc = normalizeHelperLocation(d.transferred_out_location, { enrollmentId });
-        if (!loc) return;
-        setDay1Location(loc);
-        setFormData(prev => (prev.area_of_admission ? prev : { ...prev, area_of_admission: loc }));
       })
-      .catch(() => {});
+      .finally(() => {
+        if (cancelled) return;
+        api.get(`/postnatal-day1/${enrollmentId}`)
+          .then(res => {
+            if (cancelled) return;
+            const loc = formDAdmissionArea(res.data || {});
+            setDay1Location(loc);
+            if (loc) {
+              setFormData(prev => (
+                prev.area_of_admission === loc ? prev : { ...prev, area_of_admission: loc }
+              ));
+            }
+          })
+          .catch(() => {
+            if (!cancelled) setDay1Location("");
+          });
+      });
 
     return () => { cancelled = true; };
   }, [enrollmentId, resetInitialRender]);
@@ -1149,9 +1153,7 @@ export default function FormE() {
   };
 
   const nurses = roster.map(r => r.full_name);
-  const completedByOptions = formData.completed_by && !nurses.includes(formData.completed_by)
-    ? [...nurses, formData.completed_by]
-    : nurses;
+  const completedByOptions = completedByNameOptions(roster, formData.completed_by);
   const getDesignation = (name) => designationForCompletedBy(name, roster);
   const handleCompletedByChange = (e) => {
     const name = e.target.value;
@@ -1325,7 +1327,10 @@ export default function FormE() {
                   </div>
                 </div>
                 <div className="form-group" style={{ marginTop: 16 }}>
-                  <label>5. Area of Admission <span className="required">*</span></label>
+                  <label>
+                    5. Area of Admission <span className="required">*</span>
+                    {day1Location ? <span className="auto-tag"> (AUTO from Form D)</span> : null}
+                  </label>
                   <div className="rx-horizontal-group" style={{ flexWrap:"wrap" }}>
                     {helperLocationOptions({
                       selected: formData.area_of_admission
@@ -1335,15 +1340,20 @@ export default function FormE() {
                       <button key={opt} type="button"
                         className={`rx-horizontal-btn${formData.area_of_admission === opt ? " active" : ""}`}
                         onClick={() => {
-                          if (!isFieldEditable) return;
+                          if (!isFieldEditable || day1Location) return;
                           setFormData(prev => ({ ...prev, area_of_admission: opt }));
                           setErrors(prev => ({ ...prev, area_of_admission: "" }));
                         }}
-                        disabled={!isFieldEditable}>
+                        disabled={!isFieldEditable || !!day1Location}>
                         {locationLabel(opt, { enrollmentId: formData.enrollment_id, site: formData.site_name })}
                       </button>
                     ))}
                   </div>
+                  {day1Location ? (
+                    <div className="field-note" style={{ marginTop: 4 }}>
+                      Filled from Form D 18 (a). Change it on Form D if the baby went somewhere else.
+                    </div>
+                  ) : null}
                   <FieldErr msg={errors.area_of_admission} />
                 </div>
               </div>
@@ -1620,10 +1630,11 @@ export default function FormE() {
                             : "This field is required",
                         }));
                       }}
-                      minDate={parseDateOnly(formData.date_of_birth) || undefined}
-                      maxDate={new Date()}
-                      dateFormat="dd-MM-yyyy" placeholderText="Select date"
-                      disabled={!isFieldEditable} />
+                      minDate={dobOnwardMinDate(formData.date_of_birth)}
+                      maxDate={dobOnwardMaxDate()}
+                      dateFormat="dd-MM-yyyy"
+                      placeholderText={formData.date_of_birth ? "Select date" : "Date of birth required"}
+                      disabled={!isFieldEditable || !formData.date_of_birth} />
                     <FieldErr msg={errors.completion_date} />
                   </div>
                   <div />

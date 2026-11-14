@@ -15,7 +15,7 @@ Usage:
 
 CSV format (header required):
     username,full_name,new_password
-    shalini.pgimer,Dr. Shalini Dhiman,SomePassword1!
+    shalini.pgimer,Shalini Dhiman,SomePassword1!
     ...
 
 After running, delete the CSV file — don't leave plaintext passwords sitting

@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 
-from site_summary import cranial_windows, evaluate
+from site_summary import cranial_windows, evaluate, open_cranial_windows
 
 TODAY = date(2026, 11, 20)
 NOW = datetime(2026, 11, 20, 8, 0)
@@ -149,6 +149,25 @@ def test_cranial_schedule():
     assert "M2" not in codes(evaluate(baby(), TODAY, NOW, None), "missed")
     r = evaluate(baby(scan_entries=[]), TODAY, NOW, None)
     assert [t for c, t in r["missed"] if c == "M2"] == ["Cranial USG Day 7 ± 1 not done"]
+
+
+def test_open_cranial_due_banner_only_inside_window():
+    ga = 28 * 7
+    # DOL 7 (7 Nov) — Scan 1 window open, no scan
+    d7 = date(2026, 11, 7)
+    due = open_cranial_windows(ga, 1100, DOB, d7, [], None)
+    assert [x["label"] for x in due] == ["Scan 1"]
+    assert due[0]["window"] == "Day 7 ± 1 of life"
+    # Scan on DOL 7 hides the banner
+    assert open_cranial_windows(ga, 1100, DOB, d7, [date(2026, 11, 7)], None) == []
+    # DOL 20 is between windows — not due, and not yet M2 for Day 28
+    assert open_cranial_windows(ga, 1100, DOB, TODAY, [], None) == []
+    # DOL 28 — Scan 2 due
+    d28 = date(2026, 11, 28)
+    due28 = open_cranial_windows(ga, 1100, DOB, d28, [date(2026, 11, 7)], None)
+    assert [x["label"] for x in due28] == ["Scan 2"]
+    # After the window, banner is gone (M2 handles missed)
+    assert open_cranial_windows(ga, 1100, DOB, date(2026, 11, 9), [], None) == []
 
 
 def test_m4_rop_by_dol_30():

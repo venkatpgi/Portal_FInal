@@ -216,7 +216,7 @@ FORMS = [
     ),
     (
         "Form D — Postnatal day 1",
-        "Caffeine loading is a single mg/kg dose. Maintenance is total mg/kg/day (not split by OD/BD).",
+        "Caffeine loading and maintenance are both mg/kg (absolute mg ÷ birth weight kg).",
         [
             (
                 "3. Growth status",
@@ -239,9 +239,9 @@ FORMS = [
                 "20 × birth weight in kg (mg).",
             ),
             (
-                "16 (f). Caffeine maintenance (mg/kg/day)",
+                "16 (f). Caffeine maintenance (mg/kg)",
                 "display from caffeine_maint_abs",
-                "mg/kg/day = absolute mg ÷ birth weight kg. Soft warn if outside 5–10 mg/kg/day.",
+                "mg/kg = absolute mg ÷ birth weight kg. Soft warn if outside 5–10 mg/kg.",
             ),
             (
                 "Effective GA for later forms",

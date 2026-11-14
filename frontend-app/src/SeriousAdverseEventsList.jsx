@@ -8,7 +8,7 @@ import "./styles/FormSAEList.css";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
-import { fallbackCompletedByDesignation as getDesignation } from "./utils/completedByDesignation";
+import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList } from "./utils/completedByDesignation";
 import FormNavBar from "./components/FormNavBar";
 import { usePatient } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
@@ -305,7 +305,7 @@ export default function SeriousAdverseEventsList() {
     }
     api
       .get(`/sites/${encodeURIComponent(site)}/screeners`)
-      .then((r) => setAssessors(Array.isArray(r.data) ? r.data : []))
+      .then((r) => setAssessors(withMannatLast(Array.isArray(r.data) ? r.data : [])))
       .catch(() => setAssessors([]));
   }, [siteName, patientData?.site_name, patientData?.site]);
 
@@ -491,14 +491,11 @@ export default function SeriousAdverseEventsList() {
               }}
             >
               <option value="">Select…</option>
-              {assessors.map((n) => (
+              {completedByNameList(assessors, formData.completed_by).map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
               ))}
-              {formData.completed_by && !assessors.includes(formData.completed_by) && (
-                <option value={formData.completed_by}>{formData.completed_by}</option>
-              )}
             </select>
           </div>
           <div className="form-group">

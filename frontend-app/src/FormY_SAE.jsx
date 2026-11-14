@@ -8,7 +8,7 @@ import "./styles/FormY.css";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
-import { fallbackCompletedByDesignation as getDesignation } from "./utils/completedByDesignation";
+import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList } from "./utils/completedByDesignation";
 import FormNavBar from "./components/FormNavBar";
 import { usePatient } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
@@ -740,7 +740,7 @@ export default function FormY_SAE() {
     }
     api
       .get(`/sites/${encodeURIComponent(site)}/screeners`)
-      .then((r) => setAssessors(Array.isArray(r.data) ? r.data : []))
+      .then((r) => setAssessors(withMannatLast(Array.isArray(r.data) ? r.data : [])))
       .catch(() => setAssessors([]));
   }, [siteName, formData.site, patientData?.site_name, patientData?.site]);
 
@@ -1206,15 +1206,11 @@ export default function FormY_SAE() {
               }}
             >
               <option value="">Select…</option>
-              {assessors.map((n) => (
+              {completedByNameList(assessors, formData.reporter_name).map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
               ))}
-              {formData.reporter_name &&
-                !assessors.includes(formData.reporter_name) && (
-                  <option value={formData.reporter_name}>{formData.reporter_name}</option>
-                )}
             </select>
           </div>
           <div className="form-group">
