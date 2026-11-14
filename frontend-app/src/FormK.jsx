@@ -8,7 +8,8 @@ import "./styles/FormK.css";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
-import { fallbackCompletedByDesignation as getDesignation } from "./utils/completedByDesignation";
+import { dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
+import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList } from "./utils/completedByDesignation";
 import FormNavBar from "./components/FormNavBar";
 import { usePatient } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
@@ -114,11 +115,13 @@ function Chips({ options, value, onChange, disabled = false, multi = false }) {
   );
 }
 
-function DateField({ value, onChange, disabled = false }) {
+function DateField({ value, onChange, disabled = false, minDate, maxDate }) {
   return (
     <DatePicker
       selected={value ? parseDateOnly(value) : null}
       onChange={(date) => onChange(date ? toDateOnlyValue(date) : "")}
+      minDate={minDate}
+      maxDate={maxDate}
       dateFormat="dd/MM/yyyy"
       placeholderText="dd/mm/yyyy"
       className="fk-input"
@@ -364,7 +367,7 @@ export default function FormK() {
       return;
     }
     api.get(`/sites/${encodeURIComponent(site)}/screeners`)
-      .then((r) => setAssessors(Array.isArray(r.data) ? r.data : []))
+      .then((r) => setAssessors(withMannatLast(Array.isArray(r.data) ? r.data : [])))
       .catch(() => setAssessors([]));
   }, [siteName, patientData?.site_name, patientData?.site]);
 
@@ -632,12 +635,9 @@ export default function FormK() {
               }}
             >
               <option value="">-- Select --</option>
-              {assessors.map((n) => (
+              {completedByNameList(assessors, formData.completed_by).map((n) => (
                 <option key={n} value={n}>{n}</option>
               ))}
-              {formData.completed_by && !assessors.includes(formData.completed_by) && (
-                <option value={formData.completed_by}>{formData.completed_by}</option>
-              )}
             </select>
           </div>
           <div className="form-group">
@@ -646,7 +646,8 @@ export default function FormK() {
           </div>
           <div className="form-group">
             <label>Date</label>
-            <DateField value={formData.completion_date} onChange={(v) => set("completion_date", v)} />
+            <DateField value={formData.completion_date} onChange={(v) => set("completion_date", v)}
+              minDate={dobOnwardMinDate(formData.dob)} maxDate={dobOnwardMaxDate()} />
           </div>
         </div>
       </SectionCard>

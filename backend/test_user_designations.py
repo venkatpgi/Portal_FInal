@@ -1,10 +1,21 @@
 """Designation autofill for Completion Details at every site."""
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+import models
+from db import Base
 from user_seed import (
+    DEFAULT_LOGIN_USERS,
     DESIGNATION_NURSE,
     DESIGNATION_PROJECT_SCIENTIST,
     DESIGNATION_SITE_SCIENTIST,
     designation_for_account,
+    is_mannat_guliani,
+    name_without_dr,
+    sort_completed_by_names,
 )
+from user_service import backfill_existing_staff_names, backfill_scientist_names
 
 
 def test_pgimer_nurse_matches_tanvi_yashvi():
@@ -15,6 +26,7 @@ def test_pgimer_nurse_matches_tanvi_yashvi():
 def test_other_site_nurses_same_as_tanvi():
     assert designation_for_account("Anosh", "nurse", "GMCH") == DESIGNATION_NURSE
     assert designation_for_account("Oli Konwar", "nurse", "AMC") == DESIGNATION_NURSE
+    assert designation_for_account("Debika Kurmi", "nurse", "AMC") == DESIGNATION_NURSE
     assert (
         designation_for_account("Samiksha Deepak Khandagale", "nurse", "GMCH-A")
         == DESIGNATION_NURSE
@@ -23,11 +35,11 @@ def test_other_site_nurses_same_as_tanvi():
 
 def test_other_site_scientists_are_prs_ii_medical():
     assert (
-        designation_for_account("Dr. Kirti Vishnu Rathod", "site_scientist", "GMCH-A")
+        designation_for_account("Kirti Vishnu Rathod", "site_scientist", "GMCH-A")
         == DESIGNATION_SITE_SCIENTIST
     )
     assert (
-        designation_for_account("Dr. Manpreet Kaur", "site_scientist", "GMCH")
+        designation_for_account("Manpreet Kaur", "site_scientist", "GMCH")
         == DESIGNATION_SITE_SCIENTIST
     )
     assert (
@@ -35,7 +47,12 @@ def test_other_site_scientists_are_prs_ii_medical():
         == DESIGNATION_SITE_SCIENTIST
     )
     assert (
-        designation_for_account("Dr. Sobhana", "site_scientist", "IOG")
+        designation_for_account("Sobhana", "site_scientist", "IOG")
+        == DESIGNATION_SITE_SCIENTIST
+    )
+    # Historical completed-by values still resolve after the Dr. prefix.
+    assert (
+        designation_for_account("Dr. Kirti Vishnu Rathod", "site_scientist", "GMCH-A")
         == DESIGNATION_SITE_SCIENTIST
     )
 
@@ -46,6 +63,115 @@ def test_pgimer_named_scientist_titles_unchanged():
         == DESIGNATION_PROJECT_SCIENTIST
     )
     assert (
+        designation_for_account("Shalini Dhiman", "site_scientist", "PGIMER")
+        == "Project Research Scientist III (Non-Medical)"
+    )
+    assert (
         designation_for_account("Dr. Shalini Dhiman", "site_scientist", "PGIMER")
         == "Project Research Scientist III (Non-Medical)"
     )
+
+
+def test_amc_login_users_do_not_create_debika_account():
+    usernames = [username for username, _n, _r, site in DEFAULT_LOGIN_USERS if site == "AMC"]
+    assert "debika.amc" not in usernames
+
+
+def test_seeded_scientist_names_have_no_dr_prefix():
+    for _username, full_name, role, _site in DEFAULT_LOGIN_USERS:
+        if role in ("site_scientist", "project_scientist"):
+            assert not full_name.lower().startswith("dr.")
+            assert not full_name.lower().startswith("dr ")
+
+
+def test_name_without_dr_strips_title_only():
+    assert name_without_dr("Dr. Shalini Dhiman") == "Shalini Dhiman"
+    assert name_without_dr("Dr Shalini Dhiman") == "Shalini Dhiman"
+    assert name_without_dr("Shalini Dhiman") == "Shalini Dhiman"
+    assert name_without_dr("Drake") == "Drake"
+
+
+def test_mannat_guliani_sorts_last_in_completed_by():
+    names = [
+        "Yashvi Jolly",
+        "Dr. Mannat Guliani",
+        "Geetika",
+        "Shalini Dhiman",
+        "Navkiran Kaur",
+    ]
+    ordered = sort_completed_by_names(names)
+    assert ordered[-1] == "Dr. Mannat Guliani"
+    assert ordered[:-1] == ["Geetika", "Navkiran Kaur", "Shalini Dhiman", "Yashvi Jolly"]
+    assert is_mannat_guliani("Mannat Guliani")
+    assert is_mannat_guliani("Dr. Mannat Guliani")
+    assert not is_mannat_guliani("Shalini Dhiman")
+    assert sort_completed_by_names(["Mannat Guliani", "Geetika"])[-1] == "Mannat Guliani"
+
+
+@pytest.fixture
+def users_db():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine, tables=[models.User.__table__])
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def test_backfill_scientist_names_strips_dr(users_db):
+    users_db.add(
+        models.User(
+            username="shalini.pgimer",
+            hashed_password="x",
+            role="site_scientist",
+            site_name="PGIMER",
+            full_name="Dr. Shalini Dhiman",
+        )
+    )
+    users_db.add(
+        models.User(
+            username="tanvi.pgimer",
+            hashed_password="x",
+            role="nurse",
+            site_name="PGIMER",
+            full_name="Tanvi Saini",
+        )
+    )
+    users_db.commit()
+    assert backfill_scientist_names(users_db) == 1
+    assert (
+        users_db.query(models.User)
+        .filter_by(username="shalini.pgimer")
+        .one()
+        .full_name
+        == "Shalini Dhiman"
+    )
+    assert backfill_scientist_names(users_db) == 0
+
+
+def test_backfill_existing_staff_names_fills_debika_without_creating(users_db):
+    users_db.add(
+        models.User(
+            username="debika.amc",
+            hashed_password="x",
+            role="nurse",
+            site_name="AMC",
+            full_name="",
+            is_active=True,
+        )
+    )
+    users_db.commit()
+    assert backfill_existing_staff_names(users_db) == 1
+    row = users_db.query(models.User).filter_by(username="debika.amc").one()
+    assert row.full_name == "Debika Kurmi"
+    assert row.designation == DESIGNATION_NURSE
+    assert users_db.query(models.User).count() == 1
+    assert backfill_existing_staff_names(users_db) == 0
+
+
+def test_backfill_existing_staff_names_does_not_create_account(users_db):
+    assert backfill_existing_staff_names(users_db) == 0
+    assert users_db.query(models.User).count() == 0

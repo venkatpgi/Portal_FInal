@@ -163,6 +163,44 @@ def cranial_windows(ga_days: int | None, birth_weight: float | None) -> list[tup
     ]
 
 
+# Form F chip wording for the live due banner (not the short M2 labels).
+CRANIAL_DUE_COPY = {
+    "Day 7 ± 1": ("Scan 1", "Day 7 ± 1 of life"),
+    "Day 28 ± 2": ("Scan 2", "Day 28 ± 2 of life"),
+    "40 ± 1 wk PMA / TEA": (
+        "Final",
+        "Discharge or 40 ± 1 wk PMA / TEA, whichever earlier",
+    ),
+    "Discharge / TEA": (
+        "Final",
+        "Discharge or 40 ± 1 wk PMA / TEA, whichever earlier",
+    ),
+}
+
+
+def _cranial_windows_for_stay(
+    ga_days: int | None,
+    birth_weight: float | None,
+    dob: date | None,
+    end: date | None,
+) -> list[tuple[str, int, int]]:
+    """Protocol windows, with discharge-before-TEA and skip-after-stay-end."""
+    if dob is None:
+        return []
+    end_dol = (end - dob).days + 1 if end else None
+    wins = list(cranial_windows(ga_days, birth_weight))
+    if end_dol is not None and wins:
+        _lab, first, _last = wins[-1]
+        if first > end_dol and end_dol > 30:
+            wins[-1] = ("Discharge / TEA", max(1, end_dol - 2), end_dol)
+    out = []
+    for label, first, last in wins:
+        if end_dol is not None and first > end_dol:
+            continue
+        out.append((label, first, last))
+    return out
+
+
 def missed_cranial_windows(
     ga_days: int | None,
     birth_weight: float | None,
@@ -178,20 +216,47 @@ def missed_cranial_windows(
     if dob is None:
         return []
     dol_today = (today - dob).days + 1
-    end_dol = (end - dob).days + 1 if end else None
     scan_dols = sorted((d - dob).days + 1 for d in scan_dates if d)
-    wins = list(cranial_windows(ga_days, birth_weight))
-    if end_dol is not None and wins:
-        _lab, first, _last = wins[-1]
-        if first > end_dol and end_dol > 30:
-            wins[-1] = ("Discharge / TEA", max(1, end_dol - 2), end_dol)
     missed = []
-    for label, first, last in wins:
-        if end_dol is not None and first > end_dol:
-            continue
+    for label, first, last in _cranial_windows_for_stay(
+            ga_days, birth_weight, dob, end):
         if dol_today > last + 2 and not any(first - 1 <= d <= last + 2 for d in scan_dols):
             missed.append(label)
     return missed
+
+
+def open_cranial_windows(
+    ga_days: int | None,
+    birth_weight: float | None,
+    dob: date | None,
+    today: date,
+    scan_dates: list,
+    end: date | None,
+) -> list[dict]:
+    """Windows that are due today (DOL inside first…last) with no covering scan.
+
+    A scan on DOL first−1 … last+2 counts as done (same tolerance as M2).
+    Closed windows are site-summary M2, not this banner."""
+    if dob is None:
+        return []
+    dol_today = (today - dob).days + 1
+    scan_dols = sorted((d - dob).days + 1 for d in scan_dates if d)
+    due = []
+    for label, first, last in _cranial_windows_for_stay(
+            ga_days, birth_weight, dob, end):
+        if dol_today < first or dol_today > last:
+            continue
+        if any(first - 1 <= d <= last + 2 for d in scan_dols):
+            continue
+        name, window = CRANIAL_DUE_COPY.get(label, ("Scan", label))
+        due.append({
+            "key": label,
+            "label": name,
+            "window": window,
+            "dol_first": first,
+            "dol_last": last,
+        })
+    return due
 
 
 # ------------------------------------------------------------------ rules

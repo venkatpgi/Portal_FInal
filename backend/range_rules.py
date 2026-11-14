@@ -87,7 +87,7 @@ RULES: tuple[Rule, ...] = (
     # DMS (entries_json blocks)
     R("dms_weight", "DMS 5.7.A", "Weight", "g", "minimal_monitoring_day_logs", "growth_a", None, None, 300, 6000,
       kind="dms", field="weight_g"),
-    R("dms_temp", "DMS 5.1.A", "Axillary temperature", "°C", "minimal_monitoring_day_logs", "cv_a", 35, 37.8, 24, 42,
+    R("dms_temp", "DMS 5.1.B", "Axillary temperature", "°C", "minimal_monitoring_day_logs", "cv_a", 35, 37.8, 24, 42,
       kind="dms", field="axillary_temp"),
     R("dms_sbp", "DMS 5.1.A", "Systolic BP", "mmHg", "minimal_monitoring_day_logs", "cv_a", 30, 110, 15, 140,
       kind="dms", field="sbp"),

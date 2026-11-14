@@ -62,6 +62,16 @@ export function normalizeHelperLocation(value) {
   return normalizeHelperLocations(value ? [value] : [])[0] || "";
 }
 
+export function isTransferredOutDay1(value) {
+  return value === true || value === "Yes" || value === 1 || value === "true";
+}
+
+/** Form E area of admission from Form D Q18. Empty = not transferred — enter E5 manually. */
+export function formDAdmissionArea(d) {
+  if (!isTransferredOutDay1(d?.transferred_out_day1)) return "";
+  return normalizeHelperLocation(d?.transferred_out_location);
+}
+
 /** Values to offer. noDR for Form D. A saved value not in the list is kept. */
 export function helperLocationOptions({ selected, noDR = false } = {}) {
   const base = noDR ? LOCATION_AREAS.filter((a) => a !== "DR") : LOCATION_AREAS;

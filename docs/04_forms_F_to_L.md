@@ -92,7 +92,7 @@ everywhere** (helper cut-off, death/alive checks, suggestions).
 | Cranial USG → IVH/PVL | **Form F** | per-side max IVH/PVL grade, its date and age, side; PVHI (IVH IV); PHH (≈ Form F PHVD); ventriculomegaly Yes (second source) | PVHI/PHH free text |
 | GI (H3, #68–94) | Helper 4 | feed intolerance, PN, probiotic, cholestasis, NEC (= any day **suspected**) + date/age, first-feed age, PDHM/EBM/FM day counts | NEC **stage** (suggestion, ch. 05), surgery detail, full-feed age |
 | ROP / thermoregulation (H8/H9) | Helper 5 (+ Form G per eye) | ROP screened / ROP Yes + dates; hypo/hyperthermia **from the temperature value** (< 36.5 / > 37.5), min/max temp | thermal severity/location/aetiology |
-| Cardiovascular (H5, #117–146) | Helper 2 + DMS | HS-PDA, shock, inotropes + drug ticks, PDA medical Rx, fluid bolus (+count from DMS 5.1.B), lowest SBP/DBP/MAP from DMS 5.1.A | echo detail, VIS, hydrocortisone; H5.4 Miscellaneous (manual, below) |
+| Cardiovascular (H5, #117–146) | Helper 2 + DMS | HS-PDA, shock, inotropes + drug ticks, PDA medical Rx, fluid bolus (+count from DMS 5.1.C / `cv_b`), lowest SBP/DBP/MAP from DMS 5.1.A | echo detail, VIS, hydrocortisone; H5.4 Miscellaneous (manual, below) |
 | Respiratory (H2, #38–67) | Helper 2 | O₂ days, NC/CPAP/NIPPV/HFNC (+days), invasive ventilation (+days, from the intubation flag), steroids, pulmonary haemorrhage, pneumothorax, chest drain, PH, extubation failure, caffeine, apnoea + onset | **BPD** (suggestion, ch. 05) |
 
 Plus:

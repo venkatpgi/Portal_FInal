@@ -44,6 +44,9 @@ export default function ModernTimeInput({
   format,
   placeholder,
   hasError = false,
+  maxHour = 23,
+  maxMinute = 59,
+  maxSecond = 59,
 }) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState(null);
@@ -127,13 +130,36 @@ export default function ModernTimeInput({
   }, [open]);
 
   const pick = (part, val) => {
-    const curH = hour === "" || hour == null ? 0 : Number(hour);
-    const curM = minute === "" || minute == null ? 0 : Number(minute);
-    const curS = second === "" || second == null ? 0 : Number(second);
-    if (part === "h") onChange(Number(val), curM, showSeconds ? curS : 0);
-    else if (part === "m") onChange(showHours ? curH : 0, Number(val), showSeconds ? curS : 0);
-    else onChange(showHours ? curH : 0, curM, Number(val));
+    let nextH = hour === "" || hour == null ? 0 : Number(hour);
+    let nextM = minute === "" || minute == null ? 0 : Number(minute);
+    let nextS = second === "" || second == null ? 0 : Number(second);
+    if (part === "h") nextH = Number(val);
+    else if (part === "m") nextM = Number(val);
+    else nextS = Number(val);
+    if (nextH > maxHour) return;
+    if (nextH === maxHour && nextM > maxMinute) {
+      if (part === "h") { nextM = maxMinute; nextS = Math.min(nextS, maxSecond); }
+      else return;
+    }
+    if (nextH === maxHour && nextM === maxMinute && nextS > maxSecond) {
+      if (part === "h" || part === "m") nextS = maxSecond;
+      else return;
+    }
+    onChange(showHours ? nextH : 0, nextM, showSeconds ? nextS : 0);
   };
+
+  const hourOptions = HOUR_OPTIONS.filter((v) => Number(v) <= maxHour);
+  const curH = hour === "" || hour == null ? 0 : Number(hour);
+  const curM = minute === "" || minute == null ? 0 : Number(minute);
+  const minuteOptions = MIN_SEC_OPTIONS.filter((v) => {
+    if (curH < maxHour) return true;
+    return Number(v) <= maxMinute;
+  });
+  const secondOptions = MIN_SEC_OPTIONS.filter((v) => {
+    if (curH < maxHour) return true;
+    if (curH === maxHour && curM < maxMinute) return true;
+    return Number(v) <= maxSecond;
+  });
 
   const popover = open && !disabled && coords && createPortal(
     <div
@@ -150,11 +176,11 @@ export default function ModernTimeInput({
       }}
     >
       {showHours && (
-        <TimeColumn part="h" label="HH (24h)" options={HOUR_OPTIONS} current={h} onPick={pick} />
+        <TimeColumn part="h" label="HH (24h)" options={hourOptions} current={h} onPick={pick} />
       )}
-      <TimeColumn part="m" label="MM" options={MIN_SEC_OPTIONS} current={m} onPick={pick} />
+      <TimeColumn part="m" label="MM" options={minuteOptions} current={m} onPick={pick} />
       {showSeconds && (
-        <TimeColumn part="s" label="SS" options={MIN_SEC_OPTIONS} current={s} onPick={pick} />
+        <TimeColumn part="s" label="SS" options={secondOptions} current={s} onPick={pick} />
       )}
     </div>,
     document.body

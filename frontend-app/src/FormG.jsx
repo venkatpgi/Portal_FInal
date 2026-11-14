@@ -11,7 +11,7 @@ import SaveSuccessModal from "./components/SaveSuccessModal";
 
 import { useFormProgress } from "./context/FormProgressContext";
 import { toDateOnlyValue } from "./utils/datetime";
-import { designationForCompletedBy } from "./utils/completedByDesignation";
+import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
 import { isFormGComplete } from "./utils/formCompletion";
 
 /* ══════════════════════════════════════════════════════
@@ -447,10 +447,7 @@ export default function FormG() {
   };
 
   const nurses = roster.map((r) => r.full_name);
-  const completedByOptions =
-    formData.completed_by && !nurses.includes(formData.completed_by)
-      ? [...nurses, formData.completed_by]
-      : nurses;
+  const completedByOptions = completedByNameOptions(roster, formData.completed_by);
 
   /* ================= AUTO PMA-AT-TREATMENT (per eye) ================= */
   useEffect(() => {
@@ -1012,7 +1009,8 @@ export default function FormG() {
               </div>
               <div className="rop-field">
                 <label className="rop-label">Date</label>
-                <input type="date" className="rop-input" name="completion_date" value={formData.completion_date || ""} onChange={handleChange} />
+                <input type="date" className="rop-input" name="completion_date" value={formData.completion_date || ""} onChange={handleChange}
+                  min={formData.dob || undefined} max={toDateOnlyValue(new Date())} />
               </div>
             </div>
           </div>

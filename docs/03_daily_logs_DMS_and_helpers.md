@@ -26,10 +26,11 @@ helpers (and, separately, Form H — chapter 04).
 
 | Block | Content | Feeds |
 |---|---|---|
-| 5.1.A Vitals | skin/axillary temp, SBP, DBP, MAP (hourly flowsheet) | Helper 5 temperature (#15); Form H lowest SBP/DBP/MAP |
-| 5.1.B Fluid bolus | volume | Helper 2 fluid bolus given; Form H fluid bolus count |
-| 5.1.C Vasoactive drugs | agent, dose | Helper 2 vasoactive support + drug names (Epinephrine→Adrenaline, Norepinephrine→Noradrenaline, `VASOACTIVE_DRUG_NAME_ALIASES`) |
-| 5.1.D PDA medical Rx | agent, dose | Helper 2 PDA medical Rx |
+| 5.1.A Blood pressure | SBP, DBP, MAP (hourly flowsheet; stored `cv_a`) | Form H lowest SBP/DBP/MAP |
+| 5.1.B Temperature | skin/axillary temp (same cadence / ranges / before-birth as 5.1.A; still `cv_a.axillary_temp`) | Helper 5 temperature (#15) |
+| 5.1.C Fluid bolus | volume (`cv_b`) | Helper 2 fluid bolus given; Form H fluid bolus count |
+| 5.1.D Vasoactive drugs | agent, dose (`cv_c`) | Helper 2 vasoactive support + drug names (Epinephrine→Adrenaline, Norepinephrine→Noradrenaline, `VASOACTIVE_DRUG_NAME_ALIASES`) |
+| 5.1.E PDA medical Rx | agent, dose (`cv_d`) | Helper 2 PDA medical Rx |
 | 5.2.A Respiratory support | time range, modes, max MAP/CPAP, max FiO₂ | Helper 2 #1–5; **FiO₂ AUC prefill** |
 | 5.2.B Blood gas | pH, PaO₂, PaCO₂ | Helper 2 #8–10 (day's range) |
 | 5.2.C Apnea / desaturation | episode counts | Helper 2 #13–15 (day totals) |
@@ -194,8 +195,8 @@ readings table the latest row of each drug has **Change dose** (new row,
 same drug and unit, time now; only the dose to type) and **Stop** (saves a
 stopped row). Above the table one line per drug shows the doses over time,
 e.g. "Dopamine: 10 → 15 → 20 mcg/kg/min (10:18 · 10:23 · 10:24)". A drug row
-with no dose is marked "Dose not entered" (warning only). Vitals (5.1.A) is
-its own module on the page (stored block `cv_a` unchanged).
+with no dose is marked "Dose not entered" (warning only). Vitals (5.1.A blood pressure, 5.1.B temperature) is
+its own module on the page (stored block `cv_a` unchanged; 5.1.B is a UI split).
 Old readings with more than one choice were split by `backend/dms_split_drugs.py`
 (one row each, same date / time / stamps; a dose on a multi-drug reading
 stays on the first drug only).

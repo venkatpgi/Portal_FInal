@@ -13,13 +13,48 @@ export const DESIGNATION_PROJECT_SCIENTIST =
 export const DESIGNATION_SHALINI =
   "Project Research Scientist III (Non-Medical)";
 
-/** Site scientists whose seeded full_name has no "Dr." prefix. */
-const SITE_SCIENTISTS_WITHOUT_DR = new Set(["Nafifa Tasmeen Rahman"]);
+/** Site scientists — names are stored without a Dr. prefix. */
+const SITE_SCIENTISTS = new Set([
+  "Nafifa Tasmeen Rahman",
+  "Kirti Vishnu Rathod",
+  "Manpreet Kaur",
+  "Sobhana",
+]);
 
 function nameKey(name) {
   return String(name || "")
-    .replace(/^Dr\.\s*/i, "")
+    .replace(/^Dr\.?\s+/i, "")
+    .replace(/^Dr\./i, "")
     .trim();
+}
+
+export function isMannatGuliani(name) {
+  return nameKey(name).toLowerCase() === "mannat guliani";
+}
+
+/** Keep existing order, but pin Mannat Guliani (with or without Dr.) last. */
+export function withMannatLast(items, nameOf = (item) => item) {
+  const rest = [];
+  const mannat = [];
+  for (const item of items || []) {
+    const name = typeof nameOf === "function" ? nameOf(item) : item;
+    if (isMannatGuliani(name)) mannat.push(item);
+    else rest.push(item);
+  }
+  return [...rest, ...mannat];
+}
+
+export function completedByNameList(names = [], current = "") {
+  const out = [...(names || [])].filter(Boolean);
+  if (current && !out.includes(current)) out.push(current);
+  return withMannatLast(out);
+}
+
+export function completedByNameOptions(roster = [], current = "") {
+  return completedByNameList(
+    (roster || []).map((r) => r && r.full_name).filter(Boolean),
+    current,
+  );
 }
 
 export function fallbackCompletedByDesignation(name) {
@@ -27,14 +62,17 @@ export function fallbackCompletedByDesignation(name) {
   const n = nameKey(name);
   if (n === "Mannat Guliani") return DESIGNATION_PROJECT_SCIENTIST;
   if (n === "Shalini Dhiman") return DESIGNATION_SHALINI;
-  if (/^Dr\.\s*/i.test(String(name).trim())) return DESIGNATION_SITE_SCIENTIST;
-  if (SITE_SCIENTISTS_WITHOUT_DR.has(n)) return DESIGNATION_SITE_SCIENTIST;
+  if (/^Dr\.?\s+/i.test(String(name).trim()) || /^Dr\./i.test(String(name).trim())) {
+    return DESIGNATION_SITE_SCIENTIST;
+  }
+  if (SITE_SCIENTISTS.has(n)) return DESIGNATION_SITE_SCIENTIST;
   return DESIGNATION_NURSE;
 }
 
 export function designationForCompletedBy(name, roster = []) {
   if (!name) return "";
-  const hit = (roster || []).find((r) => r && r.full_name === name);
+  const key = nameKey(name);
+  const hit = (roster || []).find((r) => r && nameKey(r.full_name) === key);
   if (hit?.designation) return hit.designation;
   return fallbackCompletedByDesignation(name);
 }

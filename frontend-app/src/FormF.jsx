@@ -10,12 +10,13 @@ import {
   Activity, ClipboardList, Brain, CalendarDays
 } from "lucide-react";
 import "./styles/FormF.css";
-import { designationForCompletedBy } from "./utils/completedByDesignation";
+import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
 import { isFormFComplete } from "./utils/formCompletion";
 import NotesBox from "./components/NotesBox";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext";
 import { resolveEffectiveGestation } from "./utils/gestation";
+import { realCalendarDateYmd } from "./utils/datetime";
 
 /* ══════════════════════════════════════════════════════
    CONSTANTS
@@ -347,10 +348,7 @@ export default function FormF() {
   }, [enrollmentId]); // baby's site staff (see /users/roster)
 
   const nurses = roster.map((r) => r.full_name);
-  const completedByOptions =
-    completion.completedBy && !nurses.includes(completion.completedBy)
-      ? [...nurses, completion.completedBy]
-      : nurses;
+  const completedByOptions = completedByNameOptions(roster, completion.completedBy);
 
   const isFieldEditable = !isSubmitted && (!isSaved || isEditing);
   // Adding the very first scan shouldn't require an extra "Edit" click —
@@ -579,6 +577,7 @@ export default function FormF() {
         ? await api.put(`/form-h/${enrollmentId}`, payload)
         : await api.post("/form-h/", payload);
       syncFormFTick();
+      try { window.dispatchEvent(new Event("portal:form-f-saved")); } catch (_) { /* ignore */ }
       setIsSaved(true); setIsEditing(false);
       setShowSaveSuccess(true);
       setMessage("Form F saved successfully.");
@@ -779,9 +778,10 @@ export default function FormF() {
                   <span>Surveillance Schedule Reference</span>
                   <div className="cu-schedule-tabs">
                     {Object.entries(SCHEDULES).map(([key, sch]) => (
-                      <button key={key} type="button"
-                        className={`cu-schedule-tab${scheduleKey === key ? " cu-schedule-tab--active" : ""}`}
-                        onClick={() => setScheduleKey(key)}>{sch.label}</button>
+                      <span key={key}
+                        className={`cu-schedule-tab${scheduleKey === key ? " cu-schedule-tab--active" : ""}`}>
+                        {sch.label}
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -995,6 +995,8 @@ export default function FormF() {
                 <label className="cu-label">Date</label>
                 <input type="date" className="cu-input" value={completion.completionDate}
                   onChange={e => setCompletionField("completionDate", e.target.value)}
+                  min={patientInfo.dob || undefined}
+                  max={realCalendarDateYmd()}
                   disabled={!isFieldEditable} />
               </div>
             </div>

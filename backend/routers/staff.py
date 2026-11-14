@@ -7,6 +7,7 @@ from db import get_db
 from deps import get_current_user, ensure_same_site, require_superadmin
 from models import SiteStaff, User
 from schemas import SiteStaffCreate, SiteStaffOut
+from user_seed import completed_by_sort_key, name_without_dr
 
 router = APIRouter(tags=["Site Staff"])
 
@@ -24,10 +25,17 @@ def get_site_screeners(
             SiteStaff.site_name == site_name,
             SiteStaff.is_active.is_(True),
         )
-        .order_by(SiteStaff.name)
         .all()
     )
-    return [r.name for r in rows]
+    seen, names = set(), []
+    for r in rows:
+        key = name_without_dr(r.name).strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        names.append(r.name)
+    names.sort(key=completed_by_sort_key)
+    return names
 
 
 @router.get("/sites/{site_name}/pi-name")

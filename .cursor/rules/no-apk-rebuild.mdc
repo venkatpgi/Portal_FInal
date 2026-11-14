@@ -1,0 +1,10 @@
+---
+description: Never rebuild the tablet APK unless Harsh explicitly asks
+alwaysApply: true
+---
+
+# Do not rebuild the mobile APK unprompted
+
+Never run `flutter build apk` (release or debug) unless the user explicitly asks to rebuild or install an APK in that message.
+
+Flutter/Dart code changes are allowed. Leave the APK as-is after those edits. Do not treat “Flutter work happened” as permission to build.
