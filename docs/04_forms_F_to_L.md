@@ -26,9 +26,15 @@ warning / Force refill. This is by design.
 
 - `scan_entries` = list of scans (date, per-side IVH grade None–IV (IV = PVHI),
   per-side cPVL grade, PHVD etc.). DOL = scan date − DOB + 1.
-- Scan schedule reference (page `SCHEDULES`): < 28 wk / < 1000 g — Day 1–3,
-  4–7, 10–14, (21), 28, 36 wk PMA, 40 wk PMA; 28–31 wk — Day 4–7, 10–14, 28,
-  40 wk PMA.
+- Scan schedule (PI 2026-11-13, page `SCHEDULES` = `site_summary.cranial_windows`),
+  the same 3 scans for every baby: Day 7 ± 1, Day 28 ± 2, then discharge or
+  40 ± 1 wk PMA (term-equivalent age), whichever is earlier. If the stay ends
+  after Day 30 and before 39 wk PMA, the final scan is one in the last 2 days of
+  the stay (page tick and daily summary alike). The daily summary raises
+  "Cranial USG … not done" 2 days after a window closes with no scan from 1 day
+  before to 2 days after it; windows starting after the stay ended are skipped.
+  (Before 13 Nov: < 28 wk / < 1000 g Day 1–3, 4–7, 10–14, (21), 28, 36 and
+  40 wk PMA; 28–31 wk Day 4–7, 10–14, 28, 40 wk PMA.)
 - **Helper 2 gate:** if Helper 2 ever flagged IVH or cPVL
   (`GET /form-h/{id}/helper2-neuro-flags`) and Form F has **no scan**, a banner
   asks for a scan and the tick is withheld.
