@@ -144,6 +144,9 @@ nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
   and missing numbers (a gap may be an activation never entered; the number
   is the blender's own allocation number, PI 2026-11-11); list of
   babies randomised in error with time, reason and who activated.
+- **Follow-up due** (key `followup_due`, PI 2026-11-17): Form I checkpoints
+  coming up and windows closed with nothing entered; see "Follow-up due"
+  below. Ignores the date range.
 - **Data queries** (PI 2026-11-12): a snapshot when generated. Summary by site
   (open new / over 72 h / over 7 days, awaiting sign-off, closed no longer raised /
   confirmed correct), open queries by check, the open list (oldest first,
@@ -244,6 +247,31 @@ produced. Three columns:
   detectors, worst grade, plus severe Form F scans not yet in Form H. Items
   not on the AE form are marked "auto-detected".
 
+Below the babies, **Follow-up coming up**: Form I checkpoints within 14 days
+(baby at home) or 7 days (in the NICU), or with the window open (see
+"Follow-up due" below).
+
+## Follow-up due (PI 2026-11-17)
+
+`backend/followup_due.py`. Form I is due at 36, 40 and 44 weeks PMA; the
+checkpoint date is DOB + (weeks × 7 − Form B gestation in days) and the
+allowed **window is the date ± 2 days**. A checkpoint is done when Form I has
+the method of encounter, a death at that checkpoint, or a reason for loss to
+follow-up; a death on or before it (Form H, Helper 5 or Form I) or "Consent
+withdrawn" ends the list. Randomised babies born since the trial start.
+- **Coming up:** window open, or the date within **14 days** for a baby who
+  has gone home (stay ended, alive), **7 days** in the NICU. Shown in the site
+  summary (page section + tile + Monday/Thursday email), the twice-daily
+  report (second table) and the ready-made report **Follow-up due** (key
+  `followup_due`, which also lists windows closed with nothing entered).
+- **Overdue:** window closed with nothing entered = site summary missed item M5.
+- **Email (babies at home only):** to the site's Site PI and Site Scientists,
+  once per baby and checkpoint, 7 days before the date (at once if already
+  closer and the window is still open). Sent from the hourly data-check run,
+  08:00–20:00 IST, one email per site per run; each send is an audit row
+  (table `followup_reminder`, action `EMAIL`, checkpoint in `new_values`).
+  IDs only. Training sends nothing (no `SES_SENDER_EMAIL`). No nil email.
+
 ## Enrolment status (PI 2026-10-31)
 
 `backend/enrolment_status.py`, `GET /shift-report/enrolment`, on the
@@ -265,7 +293,7 @@ baby name) to viewers who may see that site's PII (`can_view_pii_for_site`),
 and the mother's name on Form B-missing rows. The W / M codes below are
 internal: page and email show only the rule name (PI 2026-10-26).
 The count tiles on the page and in the email go to their list
-(`/site-summary?site=<site>#watch|advisory|active|missed|census`; overdue
+(`/site-summary?site=<site>#watch|advisory|active|missed|followup|census`; overdue
 queries to `/data-queries?show=red`) (PI 2026-11-04).
 **Rule-based only, no AI.** Rules approved by the PI (rule sheet
 https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
@@ -288,7 +316,7 @@ https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
 | M2 Cranial USG | a Form F schedule window (< 28 wk or < 1000 g: Day 1–3, 4–7, 10–14, 28, 36 and 40 wk PMA; else Day 4–7, 10–14, 28, 40 wk PMA) ended 2 days ago with no scan in it (± tolerance), skipping windows after the stay ended |
 | M3 | Helper 2 IVH / cPVL flag and no Form F scan |
 | M4 ROP | no real Form G visit by DOL 30 (national ROP operational guidelines, RBSK / NPCB), or discharged before one; auto-suggested visit unfilled |
-| M5 | Form I 36 / 40 / 44 wk checkpoint date passed with no encounter method or death recorded |
+| M5 | Form I 36 / 40 / 44 wk checkpoint window (date ± 2 days, PI 2026-11-17) closed with no encounter method, death or loss-to-follow-up reason recorded |
 | M6 | Form H or Form I incomplete 48 h after discharge / death (**not Form L**: it is filled after unblinding) |
 | M9 | an auto-detected AE whose term is not on the AE form |
 | M10 | red data queries (count per site) |

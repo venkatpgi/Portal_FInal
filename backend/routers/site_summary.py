@@ -41,6 +41,9 @@ def get_site_summary(site: str | None = None, db: Session = Depends(get_db),
             x["name"] = names.get(x["screening_id"], {}).get("baby")
     for x in out["mothers"]:
         x["name"] = names.get(x["screening_id"], {}).get("mother")
+    name_of = {x["enrollment_id"]: x.get("name") for x in out["babies"]}
+    for x in out.get("followup", []):
+        x["name"] = name_of.get(x["enrollment_id"])
     out["rules"] = site_summary.RULES
     out["sites"] = SITES if len(sites) > 1 or site else sites
     return out

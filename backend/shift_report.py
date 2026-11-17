@@ -12,6 +12,10 @@ comma separated), with that day, so an old entry is visible as old.
 Morbidities are every AE term to date from the AE form and the AE detectors
 (ae_candidates.py), worst grade, plus severe Form F scans not yet in Form H;
 anything not on the AE form is marked auto-detected.
+
+Below it, "Follow-up coming up" (followup_due.py, PI 2026-11-17): Form I
+checkpoints at 36 / 40 / 44 wk PMA within 14 days (baby at home) or 7 days
+(in the NICU), or whose +/- 2 day window is open.
 """
 from __future__ import annotations
 
@@ -23,6 +27,7 @@ from ae_reference import AE_DEFINITIONS
 from ae_terms import term_of
 from clinical_time import clinical_now
 from deps import logins_from_trial
+import followup_due
 from site_summary import _int_grade, _load, _site_display
 
 RECENT_END_DAYS = 7
@@ -87,8 +92,13 @@ def build(db, site: str, now: datetime | None = None) -> dict:
     rows = [r for r in (row_of(b, now.date()) for b in _load(db, [site], now)) if r]
     for r in rows:
         r["morbidity_text"] = "; ".join(morbidity_text(m) for m in r["morbidities"]) or NO_MORBIDITY
+    followup = [{"enrollment_id": r["enrollment_id"], "checkpoint": r["checkpoint"],
+                 "due": followup_due.fmt(r["due"]), "when": followup_due.when_text(r),
+                 "window": f"{followup_due.fmt(r['window_from'])} – {followup_due.fmt(r['window_to'])}",
+                 "where": r["where"]}
+                for r in followup_due.coming_up(followup_due.collect(db, [site], now.date()))]
     return {"site": site, "site_name": _site_display(site), "generated_at": now.isoformat(timespec="minutes"),
-            "training": logins_from_trial(), "babies": rows}
+            "training": logins_from_trial(), "babies": rows, "followup": followup}
 
 
 def file_name(r: dict) -> str:
@@ -136,6 +146,25 @@ def render_pdf(r: dict) -> bytes:
     else:
         story.append(Paragraph("<b>Nil to report.</b> No randomised baby admitted, and no stay ended "
                                f"in the last {RECENT_END_DAYS} days.", cell))
+    fu = r.get("followup") or []
+    story += [Spacer(1, 5 * mm), Paragraph(f"Follow-up coming up (Form I, window ± {followup_due.WINDOW_DAYS} days): "
+                                           f"{len(fu)}", ParagraphStyle("h2", parent=idc, fontSize=11, leading=14)),
+              Spacer(1, 2 * mm)]
+    if fu:
+        data = [[Paragraph(x, head) for x in ("Enrollment ID", "Checkpoint", "Date", "Window", "Now")]]
+        for x in fu:
+            data.append([Paragraph(escape(x["enrollment_id"]), idc), Paragraph(f"{x['checkpoint']} wk PMA", cell),
+                         Paragraph(escape(f"{x['due']} ({x['when']})"), cell), Paragraph(escape(x["window"]), cell),
+                         Paragraph(escape(x["where"]), cell)])
+        table = Table(data, colWidths=[30 * mm, 24 * mm, 46 * mm, 46 * mm, 34 * mm], repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), navy),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(table)
+    else:
+        story.append(Paragraph("None in the next 14 days.", cell))
     story += [Spacer(1, 3 * mm),
               Paragraph("Area: Location on the latest Helper 5 entry, with its day of life. Auto-detected: found from "
                         "the portal data, not yet on the AE form. IDs only: do not add names or photographs.", small)]

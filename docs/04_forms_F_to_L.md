@@ -114,6 +114,8 @@ another hospital without records, Other + `ltfu{wk}_reason_other`). Choosing
 a method clears it on save. A recorded reason counts the baby as lost to
 follow-up at that checkpoint at once (CONSORT Boxes 9-11, At a glance);
 without one, lost to follow-up still starts 28 days after the expected date.
+Reminders before each checkpoint (window = date ± 2 days, emails for babies
+at home): README "Follow-up due" (`followup_due.py`, PI 2026-11-17).
 
 **One death, one entry (PI 2026-10-31):** cause, date and time of death entered at any place carry to every other mortality place answered Yes (`utils/deathDetails.js`). A place changed by hand keeps its own text. Age at death uses date and time of birth and of death (hours rounded, days completed); if either time is missing, the dates alone.
 

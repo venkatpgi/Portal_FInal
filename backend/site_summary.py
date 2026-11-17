@@ -52,6 +52,7 @@ from ops_tasks import baby_tasks, iter_form_tasks  # noqa: E402
 from rop_form_g_linkage import compute_rop_review_alerts  # noqa: E402
 from sae_rules import fourteen_day_items, is_fatal, unreported_sae  # noqa: E402
 from trial_dates import trial_start  # noqa: E402
+import followup_due  # noqa: E402
 
 IST = timezone(timedelta(hours=5, minutes=30))
 ALL_SITES = "ALL"
@@ -460,17 +461,12 @@ def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> d
         when = f"DOL {a['nicu_day']}" if a.get("nicu_day") is not None else (a.get("detected_date") or "")
         missed.append(("M4", f"Auto-suggested Form G visit ({when}) not filled"))
 
-    so = b.get("study_outcomes")
-    ga = b.get("ga_days")
-    if dob and ga is not None:
-        for wk in CHECKPOINTS:
-            due = dob + timedelta(days=wk * 7 - ga)
-            if today <= due or (died and end and end < due):
-                continue
-            done = so is not None and (answered(getattr(so, f"encounter{wk}_method", None))
-                                       or getattr(so, f"death{wk}", None) is True)
-            if not done:
-                missed.append(("M5", f"Form I {wk} wk checkpoint ({_fmt(due)}) not entered"))
+    # Form I checkpoints: overdue once the +/- 2 day window has closed (followup_due.py, PI 2026-11-17)
+    for r in followup_due.pending(dob, b.get("ga_days"), b.get("study_outcomes"), bool(died),
+                                  end if died else None, today):
+        if r["stage"] == "overdue":
+            missed.append(("M5", f"Form I {r['checkpoint']} wk checkpoint ({_fmt(r['due'])}, window to "
+                                 f"{_fmt(r['window_to'])}) not entered"))
 
     if end and now >= datetime.combine(end, datetime.min.time()) + timedelta(hours=FORMS_AFTER_END_HOURS):
         left = [f for f, ok in (("Form H", b.get("form_h_complete")), ("Form I", b.get("form_i_complete"))) if not ok]
@@ -602,6 +598,11 @@ def build(db, scope: str, now: datetime | None = None, snapshot=None) -> dict:
         if colour(x, datetime.utcnow()) == "red":
             red[x.site_name] += 1
 
+    followup = [{**r, "due": r["due"].isoformat(), "window_from": r["window_from"].isoformat(),
+                 "window_to": r["window_to"].isoformat(),
+                 "ended_on": r["ended_on"].isoformat() if r["ended_on"] else None,
+                 "when": followup_due.when_text(r)}
+                for r in followup_due.coming_up(followup_due.collect(db, sites, today))]
     in_nicu = [b for b in babies if b["status"] == "In NICU"]
     per_site = {s: {"in_nicu": 0, "watch": 0, "missed": 0, "red_queries": red.get(s, 0)} for s in sites}
     for b in babies:
@@ -620,9 +621,10 @@ def build(db, scope: str, now: datetime | None = None, snapshot=None) -> dict:
         "missed": sum(len(b["missed"]) for b in babies) + len(mothers),
         "advisory": sum(len(b["advisory"]) for b in babies),
         "red_queries": sum(red.values()),
+        "followup": len(followup),
     }
     return {"scope": scope, "generated_at": now.isoformat(timespec="minutes"), "since": since.isoformat(),
-            "counts": counts, "per_site": per_site, "babies": babies, "mothers": mothers}
+            "counts": counts, "per_site": per_site, "babies": babies, "mothers": mothers, "followup": followup}
 
 
 def pii_names(db, screening_ids, enrollment_ids=()) -> dict:
@@ -707,7 +709,8 @@ def render_email(s: dict) -> tuple[str, str]:
     now = datetime.fromisoformat(s["generated_at"])
     day = now.strftime("%a %d %b %Y")
     c = s["counts"]
-    nil = not (c["watch"] or c["missed"] or c.get("advisory") or c["in_nicu"] or c["ended_since_last"])
+    nil = not (c["watch"] or c["missed"] or c.get("advisory") or c["in_nicu"] or c["ended_since_last"]
+               or c.get("followup"))
     subject = (f"PORTAL site summary — {where} — {day}: "
                + ("nil to report" if nil else
                   f"{c['in_nicu']} in NICU, {c['watch_babies']} on safety watch list, {c['missed']} missed items"))
@@ -719,6 +722,7 @@ def render_email(s: dict) -> tuple[str, str]:
         ("With active morbidity", c["active_babies"], "#b45309", f"{page}#active"),
         ("Missed data items", c["missed"], "#6d28d9", f"{page}#missed"),
         ("Advisory notes", c.get("advisory", 0), "#0f766e", f"{page}#advisory"),
+        ("Follow-up coming up", c.get("followup", 0), "#1d4ed8", f"{page}#followup"),
         ("Overdue queries", c["red_queries"], "#0369a1", f"{QUERIES_URL}?show=red")])
     advisory = [{"site": b["site"], "enrollment_id": b["enrollment_id"], **a}
                 for b in s["babies"] for a in b.get("advisory", [])]
@@ -728,6 +732,12 @@ def render_email(s: dict) -> tuple[str, str]:
     active_rows = [([escape(_site_display(b["site"]))] if all_sites else [])
                    + [escape(b["enrollment_id"]), escape(f"DOL {b['dol']} · {b['pma']}"), escape("; ".join(b["active"]))]
                    for b in s["babies"] if b["status"] == "In NICU" and b["active"]]
+    followup_rows = [([escape(_site_display(r["site"]))] if all_sites else [])
+                     + [escape(r["enrollment_id"]), f"{r['checkpoint']} wk PMA",
+                        escape(f"{_fmt(date.fromisoformat(r['due']))} ({r['when']})"),
+                        escape(f"{_fmt(date.fromisoformat(r['window_from']))} – {_fmt(date.fromisoformat(r['window_to']))}"),
+                        escape(r["where"] or "")]
+                     for r in s.get("followup", [])]
     census = [([escape(_site_display(b["site"]))] if all_sites else [])
               + [escape(b["enrollment_id"]), escape(f"DOL {b['dol']} · {b['pma']}"), escape(b["status"])]
               for b in s["babies"] if b["status"] == "In NICU" or b["ended_since_last"]]
@@ -758,6 +768,7 @@ def render_email(s: dict) -> tuple[str, str]:
   {_h3("Advisory: AE grades to review", len(advisory), "advisory")}{rule_table(advisory, all_sites)}
   {_h3("Active morbidities (babies in the NICU)", len(active_rows), "active")}{_rows_table(site_col + ["Baby", "Age", "Active"], active_rows)}
   {_h3("Missed data collection", len(missed), "missed")}{rule_table(missed, all_sites)}
+  {_h3("Follow-up coming up (Form I, window ± 2 days)", len(followup_rows), "followup")}{_rows_table(site_col + ["Baby", "Checkpoint", "Date", "Window", "Now"], followup_rows)}
   {_h3("Census: in the NICU or stay ended since last", len(census), "census")}{_rows_table(site_col + ["Baby", "Age", "Status"], census)}
   <p style="margin:22px 0 0;"><a href="{PORTAL_URL}" style="display:inline-block;background:#00132c;color:#fff;
   text-decoration:none;padding:10px 16px;border-radius:8px;font-size:14px;">Open the site summary in the portal</a></p>
