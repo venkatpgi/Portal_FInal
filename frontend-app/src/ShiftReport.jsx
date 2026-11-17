@@ -185,6 +185,31 @@ export default function ShiftReport() {
             ) : <p className="ss-none">Nil to report.</p>}
           </section>
         )}
+
+        {report && (
+          <section className="ss-card">
+            <h2>Follow-up coming up ({(report.followup || []).length})</h2>
+            <p className="ss-none">Form I at 36, 40 and 44 wk PMA; window = date ± 2 days.</p>
+            {(report.followup || []).length ? (
+              <div className="ss-table-wrap">
+                <table className="ss-table">
+                  <thead><tr><th>Enrollment ID</th><th>Checkpoint</th><th>Date</th><th>Window</th><th>Now</th></tr></thead>
+                  <tbody>
+                    {report.followup.map(x => (
+                      <tr key={`${x.enrollment_id}-${x.checkpoint}`}>
+                        <td><span className="ss-id">{x.enrollment_id}</span></td>
+                        <td>{x.checkpoint} wk PMA</td>
+                        <td>{x.due} ({x.when})</td>
+                        <td>{x.window}</td>
+                        <td>{x.where}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="ss-none">None in the next 14 days.</p>}
+          </section>
+        )}
       </div>
     </DashboardWorkspaceLayout>
   );

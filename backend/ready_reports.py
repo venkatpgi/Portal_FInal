@@ -54,6 +54,9 @@ REPORTS = [
     {"key": "data_queries", "title": "Data queries",
      "description": "Snapshot at the time of generation: open queries by site and check, ageing (new, over "
                     "72 h, over 7 days), awaiting sign-off, the full list, and queries closed in the last 7 days."},
+    {"key": "followup_due", "title": "Follow-up due",
+     "description": "Form I at 36 / 40 / 44 wk PMA (window ± 2 days): checkpoints coming up (14 days ahead for "
+                    "babies at home, 7 in the NICU) and those whose window closed with nothing entered."},
     {"key": "ae_summary", "title": "AE summary for IEC / DSMB",
      "description": "Monthly: AEs and SAEs by term and site, pooled (blinded), with the literature baseline. "
                     "Dates = AE start date."},
@@ -592,6 +595,32 @@ def data_queries_report(db, sites, date_from=None, date_to=None, now=None):
     }]
 
 
+def followup_due_report(db, sites, today=None):
+    """Form I checkpoints coming up and overdue (followup_due.py, PI 2026-11-17). IDs only."""
+    import followup_due as fd
+    from clinical_time import clinical_now as _now
+    today = today or _now().date()
+    rows = fd.collect(db, sites, today)
+    d = lambda x: x.strftime("%d-%m-%Y")
+    line = lambda r: [r["enrollment_id"], site_label(r["site"]), f"{r['checkpoint']} wk", d(r["due"]),
+                      f"{d(r['window_from'])} to {d(r['window_to'])}", fd.when_text(r), r["where"]]
+    up = fd.coming_up(rows)
+    late = sorted((r for r in rows if r["stage"] == "overdue"), key=lambda r: (r["due"], r["enrollment_id"]))
+    cols = ["Enrollment ID", "Site", "Checkpoint (PMA)", "Date", "Window", "When", "Now"]
+    return [{
+        "title": f"Coming up ({len(up)})",
+        "note": f"Window = checkpoint date ± {fd.WINDOW_DAYS} days. Listed {fd.LEAD_DISCHARGED} days ahead for "
+                f"babies at home (the site PI and scientists are also emailed {fd.EMAIL_DAYS} days ahead) and "
+                f"{fd.LEAD_IN_NICU} days ahead in the NICU. Done = Form I has the encounter, a death or a reason "
+                "for loss to follow-up at that checkpoint.",
+        "columns": cols, "rows": [line(r) for r in up],
+    }, {
+        "title": f"Window closed, not entered ({len(late)})",
+        "note": "Enter the assessment on Form I, or the reason it was not done (lost to follow-up).",
+        "columns": cols, "rows": [line(r) for r in late],
+    }]
+
+
 def completeness_report(babies, sites, status_for):
     ticks = {eid: status_for(eid) or {} for _, eid in babies}
     per_site = defaultdict(list)
@@ -719,6 +748,8 @@ def build(key, db, sites, date_from=None, date_to=None, *, status_for=None, comp
         period = ("queries raised " + " to ".join(d.strftime("%d-%m-%Y") for d in (date_from, date_to) if d)
                   if date_from or date_to else "all queries")
         return _report(key, sites, period, data_queries_report(db, sites, date_from, date_to))
+    if key == "followup_due":
+        return _report(key, sites, "randomised babies born since the trial start", followup_due_report(db, sites))
     if key == "blender_check":
         return _report(key, sites, "all Form B to date", blender_check_report(db, sites))
     rows = screenings(db, sites, date_from, date_to)

@@ -718,6 +718,11 @@ def run_checks(db, now: Optional[datetime] = None, today: Optional[date] = None,
             counts["randomised_in_error_alerts"] = send_in_error_alerts(db)
         except Exception:
             logger.exception("randomised-in-error alerts failed")
+        try:
+            from followup_due import send_reminders
+            counts["followup_reminders"] = send_reminders(db)
+        except Exception:
+            logger.exception("follow-up reminders failed")
     db.commit()
     counts["open_total"] = db.query(DataQuery).filter(DataQuery.status.in_(OPEN_STATES)).count()
     return dict(counts)

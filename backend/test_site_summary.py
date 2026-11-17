@@ -182,7 +182,12 @@ def test_m4_rop_by_dol_30():
 def test_m5_checkpoint_and_m6_48_hours():
     old = baby(dob=date(2026, 10, 14), ga_days=27 * 7)        # 36 wk PMA on 2026-12-16
     assert "M5" not in codes(evaluate(old, TODAY, NOW, None), "missed")
-    assert "M5" in codes(evaluate(old, date(2026, 12, 17), NOW, None), "missed")
+    # window +/- 2 days (PI 2026-11-17): still open on 18 Dec, missed from 19 Dec
+    assert "M5" not in codes(evaluate(old, date(2026, 12, 18), NOW, None), "missed")
+    assert "M5" in codes(evaluate(old, date(2026, 12, 19), NOW, None), "missed")
+    from types import SimpleNamespace as NS
+    lost = NS(encounter36_method=None, death36=None, ltfu36_reason="Family relocated / moved away")
+    assert "M5" not in codes(evaluate(dict(old, study_outcomes=lost), date(2026, 12, 19), NOW, None), "missed")
     ended = baby(end_date=date(2026, 11, 18))
     assert "M6" not in codes(evaluate(ended, TODAY, datetime(2026, 11, 19, 23, 0), None), "missed")
     assert "M6" in codes(evaluate(ended, TODAY, datetime(2026, 11, 20, 1, 0), None), "missed")

@@ -24,6 +24,12 @@ function apiError(err, fallback) {
   return typeof d === "string" ? d : fallback;
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtDay(iso) {   // "2026-11-20" -> "20 Nov 2026"
+  const [y, m, d] = String(iso || "").split("-");
+  return y && m && d ? `${Number(d)} ${MONTHS[Number(m) - 1]} ${y}` : iso || "";
+}
+
 function Baby({ id, name }) {
   return (
     <>
@@ -94,6 +100,7 @@ export default function SiteSummary() {
   ], [babies, data]);
   const active = babies.filter(b => b.status === "In NICU" && b.active.length);
   const census = babies.filter(b => b.status === "In NICU" || b.ended_since_last);
+  const followup = data?.followup || [];
   const c = data?.counts || {};
 
   // An email link (#watch, #missed ...) opens at that list once it is drawn.
@@ -120,6 +127,7 @@ export default function SiteSummary() {
     ["Babies on safety watch list", c.watch_babies, "ss-t-red", "watch"],
     ["With active morbidity", c.active_babies, "ss-t-amber", "active"],
     ["Missed data items", c.missed, "ss-t-violet", "missed"], ["Advisory notes", c.advisory, "ss-t-teal", "advisory"],
+    ["Follow-up coming up", c.followup, "ss-t-blue", "followup"],
     ["Overdue queries", c.red_queries, "ss-t-blue", "/data-queries?show=red"],
   ];
 
@@ -222,6 +230,31 @@ export default function SiteSummary() {
             <section className="ss-card" id="ss-missed">
               <h2>Missed data collection ({missed.length})</h2>
               <RuleTable items={missed} showSite={showSite} />
+            </section>
+
+            <section className="ss-card" id="ss-followup">
+              <h2>Follow-up coming up ({followup.length})</h2>
+              <p className="ss-none">Form I at 36, 40 and 44 wk PMA: the window is the date ± 2 days. Listed 14 days
+                ahead for babies at home, 7 days ahead in the NICU, until the window closes (then under Missed data).</p>
+              {followup.length ? (
+                <div className="ss-table-wrap">
+                  <table className="ss-table">
+                    <thead><tr>{showSite && <th>Site</th>}<th>Baby</th><th>Checkpoint</th><th>Date</th><th>Window</th><th>Now</th></tr></thead>
+                    <tbody>
+                      {followup.map(r => (
+                        <tr key={`${r.enrollment_id}-${r.checkpoint}`}>
+                          {showSite && <td>{formatSiteName(r.site)}</td>}
+                          <td><Baby id={r.enrollment_id} name={r.name} /></td>
+                          <td>{r.checkpoint} wk PMA</td>
+                          <td>{fmtDay(r.due)} ({r.when})</td>
+                          <td>{fmtDay(r.window_from)} – {fmtDay(r.window_to)}</td>
+                          <td>{r.where}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <p className="ss-none">None.</p>}
             </section>
 
             <section className="ss-card" id="ss-census">

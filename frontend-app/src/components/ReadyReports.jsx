@@ -144,7 +144,7 @@ export default function ReadyReports({ global, userSite }) {
       <p className="rb-note">
         Dates are the screening date, except the AE summary, where they are the AE start date (it also shows
         everything up to the end date), and Data queries, where they are the date a query was raised (leave
-        them empty for all queries as they stand now).
+        them empty for all queries as they stand now). Blender check and Follow-up due ignore the dates.
       </p>
       {error && <div className="rb-error" role="alert">{error}</div>}
       <div className="rr-cards">
