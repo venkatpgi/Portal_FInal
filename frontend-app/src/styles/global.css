@@ -5,6 +5,13 @@
 *, *::before, *::after { box-sizing: border-box; }
 fieldset { border: none; padding: 0; margin: 0; min-width: 0; }
 
+/* CRF follow-up letters stay lowercase and never wrap off the number
+   (3 (c) must not become "cDISTRICT" when the label wraps). */
+.crf-subnum {
+  text-transform: none;
+  white-space: nowrap;
+}
+
 /* ── Form wrapper ── */
 .screening-form,
 .form-wrapper {

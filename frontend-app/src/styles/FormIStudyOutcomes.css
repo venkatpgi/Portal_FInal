@@ -418,6 +418,7 @@
 }
 .crf-mini-label .crf-subnum {
   text-transform: none;
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {

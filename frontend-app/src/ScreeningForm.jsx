@@ -1475,30 +1475,18 @@ export default function ScreeningForm() {
                     {errors.best_ga_days && <div className="field-error">{errors.best_ga_days}</div>}
                   </div>
                 </div>
-                <div className="form-grid-2">
-                  <div className="form-group">
-                    <label>2. Method of gestation assessment<span className="required">*</span></label>
-                    <select name="gestation_method" value={formData.gestation_method} onChange={handleChange} disabled={!isFieldEditable}>
-                      <option value="">-- Select --</option>
-                      <option value="LMP">LMP</option>
-                      <option value="Early USG">Early USG (&lt;24w)</option>
-                      <option value="Fundal Height">Fundal Height</option>
-                      <option value="Unknown">Method not known</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>3. Pregnancy</label>
-                    <select name="number_of_fetuses" value={formData.number_of_fetuses || "1"} onChange={handleChange} disabled={!isFieldEditable}>
-                      <option value="1">Single</option>
-                      <option value="2">Twins</option>
-                      <option value="3">Triplets</option>
-                      <option value="4">Quadruplets</option>
-                    </select>
-                    <div className="field-hint">Carried from the Gestation Log; Form B starts with this many babies.</div>
-                  </div>
+                <div className="form-group">
+                  <label>2. Method of gestation assessment<span className="required">*</span></label>
+                  <select name="gestation_method" value={formData.gestation_method} onChange={handleChange} disabled={!isFieldEditable}>
+                    <option value="">-- Select --</option>
+                    <option value="LMP">LMP</option>
+                    <option value="Early USG">Early USG (&lt;24w)</option>
+                    <option value="Fundal Height">Fundal Height</option>
+                    <option value="Unknown">Method not known</option>
+                  </select>
                 </div>
 
-                {/* 2 (<span className="crf-subnum">a</span>)/2 (<span className="crf-subnum">b</span>) LMP date when method = LMP */}
+                {/* 2 (a) / 2 (b) only when method = LMP; Q3 Pregnancy comes after */}
                 {formData.gestation_method === "LMP" && (
                   <div className="form-grid-2">
                     <div className="form-group">
@@ -1524,6 +1512,17 @@ export default function ScreeningForm() {
                     </div>
                   </div>
                 )}
+                <div className="form-group">
+                  <label>3. Pregnancy</label>
+                  <select name="number_of_fetuses" value={formData.number_of_fetuses || "1"} onChange={handleChange} disabled={!isFieldEditable}>
+                    <option value="1">Single</option>
+                    <option value="2">Twins</option>
+                    <option value="3">Triplets</option>
+                    <option value="4">Quadruplets</option>
+                  </select>
+                  <div className="field-hint">Carried from the Gestation Log; Form B starts with this many babies.</div>
+                </div>
+
                 {lmpMismatch && (
                   <div className="alert-warning">
                     ⚠️ This LMP date implies <strong>{lmpMismatch.weeks}w {lmpMismatch.days}d</strong> gestation,

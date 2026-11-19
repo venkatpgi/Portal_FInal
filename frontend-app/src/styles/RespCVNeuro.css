@@ -1242,6 +1242,7 @@
 .rcn-subsection-title .crf-subnum {
   text-transform: none;
   letter-spacing: 0;
+  white-space: nowrap;
 }
 .rcn-field-sub {
   font-size: 10px;
