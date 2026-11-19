@@ -253,8 +253,7 @@
 */
 .screening-form .form-group label,
 .followup-box .form-group label {
-  display: flex;
-  align-items: flex-end;
+  display: block;
   min-height: 32px;
   height: auto;
   font-size: 11px;
@@ -265,13 +264,21 @@
   line-height: 1.3;
   overflow: visible;
   white-space: normal;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
-/* Keep 1 (a) letters lowercase while the rest of the CRF label stays caps. */
+/* Keep 1 (a) letters lowercase while the rest of the CRF label stays caps.
+   nowrap so "(c)" cannot split onto the next line as "cDISTRICT". */
 .screening-form .form-group label .crf-subnum,
 .followup-box .form-group label .crf-subnum,
 .followup-label .crf-subnum {
   text-transform: none;
+  white-space: nowrap;
+}
+.screening-form .form-grid-2,
+.screening-form .form-grid-3,
+.screening-form .form-grid-5 {
+  align-items: end;
 }
 .required   { color: #ef4444; margin-left: 2px; flex-shrink: 0; }
 .field-note { font-size: 10px; font-weight: 400; color: #9ca3af;
@@ -872,9 +879,9 @@
     height: auto;
     min-height: 32px;
     overflow: visible;
-    align-items: flex-start;
     white-space: normal;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 
   .form-section-body { padding: 16px 16px 4px; }

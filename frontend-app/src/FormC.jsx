@@ -1641,16 +1641,16 @@ export default function FormC() {
                     <FieldError msg={E("city")}/>
                   </div>
                 </div>
-                <div className="form-grid-3">
-                  <div className="form-group">
-                    <label>3 (<span className="crf-subnum">c</span>) City / Tehsil · Police station / District <span className="field-note">(optional)</span></label>
-                    <input name="district" value={formData.district||""}
-                      onChange={e => { if (isPlaceNameInput(e.target.value)) handleChange(e); }}
-                      onBlur={handleBlur}
-                      placeholder="City / Tehsil / Police station / District"
-                      readOnly={!isFieldEditable} className={E("district")?"input-error":""}/>
-                    <FieldError msg={E("district")}/>
-                  </div>
+                <div className="form-group">
+                  <label>3 (<span className="crf-subnum">c</span>) City / Tehsil · Police station / District <span className="field-note">(optional)</span></label>
+                  <input name="district" value={formData.district||""}
+                    onChange={e => { if (isPlaceNameInput(e.target.value)) handleChange(e); }}
+                    onBlur={handleBlur}
+                    placeholder="City / Tehsil / Police station / District"
+                    readOnly={!isFieldEditable} className={E("district")?"input-error":""}/>
+                  <FieldError msg={E("district")}/>
+                </div>
+                <div className="form-grid-2">
                   <div className="form-group">
                     <label>3 (<span className="crf-subnum">d</span>) State<span className="required">*</span></label>
                     <select name="state" value={formData.state||""} onChange={handleChange} onBlur={handleBlur}
