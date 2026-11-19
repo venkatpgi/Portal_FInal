@@ -21,11 +21,15 @@ const SITE_SCIENTISTS = new Set([
   "Sobhana",
 ]);
 
-function nameKey(name) {
+/** Drop a leading Dr. / Dr prefix. "Drake" is left as-is. */
+export function nameWithoutDr(name) {
   return String(name || "")
-    .replace(/^Dr\.?\s+/i, "")
-    .replace(/^Dr\./i, "")
+    .replace(/^(?:Dr\.\s*|Dr\s+|Dr\.)/i, "")
     .trim();
+}
+
+function nameKey(name) {
+  return nameWithoutDr(name);
 }
 
 export function isMannatGuliani(name) {
@@ -45,8 +49,16 @@ export function withMannatLast(items, nameOf = (item) => item) {
 }
 
 export function completedByNameList(names = [], current = "") {
-  const out = [...(names || [])].filter(Boolean);
-  if (current && !out.includes(current)) out.push(current);
+  const seen = new Set();
+  const out = [];
+  for (const raw of [...(names || []), current]) {
+    const n = nameWithoutDr(raw);
+    if (!n) continue;
+    const key = n.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+  }
   return withMannatLast(out);
 }
 

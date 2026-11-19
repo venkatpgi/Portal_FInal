@@ -33,7 +33,7 @@ def get_site_screeners(
         if not key or key in seen:
             continue
         seen.add(key)
-        names.append(r.name)
+        names.append(name_without_dr(r.name))
     names.sort(key=completed_by_sort_key)
     return names
 

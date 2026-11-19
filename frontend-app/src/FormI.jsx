@@ -14,7 +14,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
 import { dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
-import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList } from "./utils/completedByDesignation";
+import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList, nameWithoutDr } from "./utils/completedByDesignation";
 import { resolveEffectiveGestation } from "./utils/gestation";
 import { ageUpdates, deathDetailUpdates } from "./utils/deathDetails";
 import {
@@ -2231,7 +2231,7 @@ export default function FormI() {
               <label>Assessed by</label>
               <select
                 name="completed_by"
-                value={formData.completed_by || ""}
+                value={nameWithoutDr(formData.completed_by) || ""}
                 onChange={handleAssessedByChange}
               >
                 <option value="">-- Select --</option>

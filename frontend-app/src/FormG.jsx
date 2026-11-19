@@ -11,7 +11,7 @@ import SaveSuccessModal from "./components/SaveSuccessModal";
 
 import { useFormProgress } from "./context/FormProgressContext";
 import { toDateOnlyValue } from "./utils/datetime";
-import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
+import { designationForCompletedBy, completedByNameOptions, nameWithoutDr } from "./utils/completedByDesignation";
 import { isFormGComplete } from "./utils/formCompletion";
 
 /* ══════════════════════════════════════════════════════
@@ -998,7 +998,7 @@ export default function FormG() {
             <div className="rop-completion-grid">
               <div className="rop-field">
                 <label className="rop-label">Completed By <span className="rop-req">*</span></label>
-                <select className="rop-select" name="completed_by" value={formData.completed_by || ""} onChange={handleCompletedByChange} required>
+                <select className="rop-select" name="completed_by" value={nameWithoutDr(formData.completed_by) || ""} onChange={handleCompletedByChange} required>
                   <option value="">Select…</option>
                   {completedByOptions.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>

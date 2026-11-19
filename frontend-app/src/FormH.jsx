@@ -7,7 +7,7 @@ import "./styles/FormComponents.css";
 import "./styles/FormH.css";
 import { usePatient } from "./context/PatientContext";
 import { isUsableEnrollmentId } from "./utils/enrollmentId";
-import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
+import { designationForCompletedBy, completedByNameOptions, nameWithoutDr } from "./utils/completedByDesignation";
 import { useParams } from "react-router-dom";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -11464,7 +11464,7 @@ const peripheralStatus= getPeripheralStatus();
   <div className="fh-grid-row">
     <div className="form-group">
       <label>Form completed by <span className="required">*</span></label>
-      <select name="completed_by" value={formData.completed_by || ""} onChange={handleCompletedByChange}>
+      <select name="completed_by" value={nameWithoutDr(formData.completed_by) || ""} onChange={handleCompletedByChange}>
         <option value="">-- Select --</option>
         {completedByOptions.map((n) => <option key={n} value={n}>{n}</option>)}
       </select>

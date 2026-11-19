@@ -25,6 +25,16 @@ function progressStorageKey(enrollmentId, screeningId) {
   return null;
 }
 
+function readCompletedCache(enrollmentId) {
+  try {
+    const raw = localStorage.getItem(`completedForms_${enrollmentId}`);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((f) => typeof f === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function FormProgressProvider({ children }) {
   const [completedForms, setCompletedForms] = useState([]);
   // Forms that UNLOCK their dependants (PREREQS in Sidebar). Kept separate
@@ -38,6 +48,7 @@ export function FormProgressProvider({ children }) {
   });
   const [activeKey, setActiveKey] = useState(null);
   const fetchSeq = useRef(0);
+  const inFlightEid = useRef(null);
   const skipNextPersist = useRef(false);
   // Enrollment we last trusted for local helper ticks — ignore cache written
   // under a different baby's id (cross-patient leak).
@@ -80,10 +91,19 @@ export function FormProgressProvider({ children }) {
     // because fetchProgress did not re-run when enrollmentId was unchanged.
     skipNextPersist.current = true;
     if (helpersTrustedFor.current !== enrollmentId) {
-      helpersTrustedFor.current = null;
-      setCompletedForms([]);
-      setUnlockedForms(["form_a"]);
-      setProgress({ form_a: true, form_b: false, form_c: false, form_d: false, form_e: false });
+      // Instant sidebar from this baby's own cache (View Entries → form).
+      // Never read another baby's key — that was the old cross-patient leak.
+      const cached = readCompletedCache(enrollmentId);
+      helpersTrustedFor.current = enrollmentId;
+      setCompletedForms(cached);
+      setUnlockedForms([...new Set(["form_a", ...cached])]);
+      setProgress({
+        form_a: true,
+        form_b: cached.includes("form_b"),
+        form_c: cached.includes("form_c"),
+        form_d: cached.includes("form_d"),
+        form_e: cached.includes("form_e"),
+      });
     }
     setIsProgressLoaded(true);
     if (localStorage.getItem("token")) {
@@ -190,65 +210,69 @@ export function FormProgressProvider({ children }) {
     setIsProgressLoaded(true);
   }, []);
 
+  const applyEnrollmentStatus = useCallback((enrollmentId, data) => {
+    if (!isUsableEnrollmentId(enrollmentId) || !data) return;
+    const currentEid = pageEnrollmentId();
+    if (currentEid && currentEid !== enrollmentId) return;
+
+    // Tick = strict completeness (form_x_complete); unlock = the long-
+    // standing loose flag (form_x). An older backend without *_complete
+    // falls back to the loose flag for both.
+    const fromBackend = [];
+    const unlocked = [];
+    ["form_a", "form_b", "form_c", "form_d", "form_e"].forEach((f) => {
+      const strict = data[`${f}_complete`];
+      if (strict === undefined ? data[f] : strict) fromBackend.push(f);
+      if (data[f]) unlocked.push(f);
+    });
+    setUnlockedForms((prev) => [...new Set([
+      ...unlocked,
+      ...prev.filter((f) => !BACKEND_TRACKED.has(f)),
+    ])]);
+
+    const key = `completedForms_${enrollmentId}`;
+    const serverKnows = SERVER_TICKED.filter((f) => data[`${f}_complete`] !== undefined);
+    SERVER_TICKED.forEach((f) => { if (data[`${f}_complete`] === true) fromBackend.push(f); });
+    setCompletedForms((prev) => {
+      const prevExtras = (helpersTrustedFor.current === enrollmentId)
+        ? prev.filter((f) => !BACKEND_TRACKED.has(f) && !serverKnows.includes(f))
+        : [];
+      helpersTrustedFor.current = enrollmentId;
+      const merged = [...new Set([...fromBackend, ...prevExtras])];
+      skipNextPersist.current = true;
+      setActiveKey(key);
+      localStorage.setItem(key, JSON.stringify(merged));
+      return merged;
+    });
+
+    setProgress({
+      form_a: !!data.form_a,
+      form_b: !!data.form_b,
+      form_c: !!data.form_c,
+      form_d: !!data.form_d,
+      form_e: !!data.form_e,
+      no_ppv: !!data.no_ppv,
+      next_form: data.next_form,
+    });
+    setIsProgressLoaded(true);
+  }, []);
+
   const fetchProgress = useCallback(async (enrollmentId) => {
     if (!isUsableEnrollmentId(enrollmentId)) return;
     if (!localStorage.getItem("token")) return;
+    if (inFlightEid.current === enrollmentId) return;
+    inFlightEid.current = enrollmentId;
     const seq = ++fetchSeq.current;
     try {
       const res = await api.get(`/enrollment-status/${enrollmentId}`);
       if (seq !== fetchSeq.current) return;
-      const currentEid = pageEnrollmentId();
-      if (currentEid && currentEid !== enrollmentId) return;
-
-      const data = res.data;
-      // Tick = strict completeness (form_x_complete); unlock = the long-
-      // standing loose flag (form_x). An older backend without *_complete
-      // falls back to the loose flag for both.
-      const fromBackend = [];
-      const unlocked = [];
-      ["form_a", "form_b", "form_c", "form_d", "form_e"].forEach((f) => {
-        const strict = data[`${f}_complete`];
-        if (strict === undefined ? data[f] : strict) fromBackend.push(f);
-        if (data[f]) unlocked.push(f);
-      });
-      setUnlockedForms((prev) => [...new Set([
-        ...unlocked,
-        ...prev.filter((f) => !BACKEND_TRACKED.has(f)),
-      ])]);
-
-      const key = `completedForms_${enrollmentId}`;
-      // Helpers are session-only for sidebar ticks. localStorage previously
-      // leaked Patient A's helper completions onto Patient B's key whenever
-      // the enrollment id flipped — do not rehydrate helpers from cache.
-      // Older backend without these keys: keep the session-only behaviour.
-      const serverKnows = SERVER_TICKED.filter((f) => data[`${f}_complete`] !== undefined);
-      SERVER_TICKED.forEach((f) => { if (data[`${f}_complete`] === true) fromBackend.push(f); });
-      setCompletedForms((prev) => {
-        const prevExtras = (helpersTrustedFor.current === enrollmentId)
-          ? prev.filter((f) => !BACKEND_TRACKED.has(f) && !serverKnows.includes(f))
-          : [];
-        helpersTrustedFor.current = enrollmentId;
-        const merged = [...new Set([...fromBackend, ...prevExtras])];
-        skipNextPersist.current = true;
-        setActiveKey(key);
-        localStorage.setItem(key, JSON.stringify(merged));
-        return merged;
-      });
-
-      setProgress({
-        form_a: !!data.form_a,
-        form_b: !!data.form_b,
-        form_c: !!data.form_c,
-        form_d: !!data.form_d,
-        form_e: !!data.form_e,
-        no_ppv: !!data.no_ppv,
-        next_form: data.next_form,
-      });
-      setIsProgressLoaded(true);
+      applyEnrollmentStatus(enrollmentId, res.data);
     } catch (err) {
       console.error("Failed to fetch progress", err);
+    } finally {
+      if (inFlightEid.current === enrollmentId) inFlightEid.current = null;
     }
-  }, []);
+  }, [applyEnrollmentStatus]);
   fetchProgressRef.current = fetchProgress;
 
   return (
@@ -260,6 +284,7 @@ export function FormProgressProvider({ children }) {
       resetProgress,
       progress,
       fetchProgress,
+      applyEnrollmentStatus,
       isProgressLoaded,
       reloadProgress: loadFromStorage,
     }}>

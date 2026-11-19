@@ -15,7 +15,7 @@ test("Mannat Guliani is last in completed-by options, with or without Dr.", () =
     "Yashvi Jolly",
     "Geetika",
     "Shalini Dhiman",
-    "Dr. Mannat Guliani",
+    "Mannat Guliani",
   ]);
   expect(withMannatLast(["Mannat Guliani", "Geetika"])).toEqual([
     "Geetika",
@@ -24,6 +24,12 @@ test("Mannat Guliani is last in completed-by options, with or without Dr.", () =
   expect(isMannatGuliani("Dr. Mannat Guliani")).toBe(true);
   expect(isMannatGuliani("Shalini Dhiman")).toBe(false);
   expect(completedByNameOptions(roster, "Historical Name").slice(-1)).toEqual([
-    "Dr. Mannat Guliani",
+    "Mannat Guliani",
+  ]);
+  expect(completedByNameOptions(roster, "Dr. Shalini Dhiman")).toEqual([
+    "Yashvi Jolly",
+    "Geetika",
+    "Shalini Dhiman",
+    "Mannat Guliani",
   ]);
 });

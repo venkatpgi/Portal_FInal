@@ -8,7 +8,7 @@ import "./styles/FormSAEList.css";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
-import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList } from "./utils/completedByDesignation";
+import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList, nameWithoutDr } from "./utils/completedByDesignation";
 import FormNavBar from "./components/FormNavBar";
 import { usePatient } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
@@ -479,7 +479,7 @@ export default function SeriousAdverseEventsList() {
             <label>Name of person filling this form</label>
             <select
               className="sl-input"
-              value={formData.completed_by || ""}
+              value={nameWithoutDr(formData.completed_by) || ""}
               onChange={(e) => {
                 const name = e.target.value;
                 setIsSaved(false);

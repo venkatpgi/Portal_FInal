@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { collapseSearchSpaces, filterLogEntries } from "./utils/gaCheckSearch";
 import useEntryFocus from "./hooks/useEntryFocus";
-import { stripDigits } from "./utils/personName";
+import { stripDigits, toPersonNameCase } from "./utils/personName";
 import "./LogOfAllBirths.css";
 
 const MODES_OF_DELIVERY = ["Emergency LSCS", "Elective LSCS", "NVD", "Instrumental", "Other"];
@@ -282,8 +282,8 @@ export default function LogOfAllBirths() {
       ? entry.reason_not_approached.split(",").map((s) => s.trim()).filter(Boolean) : [];
     setForm({
       mother_uid: entry.mother_uid || "",
-      mother_name: entry.mother_name || "",
-      husband_name: entry.husband_name || "",
+      mother_name: toPersonNameCase(entry.mother_name || ""),
+      husband_name: toPersonNameCase(entry.husband_name || ""),
       date_of_birth: entry.date_of_birth || "",
       time_of_birth: entry.time_of_birth || "",
       gestation_weeks: entry.gestation_weeks ?? "",
@@ -353,8 +353,8 @@ export default function LogOfAllBirths() {
       site_name: logSite,
       mother_uid: form.mother_uid || null,
       allow_duplicate_cr: !!(duplicateCr && allowDuplicateCr),
-      mother_name: form.mother_name || null,
-      husband_name: form.husband_name || null,
+      mother_name: form.mother_name ? toPersonNameCase(form.mother_name.trim()) : null,
+      husband_name: form.husband_name ? toPersonNameCase(form.husband_name.trim()) : null,
       date_of_birth: form.date_of_birth,
       time_of_birth: form.time_of_birth || null,
       gestation_weeks: form.gestation_weeks === "" ? null : Number(form.gestation_weeks),
@@ -479,7 +479,7 @@ export default function LogOfAllBirths() {
             {duplicateCr && (
               <div className="lob-field-error lob-dup">
                 Already logged for this date of birth
-                {duplicateCr.mother_name ? ` (${duplicateCr.mother_name})` : ""}.{" "}
+                {duplicateCr.mother_name ? ` (${toPersonNameCase(duplicateCr.mother_name)})` : ""}.{" "}
                 <button type="button" className="lob-link-btn" onClick={() => startEdit(duplicateCr)}>Edit that entry</button>
                 {form.multiple_birth_count === 1 && (
                   <div className="lob-dup-hint">
@@ -495,11 +495,11 @@ export default function LogOfAllBirths() {
           </label>
           <label className="lob-field">
             <span>Mother's Name</span>
-            <input value={form.mother_name} onChange={(e) => setField("mother_name", stripDigits(e.target.value))} />
+            <input value={form.mother_name} onChange={(e) => setField("mother_name", toPersonNameCase(stripDigits(e.target.value)))} />
           </label>
           <label className="lob-field">
             <span>Husband's Name</span>
-            <input value={form.husband_name} onChange={(e) => setField("husband_name", stripDigits(e.target.value))} />
+            <input value={form.husband_name} onChange={(e) => setField("husband_name", toPersonNameCase(stripDigits(e.target.value)))} />
           </label>
           <label className="lob-field">
             <span>Date of Birth *</span>
@@ -662,7 +662,7 @@ export default function LogOfAllBirths() {
                     <td>
                       {e.cr_pending ? <span className="lob-badge lob-badge--alert">CR pending</span> : (e.mother_uid || "—")}
                     </td>
-                    <td>{e.mother_name || "—"}</td>
+                    <td>{toPersonNameCase(e.mother_name || "") || "—"}</td>
                     <td>{e.gestation_weeks != null ? `${e.gestation_weeks}w ${e.gestation_days ?? 0}d` : "—"}</td>
                     <td>{e.mode_of_delivery || "—"}</td>
                     <td>{e.birth_weight_grams ?? "—"}</td>

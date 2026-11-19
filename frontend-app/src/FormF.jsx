@@ -10,7 +10,7 @@ import {
   Activity, ClipboardList, Brain, CalendarDays
 } from "lucide-react";
 import "./styles/FormF.css";
-import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
+import { designationForCompletedBy, completedByNameOptions, nameWithoutDr } from "./utils/completedByDesignation";
 import { isFormFComplete } from "./utils/formCompletion";
 import NotesBox from "./components/NotesBox";
 import SaveSuccessModal from "./components/SaveSuccessModal";
@@ -325,7 +325,7 @@ export default function FormF() {
   const [roster, setRoster] = useState([]);
   const setCompletionField = (k, v) => setCompletion(p => ({ ...p, [k]: v }));
   const handleCompletedByChange = (e) => {
-    const name = e.target.value;
+    const name = nameWithoutDr(e.target.value);
     setCompletion(p => ({
       ...p,
       completedBy: name,
@@ -980,7 +980,7 @@ export default function FormF() {
             <div className="cu-completion-grid">
               <div className="cu-field">
                 <label className="cu-label">Completed By</label>
-                <select className="cu-input" value={completion.completedBy}
+                <select className="cu-input" value={nameWithoutDr(completion.completedBy)}
                   onChange={handleCompletedByChange} disabled={!isFieldEditable}>
                   <option value="">Select…</option>
                   {completedByOptions.map(n => <option key={n} value={n}>{n}</option>)}
