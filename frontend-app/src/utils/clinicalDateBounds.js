@@ -1,6 +1,11 @@
 /** Calendar-day and birth-clock bounds shared by Forms B/D/E and DMS. */
 
-import { combineDateAndTime, parseDateOnly, toDateOnlyValue } from "./datetime";
+import {
+  combineDateAndTime,
+  parseDateOnly,
+  parseWallClockDateTime,
+  toDateOnlyValue,
+} from "./datetime";
 
 /** Form B randomisation: date of birth or the next calendar day only. */
 export const RANDOMISATION_MAX_DAYS_AFTER_DOB = 1;
@@ -113,6 +118,53 @@ export function isBirthDateTimeInFuture(dobYmd, timeHms, now = new Date()) {
   const dt = birthDateTime(dobYmd, timeHms);
   if (!dt) return false;
   return dt.getTime() > now.getTime();
+}
+
+/** Birth vs Form A screening using wall-clock digits (ignore Z / offsets). */
+export function isBirthBeforeScreening(dobYmd, timeHms, screeningRaw) {
+  const birth = birthDateTime(dobYmd, timeHms);
+  const screening = parseWallClockDateTime(screeningRaw);
+  if (!birth || !screening) return false;
+  return birth.getTime() < screening.getTime();
+}
+
+function padClock(n) {
+  return String(n).padStart(2, "0");
+}
+
+/**
+ * Time-of-birth picker commits hour, then minute, then second. Rejecting
+ * 05:00 when screening is 05:50 makes every hour before 06 unreachable,
+ * so 05:53 can never be composed. On the screening calendar day, lift an
+ * earlier clock up to the screening time instead of dropping the click.
+ */
+export function clampBirthHmsToScreening(hour, minute, second, dobYmd, screeningRaw) {
+  const h = Number(hour) || 0;
+  const m = Number(minute) || 0;
+  const s = Number(second) || 0;
+  const clock = `${padClock(h)}:${padClock(m)}:${padClock(s)}`;
+  if (!isBirthBeforeScreening(dobYmd, clock, screeningRaw)) {
+    return { hour: h, minute: m, second: s, clamped: false, blocked: false };
+  }
+  const screening = parseWallClockDateTime(screeningRaw);
+  const dob = parseDateOnly(dobYmd);
+  if (!screening || !dob) {
+    return { hour: h, minute: m, second: s, clamped: false, blocked: false };
+  }
+  const sameDay =
+    dob.getFullYear() === screening.getFullYear() &&
+    dob.getMonth() === screening.getMonth() &&
+    dob.getDate() === screening.getDate();
+  if (!sameDay) {
+    return { hour: h, minute: m, second: s, clamped: false, blocked: true };
+  }
+  return {
+    hour: screening.getHours(),
+    minute: screening.getMinutes(),
+    second: screening.getSeconds(),
+    clamped: true,
+    blocked: false,
+  };
 }
 
 export function isDateTimeBeforeBirth(dateYmd, timeHm, birth) {

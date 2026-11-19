@@ -1,5 +1,7 @@
 import {
   calendarDateError,
+  clampBirthHmsToScreening,
+  isBirthBeforeScreening,
   isBirthDateTimeInFuture,
   isCalendarDateAfterToday,
   isCalendarDateBefore,
@@ -57,4 +59,37 @@ test("DMS times before birth on day 1 are rejected", () => {
   expect(isDateTimeBeforeBirth("2026-11-12", "08:00", birth)).toBe(true);
   expect(isDateTimeBeforeBirth("2026-11-12", "15:00", birth)).toBe(false);
   expect(isDateTimeBeforeBirth("2026-11-12", "16:00", birth)).toBe(false);
+});
+
+test("05:53 birth is allowed after a 05:50 screening, even if the API tagged Z", () => {
+  expect(isBirthBeforeScreening(
+    "2026-11-16",
+    "05:53:00",
+    "2026-11-16T05:50:00Z",
+  )).toBe(false);
+  expect(isBirthBeforeScreening(
+    "2026-11-16",
+    "05:53:00",
+    "2026-11-16T05:50:00",
+  )).toBe(false);
+  expect(isBirthBeforeScreening(
+    "2026-11-16",
+    "05:00:00",
+    "2026-11-16T05:50:00",
+  )).toBe(true);
+});
+
+test("picking hour 05 first clamps to screening 05:50 so 05:53 can be composed", () => {
+  const clamped = clampBirthHmsToScreening(
+    5, 0, 0, "2026-11-16", "2026-11-16T05:50:00",
+  );
+  expect(clamped).toEqual({
+    hour: 5, minute: 50, second: 0, clamped: true, blocked: false,
+  });
+  const kept = clampBirthHmsToScreening(
+    5, 53, 0, "2026-11-16", "2026-11-16T05:50:00Z",
+  );
+  expect(kept).toEqual({
+    hour: 5, minute: 53, second: 0, clamped: false, blocked: false,
+  });
 });

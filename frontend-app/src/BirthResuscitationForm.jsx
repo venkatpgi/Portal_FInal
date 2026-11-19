@@ -21,6 +21,8 @@ import {
   randomisationDateError,
   randomisationDateMaxYmd,
   isBirthDateTimeInFuture,
+  isBirthBeforeScreening,
+  clampBirthHmsToScreening,
   maxBirthClockHms,
 } from "./utils/clinicalDateBounds";
 import {
@@ -489,10 +491,11 @@ export default function BirthResuscitationForm() {
   // before the mother was even screened.
   const birthBeforeScreening = (() => {
     if (!formData.date_of_birth || !formData.time_of_birth || !formData.screening_datetime) return false;
-    const birthMoment     = new Date(`${formData.date_of_birth}T${formData.time_of_birth}`);
-    const screeningMoment = new Date(formData.screening_datetime);
-    if (isNaN(birthMoment) || isNaN(screeningMoment)) return false;
-    return birthMoment < screeningMoment;
+    return isBirthBeforeScreening(
+      formData.date_of_birth,
+      formData.time_of_birth,
+      formData.screening_datetime,
+    );
   })();
   /* Q22 only when any of Q19–21 indicates abnormality (not all Normal / No). */
   const birthConditionAllNormal =
@@ -578,16 +581,16 @@ export default function BirthResuscitationForm() {
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
 
-  /* Guarded Time of Birth setter: if Date of Birth is the same calendar
-     day as screening, block any H:M:S combination that would land before
-     the exact screening time (rather than only flagging it after the
-     fact). Different (later) days are always fine at the time level —
-     the DatePicker already stops earlier days from being chosen. */
+  /* Guarded Time of Birth setter: if Date of Birth is the screening day
+     and the click would land before the Form A clock (hour 05 with
+     minutes still 00, screening 05:50), lift to the screening time so
+     05:53 can be composed. Earlier calendar days are already blocked by
+     the DatePicker. */
   const handleTimeOfBirthChange = (h, m, s) => {
-    const hh = String(h ?? 0).padStart(2, "0");
-    const mm = String(m ?? 0).padStart(2, "0");
-    const ss = String(s ?? 0).padStart(2, "0");
-    const clock = `${hh}:${mm}:${ss}`;
+    let hour = Number(h ?? 0);
+    let minute = Number(m ?? 0);
+    let second = Number(s ?? 0);
+    const clock = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}`;
     if (formData.date_of_birth && isBirthDateTimeInFuture(formData.date_of_birth, clock)) {
       setErrors(p => ({
         ...p,
@@ -596,20 +599,26 @@ export default function BirthResuscitationForm() {
       return;
     }
     if (formData.date_of_birth && formData.screening_datetime) {
-      const screeningMoment = new Date(formData.screening_datetime);
-      if (!isNaN(screeningMoment)) {
-        const candidate = new Date(`${formData.date_of_birth}T${clock}`);
-        if (!isNaN(candidate) && candidate < screeningMoment) {
-          setErrors(p => ({
-            ...p,
-            time_of_birth: "Cannot be before the Screening Date & Time (Form A)",
-          }));
-          return; // reject — don't commit an earlier-than-screening time
-        }
+      const next = clampBirthHmsToScreening(
+        hour,
+        minute,
+        second,
+        formData.date_of_birth,
+        formData.screening_datetime,
+      );
+      if (next.blocked) {
+        setErrors(p => ({
+          ...p,
+          time_of_birth: "Cannot be before the Screening Date & Time (Form A)",
+        }));
+        return;
       }
+      hour = next.hour;
+      minute = next.minute;
+      second = next.second;
     }
     setErrors(p => (p.time_of_birth ? { ...p, time_of_birth: "" } : p));
-    handleTimeChange("time_of_birth", h, m, s);
+    handleTimeChange("time_of_birth", hour, minute, second);
   };
 
   const birthClockCap = maxBirthClockHms(formData.date_of_birth);
@@ -1038,9 +1047,11 @@ export default function BirthResuscitationForm() {
       add("B2. Date & Time of Birth cannot be in the future", "time_of_birth");
     }
     if(formData.date_of_birth && formData.time_of_birth && formData.screening_datetime) {
-      const birthMoment     = new Date(`${formData.date_of_birth}T${formData.time_of_birth}`);
-      const screeningMoment = new Date(formData.screening_datetime);
-      if (!isNaN(birthMoment) && !isNaN(screeningMoment) && birthMoment < screeningMoment)
+      if (isBirthBeforeScreening(
+        formData.date_of_birth,
+        formData.time_of_birth,
+        formData.screening_datetime,
+      ))
         add("B2. Date & Time of Birth cannot be before the Screening Date & Time (Form A)", "time_of_birth");
     }
     if(!formData.gender)             add("B2. Gender",                "gender");

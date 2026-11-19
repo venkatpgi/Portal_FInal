@@ -21,7 +21,7 @@ import {
 import { useFormProgress } from "./context/FormProgressContext";
 import { isUsableEnrollmentId } from "./utils/enrollmentId";
 import { useAuth } from "./context/AuthContext";
-import { relativeTime, toDateTimeLocalValue, formatDateToDDMMYYYY, toDateOnlyValue, parseDateOnly, eddFromLmp, gestAgeFromLmp, normalizeDateTimeLocalString } from "./utils/datetime";
+import { relativeTime, toDateTimeLocalValue, formatDateToDDMMYYYY, toDateOnlyValue, parseDateOnly, eddFromLmp, gestAgeFromLmp, normalizeDateTimeLocalString, parseWallClockDateTime } from "./utils/datetime";
 import { resolveConsentSignatureFromRecord, resolvePiSignatureFromRecord } from "./utils/consentSignature";
 import { sanitizeScreeningCreatePayload } from "./utils/screeningPayload";
 import { printPatientPdf } from "./utils/printPatientPdf";
@@ -692,8 +692,10 @@ export default function ScreeningForm() {
   const lmpMismatch = (() => {
     if (formData.gestation_method !== "LMP" || !formData.lmp_date) return null;
     if (!formData.best_ga_weeks && formData.best_ga_weeks !== 0) return null;
-    const anchor = formData.screening_datetime ? new Date(formData.screening_datetime) : new Date();
-    const asOf = Number.isNaN(anchor.getTime()) ? new Date() : anchor;
+    const anchor = formData.screening_datetime
+      ? parseWallClockDateTime(formData.screening_datetime)
+      : new Date();
+    const asOf = !anchor || Number.isNaN(anchor.getTime()) ? new Date() : anchor;
     const implied = gestAgeFromLmp(formData.lmp_date, asOf);
     if (!implied) return null;
     const impliedDays = implied.weeks * 7 + implied.days;
@@ -1603,8 +1605,7 @@ export default function ScreeningForm() {
                       <DatePicker
                         selected={(() => {
                           if (!formData.screening_datetime) return null;
-                          const d = new Date(formData.screening_datetime);
-                          return Number.isNaN(d.getTime()) ? null : d;
+                          return parseWallClockDateTime(formData.screening_datetime);
                         })()}
                         onChange={d => set({
                           screening_datetime: d ? toDateTimeLocalValue(d) : "",

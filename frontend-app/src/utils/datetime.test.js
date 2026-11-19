@@ -1,4 +1,4 @@
-import { nicuDayForCalendarYmd, parseApiUtcDate, formatAuditClock, formatAuditDateTime, formatAuditDay, mmlMinAllowedTimeForSheetDate } from "./datetime";
+import { nicuDayForCalendarYmd, parseApiUtcDate, formatAuditClock, formatAuditDateTime, formatAuditDay, mmlMinAllowedTimeForSheetDate, parseWallClockDateTime } from "./datetime";
 
 test("death on 30 Oct with Day 1 = 28 Oct is NICU Day 3", () => {
   expect(nicuDayForCalendarYmd("2026-10-28", "2026-10-30")).toBe(3);
@@ -22,6 +22,18 @@ test("audit timestamps are shown in IST", () => {
 test("DMS day-1 slots before birth are floored at time of birth", () => {
   expect(mmlMinAllowedTimeForSheetDate("2026-11-12", "2026-11-12", "15:00")).toBe("15:00");
   expect(mmlMinAllowedTimeForSheetDate("2026-11-13", "2026-11-12", "15:00")).toBe("00:00");
+});
+
+test("parseWallClockDateTime keeps 05:50 as 05:50 even with a Z suffix", () => {
+  const naive = parseWallClockDateTime("2026-11-16T05:50:00");
+  const zulu = parseWallClockDateTime("2026-11-16T05:50:00Z");
+  const pipe = parseWallClockDateTime("16-11-2026 | 05:50");
+  expect(naive.getHours()).toBe(5);
+  expect(naive.getMinutes()).toBe(50);
+  expect(zulu.getHours()).toBe(5);
+  expect(zulu.getMinutes()).toBe(50);
+  expect(pipe.getHours()).toBe(5);
+  expect(pipe.getMinutes()).toBe(50);
 });
 
 test("naive IST wall-clock times are not shifted +5:30", () => {

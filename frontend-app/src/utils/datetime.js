@@ -386,6 +386,46 @@ export function normalizeDateTimeLocalString(value) {
 }
 
 /**
+ * Parse a form/API datetime as the wall-clock the nurse typed.
+ * Trailing Z / offsets are ignored so "05:50" stays 05:50 local, not 11:20 IST.
+ * @param {string|Date|null|undefined} value
+ * @returns {Date|null}
+ */
+export function parseWallClockDateTime(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  const s = String(value ?? "").trim();
+  if (!s) return null;
+  const iso = s.match(
+    /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (iso) {
+    return new Date(
+      Number(iso[1]),
+      Number(iso[2]) - 1,
+      Number(iso[3]),
+      Number(iso[4]),
+      Number(iso[5]),
+      Number(iso[6] || 0),
+      0,
+    );
+  }
+  const local = normalizeDateTimeLocalString(value);
+  const m = String(local).match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/,
+  );
+  if (!m) return null;
+  return new Date(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6] || 0),
+    0,
+  );
+}
+
+/**
  * Display datetime as `DD-MM-YYYY HH:mm` (24-hour, no AM/PM).
  * @param {string|Date|null|undefined} value
  */
