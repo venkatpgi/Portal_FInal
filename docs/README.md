@@ -271,6 +271,48 @@ withdrawn" ends the list. Randomised babies born since the trial start.
   08:00–20:00 IST, one email per site per run; each send is an audit row
   (table `followup_reminder`, action `EMAIL`, checkpoint in `new_values`).
   IDs only. Training sends nothing (no `SES_SENDER_EMAIL`). No nil email.
+  A checkpoint with a date booked on Form H gets the booked-date reminders
+  below instead.
+
+## Follow-up calendar on Form H (PI 2026-11-19)
+
+`backend/followup_booking.py`, table `followup_bookings` (one row per baby
+and checkpoint), API `routers/followup_bookings.py`, card H12.6 on Form H
+(`components/formh/FollowupCalendar.jsx`).
+- **When:** the saved Form H outcome is one where the baby leaves alive
+  (Discharged, Back referred, Discharged home on request, Left Against
+  Medical Advice). Built from the saved Form H: if the outcome or discharge
+  date on screen is unsaved, the card asks to save Form H first.
+- **Rows:** each of 36 / 40 / 44 wk PMA is *done* (Form I has it), *ended*
+  (death or consent withdrawn), *in NICU* (the window closed on or before
+  the day the baby left: assess it before leaving, record on Form I) or
+  *bookable*: a date from the later of the window start and the day the baby
+  left, to the window end, with **Clinic visit** or **Telephone**; or a
+  reason no date could be fixed (family will call; back-referral hospital will
+  arrange; lives far away, telephone later; Other + text). The server refuses
+  dates outside that range (422).
+- **Required (PI):** the web form will not **Submit** Form H until every
+  bookable checkpoint has a date or a reason (Save still works). The tablet
+  has no calendar yet: data query `FOLLOWUP_NOT_BOOKED` (24 h after the
+  discharge date, while a window is still to come).
+- **Emails (Site PI + Site Scientists, IDs only, hourly / on-save run):**
+  *booked* once the calendar is complete, again whenever it changes (any
+  hour; audit table `followup_booking_notice`); *reminder* 2 days before a
+  booked date (`followup_booking_reminder`); *missed* the day after a booked
+  date with nothing on Form I (`followup_booking_missed`). Reminder and
+  missed only 08:00–20:00 IST. Training sends nothing.
+- **Data queries:** `FOLLOWUP_NOT_BOOKED`, `FOLLOWUP_BOOKED_MISSED` (resolves
+  once Form I is entered), `FOLLOWUP_BOOKING_OUTSIDE_WINDOW` (a booked date no
+  longer fits after the discharge date, DOB or GA was corrected: book again).
+- **Shown** after the status in the site summary, twice-daily report and
+  Follow-up due report ("Discharged 19 Nov 2026 · Booked 03 Dec 2026 (Clinic
+  visit)" or "· Not booked: <reason>").
+- **Parent slip:** "Print parent slip" (once complete) makes a one-page PDF
+  for the family: booked dates, how, the window ("any day ... to ..."), and
+  the site's clinic place, days/times and phone (`followup_clinics`, set on
+  the card by the Site PI or a Site Scientist; blank lines if not set). It
+  carries the baby's name only when the user may see that site's PII; each
+  print is an audit row (`EXPORT`, `followup_slip`).
 
 ## Enrolment status (PI 2026-10-31)
 

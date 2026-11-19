@@ -597,6 +597,7 @@ def data_queries_report(db, sites, date_from=None, date_to=None, now=None):
 
 def followup_due_report(db, sites, today=None):
     """Form I checkpoints coming up and overdue (followup_due.py, PI 2026-11-17). IDs only."""
+    import followup_booking as fb
     import followup_due as fd
     from clinical_time import clinical_now as _now
     today = today or _now().date()
@@ -610,7 +611,8 @@ def followup_due_report(db, sites, today=None):
     return [{
         "title": f"Coming up ({len(up)})",
         "note": f"Window = checkpoint date ± {fd.WINDOW_DAYS} days. Listed {fd.LEAD_DISCHARGED} days ahead for "
-                f"babies at home (the site PI and scientists are also emailed {fd.EMAIL_DAYS} days ahead) and "
+                f"babies at home (the site PI and scientists are also emailed {fd.EMAIL_DAYS} days ahead, or "
+                f"{fb.REMIND_DAYS} days before a date booked on Form H) and "
                 f"{fd.LEAD_IN_NICU} days ahead in the NICU. Done = Form I has the encounter, a death or a reason "
                 "for loss to follow-up at that checkpoint.",
         "columns": cols, "rows": [line(r) for r in up],
