@@ -20,6 +20,7 @@ import { SITE_ORDER } from "./utils/siteNames";
 import { babyIdLabel } from "./utils/enrollmentId";
 import { formatDateTimeDisplay24 } from "./utils/datetime";
 import { SCREENING_TILES, RANDOMISATION_TILES, PARTICIPANT_TILES } from "./utils/participantCounts";
+import { useFormProgress } from "./context/FormProgressContext";
 
 /* ─── Form definitions (from formsConfig.js) ────────────────── */
 const FORM_LABELS = [
@@ -724,6 +725,7 @@ function ExpandedPanel({ entry, forms, onEdit, onDelete, onViewForm, babyName, i
 /* ─── MAIN ───────────────────────────────────────────────────── */
 export default function ViewEntries() {
   const navigate = useNavigate();
+  const { applyEnrollmentStatus } = useFormProgress();
 
   const [entries,    setEntries]    = useState([]);
   const [enrollData, setEnrollData] = useState({});
@@ -812,14 +814,22 @@ export default function ViewEntries() {
     window.dispatchEvent(new Event("storage"));
   };
 
+  const seedSidebar = (entry) => {
+    if (entry.enrollment_id && enrollData[entry.enrollment_id]) {
+      applyEnrollmentStatus(entry.enrollment_id, enrollData[entry.enrollment_id]);
+    }
+  };
+
   const handleEdit = (entry) => {
     setSessionIds(entry);
+    seedSidebar(entry);
     navigate(`/form-a/${entry.screening_id}`);
   };
 
   const openForm = (entry, formKey) => {
     if (!formKey || !ROUTE_MAP[formKey]) return;
     setSessionIds(entry);
+    seedSidebar(entry);
     navigate(ROUTE_MAP[formKey](entry.screening_id, entry.enrollment_id));
   };
 

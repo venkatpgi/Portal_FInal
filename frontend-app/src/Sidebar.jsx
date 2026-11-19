@@ -120,7 +120,7 @@ const ROLE_LABELS = {
 const consentAllowsEnrollment = value => value === 'Yes'; // "Trial run" retired 2026-10-18
 
 export default function Sidebar({ currentForm }) {
-  const { completedForms = [], unlockedForms = [], isProgressLoaded, fetchProgress } = useFormProgress();
+  const { completedForms = [], unlockedForms = [], isProgressLoaded, fetchProgress, progress } = useFormProgress();
   // Unlocking follows "has a record" (unlockedForms); the tick follows
   // "complete" (completedForms). A complete form is always unlocked too.
   const isUnlockedPrereq = (p) => unlockedForms.includes(p) || completedForms.includes(p);
@@ -218,7 +218,7 @@ export default function Sidebar({ currentForm }) {
     if (enrollmentId && enrollmentId !== 'undefined' && enrollmentId !== 'null') {
       fetchProgress(enrollmentId);
     }
-  }, [enrollmentId, location.pathname]); // eslint-disable-line
+  }, [enrollmentId]); // eslint-disable-line -- same baby: ticks come from markFormCompleted / seeded status
 
   // DMS "Today" note: does the current NICU working day's sheet have at least
   // one reading? The NICU day starts at 8 am (NICU_DAY_GRACE_HOUR), so before
@@ -339,38 +339,34 @@ export default function Sidebar({ currentForm }) {
         return;
       }
 
-      /* no_ppv is per-enrollment. Confirm against THIS patient's birth row
-         instead of keeping another baby's no_ppv lock forever. */
-      const eid = pageEnrollmentId()
-        || (d.enrollment_id && d.enrollment_id !== 'undefined' ? d.enrollment_id : null);
-      const finishUnlock = () => {
-        if (consentAllowsEnrollment(consent)) {
-          localStorage.removeItem('enrollment_locked');
-          localStorage.removeItem('enrollment_lock_reason');
-          setEnrollmentLocked(false);
-        }
-      };
-      if (eid && isUsableEnrollmentId(eid)) {
-        api.get(`/enrollment-status/${eid}`).then(stRes => {
-          if (!active) return;
-          if (stRes.data?.no_ppv) {
-            localStorage.setItem('enrollment_locked', 'true');
-            localStorage.setItem('enrollment_lock_reason', 'no_ppv');
-            setEnrollmentLocked(true);
-          } else {
-            finishUnlock();
-          }
-        }).catch(() => { if (active) finishUnlock(); });
-        return;
+      /* no_ppv is applied from enrollment-status (progress.no_ppv), not a
+         second GET — that duplicate delayed the filled form on open. */
+      if (consentAllowsEnrollment(consent)
+          && localStorage.getItem('enrollment_lock_reason') !== 'no_ppv') {
+        localStorage.removeItem('enrollment_locked');
+        localStorage.removeItem('enrollment_lock_reason');
+        setEnrollmentLocked(false);
       }
-
-      finishUnlock();
     }).catch(() => {
       if (active) setEnrollmentLocked(localStorage.getItem('enrollment_locked') === 'true');
     });
 
     return () => { active = false; };
   }, [screeningId, enrollmentId]);
+
+  useEffect(() => {
+    if (progress?.no_ppv) {
+      localStorage.setItem('enrollment_locked', 'true');
+      localStorage.setItem('enrollment_lock_reason', 'no_ppv');
+      setEnrollmentLocked(true);
+      return;
+    }
+    if (localStorage.getItem('enrollment_lock_reason') === 'no_ppv') {
+      localStorage.removeItem('enrollment_locked');
+      localStorage.removeItem('enrollment_lock_reason');
+      setEnrollmentLocked(false);
+    }
+  }, [progress?.no_ppv]);
 
   const getPath = (form) => {
     const sid = ids.screeningId  && ids.screeningId  !== 'undefined' ? ids.screeningId  : null;

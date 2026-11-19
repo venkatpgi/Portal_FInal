@@ -882,7 +882,10 @@ def list_site_roster(
         if not key or key in seen:
             continue
         seen.add(key)
-        out.append({"full_name": u.full_name, "designation": u.designation})
+        out.append({
+            "full_name": name_without_dr(u.full_name),
+            "designation": u.designation,
+        })
     # Site-staff names (screened-by) also belong on Completed-by, so a
     # nurse already in Manage Staff but missing users.full_name still
     # appears after seed_site_staff. Deduped by name against logins.
@@ -901,7 +904,7 @@ def list_site_roster(
                 continue
             seen.add(key)
             out.append({
-                "full_name": row.name,
+                "full_name": name_without_dr(row.name),
                 "designation": designation_for_account(
                     row.name, row.role if row.role in ("nurse", "site_scientist") else "nurse", roster_site
                 ),
@@ -7149,6 +7152,12 @@ def _downstream_completion(db, enrollment_id, birth, nicu):
             r = rows.get(day)
             if r is None:
                 return None
+            # A day already at 100% on the saved helper row does not need a
+            # DMS overlay. Overlaying every complete day re-queried the same
+            # monitoring sheet many times and delayed View Entries → form.
+            raw = pct_fn(r)
+            if raw is not None and raw >= 100:
+                return raw
             if overlay and dob:
                 cal = calendar_date_for_nicu_day_from_birth(dob, day)
                 if cal:
@@ -7156,27 +7165,38 @@ def _downstream_completion(db, enrollment_id, birth, nicu):
             return pct_fn(r)
         return rows, pct
 
-    with db.no_autoflush:
-        h2_rows, h2_pct = scorer(RespCVNeuroDayLog, _compute_completion_pct, _overlay_resp_cv_from_mml)
-        out["vs6_1_complete"] = fc.helper_log_complete(h2_pct, last)
-        _, h4_pct = scorer(InfectGIHemaDayLog, _infect_completion_pct)
-        out["infect_gi_hema_complete"] = fc.helper_log_complete(h4_pct, last)
-        _, h5_pct = scorer(MetabRenalVascEyeDayLog, _metab_completion_pct, _overlay_helper5_from_mml)
-        out["metab_renal_vasc_eye_complete"] = fc.helper_log_complete(h5_pct, last)
+    mml_rows = (
+        db.query(MinimalMonitoringDayLog)
+        .filter(MinimalMonitoringDayLog.enrollment_id == enrollment_id)
+        .all()
+    )
+    db.info["portal_mml_cache"] = {
+        str(r.record_date)[:10]: r for r in mml_rows if r.record_date
+    }
+    try:
+        with db.no_autoflush:
+            h2_rows, h2_pct = scorer(RespCVNeuroDayLog, _compute_completion_pct, _overlay_resp_cv_from_mml)
+            out["vs6_1_complete"] = fc.helper_log_complete(h2_pct, last)
+            _, h4_pct = scorer(InfectGIHemaDayLog, _infect_completion_pct)
+            out["infect_gi_hema_complete"] = fc.helper_log_complete(h4_pct, last)
+            _, h5_pct = scorer(MetabRenalVascEyeDayLog, _metab_completion_pct, _overlay_helper5_from_mml)
+            out["metab_renal_vasc_eye_complete"] = fc.helper_log_complete(h5_pct, last)
 
-        # FiO2 AUC: Helper 2's Supplemental O2 per day, as the FiO2 page sees it.
-        # No discharge cut-off here, same as the FiO2 page (left as is, PI 2026-09-29).
-        fio2_last = fc.helper_last_required_day(today, None, max_day=7)
-        supp_o2 = {}
-        for d, r in h2_rows.items():
-            if fio2_last and d <= fio2_last:
-                if dob:
-                    cal = calendar_date_for_nicu_day_from_birth(dob, d)
-                    if cal:
-                        _overlay_resp_cv_from_mml(db, enrollment_id, r, cal)
-                supp_o2[d] = r.supp_o2  # True / False / None (unanswered)
-        fio2 = one(FiO2AUC, FiO2AUC.created_at.desc())
-        out["fio2_auc_complete"] = fc.fio2_auc_complete(fio2.fio2_logs if fio2 else [], supp_o2, fio2_last)
+            # FiO2 AUC: Helper 2's Supplemental O2 per day, as the FiO2 page sees it.
+            # No discharge cut-off here, same as the FiO2 page (left as is, PI 2026-09-29).
+            fio2_last = fc.helper_last_required_day(today, None, max_day=7)
+            supp_o2 = {}
+            for d, r in h2_rows.items():
+                if fio2_last and d <= fio2_last:
+                    if r.supp_o2 not in (True, False) and dob:
+                        cal = calendar_date_for_nicu_day_from_birth(dob, d)
+                        if cal:
+                            _overlay_resp_cv_from_mml(db, enrollment_id, r, cal)
+                    supp_o2[d] = r.supp_o2  # True / False / None (unanswered)
+            fio2 = one(FiO2AUC, FiO2AUC.created_at.desc())
+            out["fio2_auc_complete"] = fc.fio2_auc_complete(fio2.fio2_logs if fio2 else [], supp_o2, fio2_last)
+    finally:
+        db.info.pop("portal_mml_cache", None)
     return out
 
 
@@ -7752,27 +7772,38 @@ def get_resp_cv_neuro_day(
     return record
 
 
-def _mml_helper1_resp_b_autofill(db: Session, enrollment_id: str, calendar_ymd: str) -> dict:
-    """5.2.B blood gas aggregates for Helper 2 #8–#10 on a calendar date."""
-    on_row = (
-        db.query(MinimalMonitoringDayLog)
-        .filter(
-            MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-            MinimalMonitoringDayLog.record_date == calendar_ymd,
-        )
-        .first()
-    )
+def _mml_on_and_today(db: Session, enrollment_id: str, calendar_ymd: str):
+    """DMS sheet for `calendar_ymd` and today's sheet (Helper overlay).
+
+    enrollment-status prefetches every sheet onto db.info['portal_mml_cache']
+    so scoring a filled stay does not re-query the same row per field per day.
+    """
     today_ymd = _mml_sheet_date()
-    today_row = on_row
-    if today_ymd != calendar_ymd:
-        today_row = (
+    on_key = str(calendar_ymd)[:10] if calendar_ymd else None
+    cache = db.info.get("portal_mml_cache") if hasattr(db, "info") else None
+
+    def row_for(ymd):
+        if not ymd:
+            return None
+        if isinstance(cache, dict):
+            return cache.get(str(ymd)[:10])
+        return (
             db.query(MinimalMonitoringDayLog)
             .filter(
                 MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-                MinimalMonitoringDayLog.record_date == today_ymd,
+                MinimalMonitoringDayLog.record_date == ymd,
             )
             .first()
         )
+
+    on_row = row_for(on_key)
+    today_row = on_row if today_ymd == on_key else row_for(today_ymd)
+    return on_row, today_row
+
+
+def _mml_helper1_resp_b_autofill(db: Session, enrollment_id: str, calendar_ymd: str) -> dict:
+    """5.2.B blood gas aggregates for Helper 2 #8–#10 on a calendar date."""
+    on_row, today_row = _mml_on_and_today(db, enrollment_id, calendar_ymd)
     return autofill_resp_b_from_mml_rows(
         on_row,
         today_row,
@@ -7782,25 +7813,7 @@ def _mml_helper1_resp_b_autofill(db: Session, enrollment_id: str, calendar_ymd: 
 
 def _mml_helper1_resp_c_autofill(db: Session, enrollment_id: str, calendar_ymd: str) -> dict:
     """5.2.C episode sums for Helper 2 #13–#15 on a calendar date."""
-    on_row = (
-        db.query(MinimalMonitoringDayLog)
-        .filter(
-            MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-            MinimalMonitoringDayLog.record_date == calendar_ymd,
-        )
-        .first()
-    )
-    today_ymd = _mml_sheet_date()
-    today_row = on_row
-    if today_ymd != calendar_ymd:
-        today_row = (
-            db.query(MinimalMonitoringDayLog)
-            .filter(
-                MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-                MinimalMonitoringDayLog.record_date == today_ymd,
-            )
-            .first()
-        )
+    on_row, today_row = _mml_on_and_today(db, enrollment_id, calendar_ymd)
     return autofill_resp_c_from_mml_rows(
         on_row,
         today_row,
@@ -7810,25 +7823,7 @@ def _mml_helper1_resp_c_autofill(db: Session, enrollment_id: str, calendar_ymd: 
 
 def _mml_helper1_resp_autofill(db: Session, enrollment_id: str, calendar_ymd: str) -> dict:
     """5.2.A aggregates for Helper 2 #3–#5 on a calendar date."""
-    on_row = (
-        db.query(MinimalMonitoringDayLog)
-        .filter(
-            MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-            MinimalMonitoringDayLog.record_date == calendar_ymd,
-        )
-        .first()
-    )
-    today_ymd = _mml_sheet_date()
-    today_row = on_row
-    if today_ymd != calendar_ymd:
-        today_row = (
-            db.query(MinimalMonitoringDayLog)
-            .filter(
-                MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-                MinimalMonitoringDayLog.record_date == today_ymd,
-            )
-            .first()
-        )
+    on_row, today_row = _mml_on_and_today(db, enrollment_id, calendar_ymd)
     return autofill_from_mml_rows(
         on_row,
         today_row,
@@ -7843,25 +7838,7 @@ def _mml_helper1_list_field_autofill(
     """Presence of a DMS list-type field (5.1.C Vasoactive Drugs, 5.1.D PDA
     Medical Rx, 5.2.D Postnatal Steroids) on a calendar date -- these 3
     blocks were captured but had zero downstream consumer (2026-09 audit)."""
-    on_row = (
-        db.query(MinimalMonitoringDayLog)
-        .filter(
-            MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-            MinimalMonitoringDayLog.record_date == calendar_ymd,
-        )
-        .first()
-    )
-    today_ymd = _mml_sheet_date()
-    today_row = on_row
-    if today_ymd != calendar_ymd:
-        today_row = (
-            db.query(MinimalMonitoringDayLog)
-            .filter(
-                MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-                MinimalMonitoringDayLog.record_date == today_ymd,
-            )
-            .first()
-        )
+    on_row, today_row = _mml_on_and_today(db, enrollment_id, calendar_ymd)
     return autofill_list_field_from_mml_rows(
         on_row,
         today_row,
@@ -8719,25 +8696,7 @@ def _overlay_helper5_from_mml(db, enrollment_id, record, cal):
     """Read-time DMS overlay for a Helper 5 day (in-memory only, never
     committed). Shared by the day GET and /summary so the summary's
     completion % is computed on exactly what the page shows."""
-    on_row = (
-        db.query(MinimalMonitoringDayLog)
-        .filter(
-            MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-            MinimalMonitoringDayLog.record_date == cal,
-        )
-        .first()
-    )
-    today_ymd = _mml_sheet_date()
-    today_row = on_row
-    if today_ymd != cal:
-        today_row = (
-            db.query(MinimalMonitoringDayLog)
-            .filter(
-                MinimalMonitoringDayLog.enrollment_id == enrollment_id,
-                MinimalMonitoringDayLog.record_date == today_ymd,
-            )
-            .first()
-        )
+    on_row, today_row = _mml_on_and_today(db, enrollment_id, cal)
     autofill = compute_helper5_day_autofill(on_row, today_row, helper_calendar_date=cal)
     overlay_helper5_day_from_mml(record, autofill)
 
