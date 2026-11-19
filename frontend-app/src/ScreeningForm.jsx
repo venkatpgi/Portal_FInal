@@ -26,6 +26,7 @@ import { resolveConsentSignatureFromRecord, resolvePiSignatureFromRecord } from 
 import { sanitizeScreeningCreatePayload } from "./utils/screeningPayload";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import { PERSON_NAME_FIELDS, stripDigits, toPersonNameCase } from "./utils/personName";
+import { nameWithoutDr } from "./utils/completedByDesignation";
 import { mobilePairErrors, PRIMARY_MOBILE_LABEL, SECONDARY_MOBILE_LABEL } from "./utils/mobileNumbers";
 
 /* ─── YesNoToggle — animated sliding segment ──────────────── */
@@ -438,8 +439,9 @@ export default function ScreeningForm() {
         insufficient_time:     d.exclusion_reasons?.includes("Insufficient time")    ? "Yes" : (d.exclusion_present != null) ? "No" : "",
         insufficient_time_reason: d.insufficient_time_reason || d.reason_for_insufficient_time || "",
         iufd:                  d.exclusion_reasons?.includes("IUFD")                 ? "Yes" : (d.exclusion_present != null) ? "No" : "",
+        screened_by:              nameWithoutDr(clinical.screened_by || d.screened_by || ""),
         consent_given:            d.consent_given              || "",
-        consent_taken_by:         d.consent_taken_by           || "",
+        consent_taken_by:         nameWithoutDr(d.consent_taken_by || ""),
         consent_datetime:         d.consent_datetime ? normalizeDateTimeLocalString(d.consent_datetime) : "",
         consent_form_version:     d.consent_form_version       || "v1.0",
         consent_language:         d.consent_language           || "English",
@@ -617,9 +619,8 @@ export default function ScreeningForm() {
   useEffect(() => {
     if (!formData.site_name) { setNurses([]); return; }
     api.get(`/sites/${formData.site_name}/screeners`)
-      .then(r => setNurses((r.data || []).map(n =>
-        String(n).replace(/^\s*dr\.?\s+/i, "").trim()
-      ))).catch(() => setNurses([]));
+      .then(r => setNurses((r.data || []).map(n => nameWithoutDr(n)).filter(Boolean)
+      )).catch(() => setNurses([]));
   }, [formData.site_name]);
 
   /* ─── Principal Investigator name for this site (print footer) ── */
@@ -663,8 +664,8 @@ export default function ScreeningForm() {
     if (screeningId && screeningId !== "undefined" && screeningId !== "null") return;
     if (formData.screened_by) return;
     if (!user?.full_name || !nurses.length) return;
-    const target = String(user.full_name).trim().toLowerCase();
-    const match = nurses.find(n => String(n).trim().toLowerCase() === target);
+    const target = nameWithoutDr(user.full_name).trim().toLowerCase();
+    const match = nurses.find(n => nameWithoutDr(n).trim().toLowerCase() === target);
     if (!match) return;
     setFormData(prev => prev.screened_by ? prev : { ...prev, screened_by: match });
   }, [nurses, isSiteLocked, user, screeningId, formData.screened_by]);
@@ -770,7 +771,11 @@ export default function ScreeningForm() {
     /* Name fields: allow letters (any language), spaces, apostrophe, hyphen, period.
        The old /[^a-zA-Z ]/ filter stripped Indian-script and accented names to "" —
        so Husband's First Name looked filled but stayed empty → required popup. */
-    if (["screened_by","mother_first_name","mother_surname","husband_first_name","husband_surname"].includes(name)) {
+    if (name === "screened_by" || name === "consent_taken_by") {
+      set({ [name]: nameWithoutDr(value) });
+      return;
+    }
+    if (["mother_first_name","mother_surname","husband_first_name","husband_surname"].includes(name)) {
       const cleaned = toPersonNameCase(value.replace(/[^\p{L}\s.'-]/gu, ""));
       set({ [name]: cleaned });
       if (cleaned.trim()) {
@@ -1063,7 +1068,7 @@ export default function ScreeningForm() {
         || (useDraftFallbacks ? toDateTimeLocalValue(new Date()) : null),
       site_name:                 fd.site_name        || (useDraftFallbacks ? "DRAFT" : null),
       site_id:                   fd.site_id          || (useDraftFallbacks ? "00"    : null),
-      screened_by:               fd.screened_by      || (useDraftFallbacks ? "DRAFT" : ""),
+      screened_by:               nameWithoutDr(fd.screened_by) || (useDraftFallbacks ? "DRAFT" : ""),
       mother_first_name:         fd.mother_first_name || (useDraftFallbacks ? "DRAFT" : ""),
       mother_surname:            fd.mother_surname ?? "",
       husband_first_name:        fd.husband_first_name || (useDraftFallbacks ? "DRAFT" : ""),
@@ -1094,7 +1099,7 @@ export default function ScreeningForm() {
       decision_forego_resuscitation_reason_other: fd.decision_forego_resus_reason_other || null,
       reason_for_insufficient_time: fd.insufficient_time === "Yes" ? (fd.insufficient_time_reason || null) : null,
       consent_given:             fd.consent_given     || null,
-      consent_taken_by:          fd.consent_taken_by  || null,
+      consent_taken_by:          nameWithoutDr(fd.consent_taken_by) || null,
       consent_datetime:          fd.consent_datetime   || null,
       consent_form_version:      fd.consent_form_version || null,
       consent_language:          fd.consent_language   || null,
@@ -1615,11 +1620,11 @@ export default function ScreeningForm() {
                     </div>
                     <div className="form-group">
                       <label>8. Screened by (First name)<span className="required">*</span></label>
-                      <select name="screened_by" value={formData.screened_by||""} onChange={handleChange}
+                      <select name="screened_by" value={nameWithoutDr(formData.screened_by)||""} onChange={handleChange}
                         disabled={!isFieldEditable || !formData.site_name}>
                         <option value="">{formData.site_name ? "-- Select --" : "Select Site first"}</option>
-                        {formData.screened_by && !nurses.includes(formData.screened_by) &&
-                          <option value={formData.screened_by}>{formData.screened_by}</option>}
+                        {nameWithoutDr(formData.screened_by) && !nurses.includes(nameWithoutDr(formData.screened_by)) &&
+                          <option value={nameWithoutDr(formData.screened_by)}>{nameWithoutDr(formData.screened_by)}</option>}
                         {nurses.map(n => <option key={n} value={n}>{n}</option>)}
                       </select>
                     </div>
@@ -1982,11 +1987,11 @@ export default function ScreeningForm() {
                       <div className="form-grid-2">
                         <div className="form-group">
                           <label>20 (<span className="crf-subnum">e</span>). Consent obtained by (First name)<span className="required">*</span></label>
-                          <select name="consent_taken_by" value={formData.consent_taken_by||""}
+                          <select name="consent_taken_by" value={nameWithoutDr(formData.consent_taken_by)||""}
                             onChange={handleChange} disabled={!isFieldEditable || !formData.site_name}>
                             <option value="">{formData.site_name ? "-- Select --" : "Select Site first"}</option>
-                            {formData.consent_taken_by && !nurses.includes(formData.consent_taken_by) &&
-                              <option value={formData.consent_taken_by}>{formData.consent_taken_by}</option>}
+                            {nameWithoutDr(formData.consent_taken_by) && !nurses.includes(nameWithoutDr(formData.consent_taken_by)) &&
+                              <option value={nameWithoutDr(formData.consent_taken_by)}>{nameWithoutDr(formData.consent_taken_by)}</option>}
                             {nurses.map(n => <option key={n} value={n}>{n}</option>)}
                           </select>
                         </div>

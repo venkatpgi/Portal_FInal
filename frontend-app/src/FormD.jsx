@@ -14,7 +14,7 @@ import { useRegisterActiveFormSession } from "./context/ActiveFormSessionContext
 import { relativeTime, toDateOnlyValue, parseDateOnly } from "./utils/datetime";
 import { calendarDateError, dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
 import { formatCaffeineMgPerKg, typicalCaffeineLoadingMg } from "./utils/caffeineDose";
-import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
+import { designationForCompletedBy, completedByNameOptions, nameWithoutDr } from "./utils/completedByDesignation";
 import { helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import { classifyVeryPretermCentile } from "./data/intergrowthVeryPreterm";
@@ -1001,7 +1001,7 @@ export default function FormD() {
   const completedByOptions = completedByNameOptions(roster, formData.completed_by);
   const getDesignation = (name) => designationForCompletedBy(name, roster);
   const handleCompletedByChange = (e) => {
-    const name = e.target.value;
+    const name = nameWithoutDr(e.target.value);
     touch("completed_by");
     setFormData(prev => ({ ...prev, completed_by: name, designation: getDesignation(name) }));
   };
@@ -1890,7 +1890,7 @@ export default function FormD() {
                   <FieldWrap name="completed_by"
                     formData={formData} touched={touched}
                     label="Completed by" required>
-                    <select name="completed_by" value={formData.completed_by || ""}
+                    <select name="completed_by" value={nameWithoutDr(formData.completed_by) || ""}
                       onChange={handleCompletedByChange} disabled={!isFieldEditable}
                       className={`emr-select${vr("completed_by")?.level === "error" ? " fv-input-error" : vr("completed_by")?.level === "ok" ? " fv-input-ok" : ""}`}
                       required>

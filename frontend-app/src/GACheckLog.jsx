@@ -27,7 +27,7 @@ import { formatDateToDDMMYYYY } from "./utils/datetime";
 import { findDuplicateCr, maternalUidLiveError, maternalUidPlaceholder, maternalUidSaveError, sanitizeMaternalUid } from "./utils/maternalUid";
 import { collapseSearchSpaces, filterGaChecks } from "./utils/gaCheckSearch";
 import useEntryFocus from "./hooks/useEntryFocus";
-import { stripDigits } from "./utils/personName";
+import { stripDigits, toPersonNameCase } from "./utils/personName";
 import {
   Search, AlertTriangle, CheckCircle2, ArrowRight, RefreshCw, X,
 } from "lucide-react";
@@ -289,7 +289,7 @@ export default function GACheckLog() {
       site_name: form.site_name || null,
       identification_type: form.identification_type || DEFAULT_IDENTIFICATION_TYPE,
       allow_duplicate_cr: !!(duplicateCr && allowDuplicateCr),
-      mother_name: form.mother_name || null,
+      mother_name: form.mother_name ? toPersonNameCase(form.mother_name.trim()) : null,
       mother_uid: form.mother_uid || null,
       found_iufd: !!form.found_iufd,
       // Belt-and-suspenders: never send a source/weeks/days/method
@@ -326,7 +326,7 @@ export default function GACheckLog() {
   const continueEntryToFormA = (entry) => {
     localStorage.setItem(GA_CHECK_SEED_KEY, JSON.stringify({
       id: entry.id,
-      mother_name: entry.mother_name || "",
+      mother_name: toPersonNameCase(entry.mother_name || ""),
       mother_uid: entry.mother_uid || "",
       gestation_weeks: entry.gestation_weeks ?? "",
       gestation_days: entry.gestation_days ?? "",
@@ -354,7 +354,7 @@ export default function GACheckLog() {
     setForm({
       site_name: entry.site_name || (isSiteLocked ? form.site_name : ""),
       identification_type: entry.identification_type || DEFAULT_IDENTIFICATION_TYPE,
-      mother_name: entry.mother_name || "",
+      mother_name: toPersonNameCase(entry.mother_name || ""),
       mother_uid: entry.mother_uid || "",
       found_iufd: !!entry.found_iufd,
       ga_source: entry.found_iufd ? "" : (entry.ga_source || ""),
@@ -488,7 +488,7 @@ export default function GACheckLog() {
           </label>
           <label className="gac-field">
             <span>Mother's Name</span>
-            <input value={form.mother_name} onChange={(e) => setField("mother_name", stripDigits(e.target.value))} autoFocus />
+            <input value={form.mother_name} onChange={(e) => setField("mother_name", toPersonNameCase(stripDigits(e.target.value)))} autoFocus />
           </label>
           <label className="gac-field">
             <span>Mother's UHID / CR Number</span>
@@ -506,7 +506,7 @@ export default function GACheckLog() {
             {duplicateCr && (
               <span className="gac-form-error gac-dup">
                 Already logged{duplicateCr.check_date ? ` on ${formatDateToDDMMYYYY(duplicateCr.check_date)}` : ""}
-                {duplicateCr.mother_name ? ` (${duplicateCr.mother_name})` : ""}.{" "}
+                {duplicateCr.mother_name ? ` (${toPersonNameCase(duplicateCr.mother_name)})` : ""}.{" "}
                 <button type="button" className="gac-link-btn" onClick={() => startEdit(duplicateCr)}>Edit that entry</button>
                 {/* Readmission (PI 2026-10-20): consent on her Form A decides what to do */}
                 {duplicateCr.form_a_consent === "No" && (
@@ -648,7 +648,7 @@ export default function GACheckLog() {
                     <td className="gac-entry-no">#{e.id}</td>
                     <td>{e.check_date ? formatDateToDDMMYYYY(e.check_date) : "—"}</td>
                     <td>{e.site_name || "—"}</td>
-                    <td>{e.mother_name || "—"}</td>
+                    <td>{toPersonNameCase(e.mother_name || "") || "—"}</td>
                     <td>
                       {e.cr_pending ? <span className="gac-badge gac-badge--gap">CR pending</span> : (e.mother_uid || "—")}
                     </td>

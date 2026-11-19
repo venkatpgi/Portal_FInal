@@ -13,7 +13,7 @@ import OfflineBanner from "./components/OfflineBanner";
 import SaveSuccessModal from "./components/SaveSuccessModal";
 import { toDateOnlyValue, parseDateOnly, toDateTimeLocalValue, isDateTimeInFuture } from "./utils/datetime";
 import { calendarDateError, dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
-import { designationForCompletedBy, completedByNameOptions } from "./utils/completedByDesignation";
+import { designationForCompletedBy, completedByNameOptions, nameWithoutDr } from "./utils/completedByDesignation";
 import { formDAdmissionArea, helperLocationOptions, locationLabel, normalizeHelperLocation } from "./utils/helperLocation";
 import { printPatientPdf } from "./utils/printPatientPdf";
 import {
@@ -1156,7 +1156,7 @@ export default function FormE() {
   const completedByOptions = completedByNameOptions(roster, formData.completed_by);
   const getDesignation = (name) => designationForCompletedBy(name, roster);
   const handleCompletedByChange = (e) => {
-    const name = e.target.value;
+    const name = nameWithoutDr(e.target.value);
     setFormData(prev => ({ ...prev, completed_by: name, designation: getDesignation(name) }));
   };
 
@@ -1597,7 +1597,7 @@ export default function FormE() {
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label>Completed by <span className="required">*</span></label>
-                    <select name="completed_by" value={formData.completed_by || ""}
+                    <select name="completed_by" value={nameWithoutDr(formData.completed_by) || ""}
                       onChange={handleCompletedByChange} disabled={!isFieldEditable}
                       className="emr-select" required>
                       <option value="">-- Select Nurse --</option>

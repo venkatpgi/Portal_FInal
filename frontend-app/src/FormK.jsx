@@ -9,7 +9,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
 import { dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
-import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList } from "./utils/completedByDesignation";
+import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList, nameWithoutDr } from "./utils/completedByDesignation";
 import FormNavBar from "./components/FormNavBar";
 import { usePatient } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
@@ -623,7 +623,7 @@ export default function FormK() {
             <label>Completed by</label>
             <select
               className="fk-input"
-              value={formData.completed_by || ""}
+              value={nameWithoutDr(formData.completed_by) || ""}
               onChange={(e) => {
                 const name = e.target.value;
                 setIsSaved(false);

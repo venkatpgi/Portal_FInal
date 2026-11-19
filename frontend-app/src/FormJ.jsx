@@ -13,7 +13,7 @@ import { dobOnwardMinDate, dobOnwardMaxDate } from "./utils/clinicalDateBounds";
 import FormNavBar from "./components/FormNavBar";
 import { usePatient } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
-import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList } from "./utils/completedByDesignation";
+import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList, nameWithoutDr } from "./utils/completedByDesignation";
 import {
   Home, Clock, Building2, Skull, Wind, Activity, Brain, Eye, ShieldAlert, Scan,
 } from "lucide-react";
@@ -974,7 +974,7 @@ export default function FormJ() {
         <div className="fj-grid-2">
           <div className="form-group">
             <label>Completed by</label>
-            <select value={formData.completed_by || ""} onChange={handleCompletedByChange}>
+            <select value={nameWithoutDr(formData.completed_by) || ""} onChange={handleCompletedByChange}>
               <option value="">-- Select --</option>
               {completedByNameList(assessors, formData.completed_by).map((n) => (
                 <option key={n} value={n}>{n}</option>
