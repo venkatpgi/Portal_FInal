@@ -17,6 +17,7 @@ import { Plus, Trash2, Brain, Wind, Utensils, Activity, HeartPulse, Droplets, Ey
 import FormNavBar from "./components/FormNavBar";
 import { PillSelect, ChipMultiSelect, CollapsibleCard, FieldRow } from "./components/formh/FormHFields";
 import { isFormHComplete } from "./utils/formCompletion";
+import FollowupCalendar, { ALIVE_OUTCOMES } from "./components/formh/FollowupCalendar";
 
 /* ─── FormH category map — powers the sticky jump-nav below the header.
    Keeping this outside the component avoids re-creating the array (and
@@ -155,6 +156,7 @@ export default function FormH() {
   const { markFormCompleted, unmarkFormCompleted } = useFormProgress();
   const [errors, setErrors] = useState({});
   const [isSaved, setIsSaved] = useState(false);
+  const [followupBooked, setFollowupBooked] = useState(true); // H12.6 calendar (FollowupCalendar)
   const [saveMessage, setSaveMessage] = useState("");
   const { enrollmentId } = useParams();
   const [formHBootstrapping, setFormHBootstrapping] = useState(() => !!enrollmentId);
@@ -4984,7 +4986,7 @@ const num = (v) => {
 
   // "Save" on the bottom nav bar — saves without leaving the page.
   const saveFormH = async () => {
-    if (!(await confirmFormHConflicts())) return;
+    if (!(await confirmFormHConflicts())) return false;
     try {
       const payload = buildPayload();
       if (formData._record_id) {
@@ -5003,11 +5005,13 @@ const num = (v) => {
       fetchNecStageSuggestion();
       setIsSaved(true);
       setSaveMessage("✅ Saved");
+      return true;
     } catch (err) {
       console.error("❌ BACKEND ERROR:", err.response?.data);
       const msg = formHApiErrorMessage(err);
       setSaveMessage("❌ Save failed");
       alert(msg);
+      return false;
     } finally {
       setTimeout(() => setSaveMessage(""), 3000);
     }
@@ -5045,6 +5049,17 @@ const num = (v) => {
         + "daily-log flag(s) not yet reviewed. Scroll to H11 Infection, "
         + "review each flagged item, and add an infection episode or mark "
         + "it reviewed before submitting."
+      );
+      return;
+    }
+
+    // Follow-up calendar (H12.6, PI 2026-11-19): a baby leaving alive needs
+    // every Form I checkpoint booked, or a reason, before Submit.
+    if (ALIVE_OUTCOMES.includes(formData.outcome) && !followupBooked) {
+      alert(
+        "This form can't be submitted yet — book the follow-up dates first. "
+        + "In H12.6 Follow-up calendar, pick a date for each checkpoint (or why it "
+        + "could not be booked) and press Save follow-up dates."
       );
       return;
     }
@@ -11454,6 +11469,15 @@ const peripheralStatus= getPeripheralStatus();
 
     </CollapsibleCard>
   )}
+
+  {/* ================= Follow-up calendar (PI 2026-11-19) ================= */}
+  <FollowupCalendar
+    enrollmentId={enrollmentId}
+    outcome={formData.outcome}
+    dischargeDate={formData.discharge_date}
+    saveFormH={saveFormH}
+    onStatus={setFollowupBooked}
+  />
 
 </div>
 

@@ -73,6 +73,8 @@ Ventricular tachycardia, Others + `tachycardia_other`); Bradycardia Yes/No
 
 **Outcome Died (PI 2026-10-31):** H12.4 asks Date of death (stored in `discharge_date`, prefilled from Helper 5) and Time of death (`death_time`); the Discharge Date box is hidden. Both are needed for the Form H tick. Form I's in-hospital mortality takes them.
 
+**Follow-up calendar H12.6 (PI 2026-11-19):** when the outcome is one where the baby leaves alive, the nurse books a date (Clinic visit / Telephone) for each Form I checkpoint still to come, inside its window, or records why not; Submit waits for it (Save does not). Rules, emails, data queries and the parent slip: README "Follow-up calendar on Form H".
+
 Sign-off (form completed by, designation, date) is at the end of H12 Hospital Course; the separate Review & Submit tab held nothing else and was removed (PI 2026-10-31). Completed by is a drop-down.
 
 One record per baby, filled across the admission. Required for completion:

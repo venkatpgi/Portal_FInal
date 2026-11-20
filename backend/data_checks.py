@@ -480,6 +480,59 @@ def check_dms_weight_jump(ctx):
     return out
 
 
+# ----------------------------------------------------------------- follow-up calendar
+def _fmt_d(d) -> str:
+    return d.strftime("%d %b %Y")
+
+
+def check_followup_not_booked(ctx):
+    """Form H says the baby left alive but a Form I checkpoint still to come
+    has no booked date and no reason (followup_booking.py; the tablet has no
+    calendar yet). Resolves once booked, or when the window closes (M5)."""
+    out = []
+    for c in ctx["followup_cal"]:
+        miss = [r for r in c["rows"] if r["state"] == "bookable" and r["problem"] == "not booked"
+                and r["latest"] >= ctx["today"]]
+        if miss:
+            wks = ", ".join(f"{r['checkpoint']} wk ({_fmt_d(r['earliest'])} – {_fmt_d(r['latest'])})" for r in miss)
+            out.append(finding(c["site"], "enrollment", c["enrollment_id"], "Follow-up not booked at discharge",
+                               f"{c['enrollment_id']}: {c['outcome']} {_fmt_d(c['left_on'])}; no follow-up date "
+                               f"booked for {wks}. Book the dates on Form H (Follow-up calendar), or record why "
+                               "they could not be booked.",
+                               {"checkpoints": [r["checkpoint"] for r in miss]}, c["left_on"]))
+    return out
+
+
+def check_followup_booked_missed(ctx):
+    """A booked follow-up date has passed with nothing on Form I."""
+    out = []
+    for c in ctx["followup_cal"]:
+        for r in c["rows"]:
+            d = r["booked_date"]
+            if r["state"] == "bookable" and d and not r["problem"] and ctx["today"] > d:
+                out.append(finding(c["site"], "enrollment", f"{c['enrollment_id']}/followup/{r['checkpoint']}",
+                                   f"Booked follow-up missed: {r['checkpoint']} wk",
+                                   f"{c['enrollment_id']}: {r['checkpoint']} wk follow-up booked for {_fmt_d(d)} "
+                                   f"({r['mode']}); nothing on Form I. Window to {_fmt_d(r['window_to'])}. Contact "
+                                   "the family, or record the visit or call on Form I.",
+                                   {"checkpoint": r["checkpoint"], "booked": d.isoformat()}, d + timedelta(days=1)))
+    return out
+
+
+def check_followup_booking_outside(ctx):
+    """A booked date no longer fits (discharge date, birth date or GA corrected)."""
+    out = []
+    for c in ctx["followup_cal"]:
+        for r in c["rows"]:
+            if r["state"] == "bookable" and r["problem"] and r["problem"].startswith("booked"):
+                out.append(finding(c["site"], "enrollment", f"{c['enrollment_id']}/followup-window/{r['checkpoint']}",
+                                   f"Follow-up date outside the window: {r['checkpoint']} wk",
+                                   f"{c['enrollment_id']}: {r['checkpoint']} wk {r['problem']} (Form H, Follow-up "
+                                   "calendar).", {"checkpoint": r["checkpoint"],
+                                                  "booked": r["booked_date"].isoformat()}, ctx["now"]))
+    return out
+
+
 CHECKS = [
     Check("GA_ELIGIBLE_NO_FORM_A", "Gestation Log", "Eligible woman, still pregnant, with no Form A", check_ga_eligible_no_form_a),
     Check("GA_NOW_ELIGIBLE", "Gestation Log", "Logged before 25 weeks, now in the window, no Form A", check_ga_now_eligible),
@@ -503,6 +556,12 @@ CHECKS = [
     Check("DISCHARGE_WEIGHT_LOW", "Plausible values", "Form H discharge weight below birth weight after 21 days", check_discharge_weight),
     Check("DMS_BP_ORDER", "Plausible values", "DMS diastolic not below systolic, or mean outside them", check_dms_bp_order),
     Check("DMS_WEIGHT_JUMP", "Plausible values", "DMS weight change over 10% from the previous weight", check_dms_weight_jump),
+    Check("FOLLOWUP_NOT_BOOKED", "Follow-up", "Baby left alive with a Form I checkpoint not booked",
+          check_followup_not_booked, raise_after=timedelta(hours=24)),
+    Check("FOLLOWUP_BOOKED_MISSED", "Follow-up", "Booked follow-up date passed with nothing on Form I",
+          check_followup_booked_missed),
+    Check("FOLLOWUP_BOOKING_OUTSIDE_WINDOW", "Follow-up", "Booked follow-up date outside the checkpoint window",
+          check_followup_booking_outside),
     Check("LOG_AFTER_STAY_END", "Clinical consistency", "DMS or Helper entries after death or discharge", check_entries_after_stay_end),
     Check("FORM_C_INCOMPLETE", "Form timeliness", "Form C (maternal details) not complete", _incomplete("Form C", "maternal_details"), raise_after=AMBER_AFTER),
     Check("FORM_D_INCOMPLETE", "Form timeliness", "Form D (postnatal day 1) not complete", _incomplete("Form D", "postnatal_day1", 1), raise_after=AMBER_AFTER),
@@ -625,8 +684,16 @@ def _context(db, now: datetime, today: date) -> dict:
     live_sids = {r[0] for r in live_screens}
     screening_ga = {sid: ((w * 7 + (d or 0)) if w is not None else None, dt.date() if dt else None)
                     for sid, w, d, dt in live_screens}
+    from followup_booking import all_calendars
+    try:
+        followup_cal = all_calendars(db, None, today)
+    except Exception:   # the follow-up checks then find nothing; the rest still run
+        logger.exception("follow-up calendars failed")
+        followup_cal = []
     return {
         "now": now,
+        "today": today,
+        "followup_cal": followup_cal,
         "ga": _ga_rows(db, today),
         "births": db.query(BirthLogEntry).all(),
         "pre_trial": lambda b: bool(is_pre_trial(b.date_of_birth, b.created_at)),
@@ -723,6 +790,12 @@ def run_checks(db, now: Optional[datetime] = None, today: Optional[date] = None,
             counts["followup_reminders"] = send_reminders(db)
         except Exception:
             logger.exception("follow-up reminders failed")
+        try:
+            from followup_booking import send_emails as send_booking_emails
+            for k, v in send_booking_emails(db).items():
+                counts[k] = v
+        except Exception:
+            logger.exception("follow-up booking emails failed")
     db.commit()
     counts["open_total"] = db.query(DataQuery).filter(DataQuery.status.in_(OPEN_STATES)).count()
     return dict(counts)

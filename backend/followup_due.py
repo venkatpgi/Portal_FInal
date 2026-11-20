@@ -11,6 +11,10 @@ date +/- WINDOW_DAYS (2 days, PI 2026-11-17).
   overdue     the window closed with nothing entered (site summary
               "missed data", M5)
 
+When the baby leaves (Form H), the nurse books a date per checkpoint on the
+follow-up calendar (followup_booking.py). A booked checkpoint is reminded
+from its booked date instead of the 7-day email below.
+
 A checkpoint is done when Form I records the encounter (Direct /
 Telephonic), a death at that checkpoint, or a reason for loss to follow-up.
 A death on Form H / Helper 5 / Form I on or before a checkpoint ends the
@@ -98,29 +102,35 @@ def when_text(row: dict) -> str:
 
 
 # ------------------------------------------------------------------ data
-def collect(db, sites, today: date) -> list[dict]:
-    """Every pending checkpoint of randomised babies born since the trial
-    start at these sites: [{site, enrollment_id, home, ended_on, where, ...}]."""
+def babies(db, sites, eids=None) -> list[dict]:
+    """Randomised babies born since the trial start at these sites (or just
+    `eids`), one dict each: site, enrollment_id, dob, ga_days, form_h, form_i,
+    end (stay_end.end_of_stay), died, death_date, home, where."""
+    from death_alert import form_i_death
     from models import BirthResuscitation, MetabRenalVascEyeDayLog, NeonatalMorbidities, Screening, StudyOutcomes
     from stay_end import end_of_stay
     from trial_dates import trial_start
 
-    rows = (db.query(BirthResuscitation, Screening.site_name)
-            .join(Screening, Screening.screening_id == BirthResuscitation.screening_id)
-            .filter(Screening.is_deleted.isnot(True), Screening.site_name.in_(list(sites)),
-                    BirthResuscitation.randomised.is_(True), BirthResuscitation.enrollment_id.isnot(None),
-                    BirthResuscitation.date_of_birth >= trial_start())
-            .order_by(Screening.site_name, BirthResuscitation.enrollment_id).all())
+    q = (db.query(BirthResuscitation, Screening.site_name)
+         .join(Screening, Screening.screening_id == BirthResuscitation.screening_id)
+         .filter(Screening.is_deleted.isnot(True), BirthResuscitation.randomised.is_(True),
+                 BirthResuscitation.enrollment_id.isnot(None),
+                 BirthResuscitation.date_of_birth >= trial_start()))
+    if sites is not None:
+        q = q.filter(Screening.site_name.in_(list(sites)))
+    if eids is not None:
+        q = q.filter(BirthResuscitation.enrollment_id.in_(list(eids)))
+    rows = q.order_by(Screening.site_name, BirthResuscitation.enrollment_id).all()
     if not rows:
         return []
-    eids = [br.enrollment_id for br, _ in rows]
-    form_i = {r.enrollment_id: r for r in db.query(StudyOutcomes).filter(StudyOutcomes.enrollment_id.in_(eids))
+    ids = [br.enrollment_id for br, _ in rows]
+    form_i = {r.enrollment_id: r for r in db.query(StudyOutcomes).filter(StudyOutcomes.enrollment_id.in_(ids))
               .order_by(StudyOutcomes.id)}
     form_h = {r.enrollment_id: r for r in db.query(NeonatalMorbidities)
-              .filter(NeonatalMorbidities.enrollment_id.in_(eids)).order_by(NeonatalMorbidities.id)}
+              .filter(NeonatalMorbidities.enrollment_id.in_(ids)).order_by(NeonatalMorbidities.id)}
     death_days = defaultdict(list)
     for eid, day in (db.query(MetabRenalVascEyeDayLog.enrollment_id, MetabRenalVascEyeDayLog.nicu_day)
-                     .filter(MetabRenalVascEyeDayLog.enrollment_id.in_(eids),
+                     .filter(MetabRenalVascEyeDayLog.enrollment_id.in_(ids),
                              MetabRenalVascEyeDayLog.survived_the_day.is_(False))):
         if day:
             death_days[eid].append(day)
@@ -132,14 +142,32 @@ def collect(db, sites, today: date) -> list[dict]:
         end = end_of_stay(dob, nm.discharge_date if nm else None, nm.outcome if nm else None, death_days[eid])
         died = bool(end and end["died"]) or (nm is not None and nm.outcome == "Died")
         so = form_i.get(eid)
-        from death_alert import form_i_death
         fi_died, fi_date, _ = form_i_death(so) if so is not None else (False, None, None)
         death_date = (end["date"] if end and end["died"] else None) or fi_date
         home = bool(end and not end["died"] and not fi_died)
         where = (f"Discharged {fmt(end['date'])}" if home else "Died" if (died or fi_died) else "In NICU")
-        for r in pending(dob, ga, so, died or fi_died, death_date, today):
-            out.append({"site": site, "enrollment_id": eid, "home": home,
-                        "ended_on": end["date"] if home else None, "where": where, **r})
+        out.append({"site": site, "enrollment_id": eid, "dob": dob, "ga_days": ga, "form_h": nm, "form_i": so,
+                    "end": end, "died": died or fi_died, "death_date": death_date, "home": home, "where": where})
+    return out
+
+
+def collect(db, sites, today: date) -> list[dict]:
+    """Every pending checkpoint of randomised babies born since the trial
+    start at these sites: [{site, enrollment_id, home, ended_on, where, booking, ...}].
+    `booking` is the Form H follow-up calendar entry (followup_booking.py) or None."""
+    import followup_booking
+    kids = babies(db, sites)
+    booked = followup_booking.bookings_by_key(db, [b["enrollment_id"] for b in kids])
+    out = []
+    for b in kids:
+        for r in pending(b["dob"], b["ga_days"], b["form_i"], b["died"], b["death_date"], today):
+            bk = booked.get((b["enrollment_id"], r["checkpoint"]))
+            text = followup_booking.booking_text(bk)
+            out.append({"site": b["site"], "enrollment_id": b["enrollment_id"], "home": b["home"],
+                        "ended_on": b["end"]["date"] if b["home"] else None,
+                        # the booking shows wherever "where" is shown (site summary, shift report, reports)
+                        "where": f"{b['where']} · {text}" if text else b["where"],
+                        "booking": text, "booked_date": bk.booked_date if bk else None, **r})
     return out
 
 
@@ -195,7 +223,8 @@ def send_reminders(db, now: datetime | None = None) -> int:
 
     today = ist.date()
     due = [r for r in collect(db, REPORT_SITES, today)
-           if r["home"] and r["stage"] in ("upcoming", "window") and r["days_to_due"] <= EMAIL_DAYS]
+           if r["home"] and r["stage"] in ("upcoming", "window") and r["days_to_due"] <= EMAIL_DAYS
+           and r.get("booked_date") is None]   # a booked date has its own reminder (followup_booking.py)
     if not due:
         return 0
     sent_keys = {(a.enrollment_id, (a.new_values or {}).get("checkpoint"))

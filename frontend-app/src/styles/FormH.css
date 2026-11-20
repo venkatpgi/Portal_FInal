@@ -852,3 +852,34 @@
   from { opacity: 0; transform: translateY(8px) scale(.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+/* ---- H12.6 Follow-up calendar (components/formh/FollowupCalendar.jsx) ---- */
+.fu-cal { display: flex; flex-direction: column; gap: 10px; }
+.fu-cal-table { display: flex; flex-direction: column; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.fu-cal-row { display: grid; grid-template-columns: 110px 1.3fr 1fr 1.6fr; gap: 10px; align-items: center;
+  padding: 8px 10px; border-top: 1px solid #eef2f7; font-size: 14px; }
+.fu-cal-row:first-child { border-top: 0; }
+.fu-cal-head { background: #f8fafc; font-size: 12px; font-weight: 600; color: #475569; }
+.fu-cal-missing { background: #fff7ed; }
+.fu-cal-wk { font-weight: 600; }
+.fu-cal-row small { color: #64748b; }
+.fu-cal-row input, .fu-cal-row select { width: 100%; box-sizing: border-box; }
+.fu-cal-row input + input, .fu-cal-row select + input { margin-top: 6px; }
+.fu-cal-state { grid-column: 3 / span 2; color: #475569; font-size: 13px; }
+.fu-cal-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.fu-cal-pill { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; }
+.fu-cal-pill.is-on { background: #00132c; border-color: #00132c; color: #fff; }
+.fu-cal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.fu-cal-btn { background: #00132c; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+.fu-cal-btn:disabled { opacity: .6; cursor: default; }
+.fu-cal-btn--light { background: #fff; color: #00132c; border: 1px solid #00132c; }
+.fu-cal-link { background: none; border: 0; color: #1d4ed8; text-decoration: underline; cursor: pointer; font-size: 13px; margin-left: 6px; }
+.fu-cal-warn { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; padding: 8px 10px; font-size: 13px;
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.fu-cal-clinic { font-size: 13px; color: #334155; }
+.fu-cal-clinic-edit { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.fu-cal-clinic-edit input { flex: 1 1 200px; }
+@media (max-width: 720px) {
+  .fu-cal-row { grid-template-columns: 1fr 1fr; }
+  .fu-cal-head { display: none; }
+  .fu-cal-state { grid-column: 1 / span 2; }
+}

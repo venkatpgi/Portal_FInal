@@ -2582,3 +2582,37 @@ class DataQuery(Base):
     confirmed_reason = Column(Text, nullable=True)
     signoff_by = Column(String, nullable=True)
     signoff_at = Column(DateTime, nullable=True)
+
+
+# ==========================================================
+# FOLLOW-UP BOOKINGS (Form H discharge calendar, PI 2026-11-19)
+# One row per baby and Form I checkpoint (36 / 40 / 44 wk PMA): the date
+# booked with the family when the baby left (followup_booking.py), or why
+# no date could be fixed. Form I itself records what actually happened.
+# ==========================================================
+class FollowupBooking(Base):
+    __tablename__ = "followup_bookings"
+    __table_args__ = (UniqueConstraint("enrollment_id", "checkpoint", name="uq_followup_booking"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    enrollment_id = Column(String, nullable=False, index=True)
+    checkpoint = Column(Integer, nullable=False)           # 36 / 40 / 44
+    booked_date = Column(Date, nullable=True)
+    mode = Column(String, nullable=True)                   # Clinic visit / Telephone
+    not_booked_reason = Column(String, nullable=True)      # when no date could be fixed
+    not_booked_other = Column(String, nullable=True)       # reason "Other": typed text
+    booked_by = Column(String, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class FollowupClinic(Base):
+    """Per site: where the family comes and whom they call (parent slip)."""
+    __tablename__ = "followup_clinics"
+
+    site_name = Column(String, primary_key=True)
+    place = Column(String, nullable=True)                  # e.g. "High-risk follow-up clinic, ..."
+    days_times = Column(String, nullable=True)             # e.g. "Monday and Thursday, 9 am to 1 pm"
+    phone = Column(String, nullable=True)                  # site follow-up phone (not a participant's)
+    updated_by = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
