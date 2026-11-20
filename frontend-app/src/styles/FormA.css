@@ -218,16 +218,18 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 20px;
-  row-gap: 0;
+  row-gap: 6px;
   margin-bottom: 16px;
+  align-items: start;
 }
 .screening-form .form-grid-3,
 .form-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: 20px;
-  row-gap: 0;
+  row-gap: 6px;
   margin-bottom: 16px;
+  align-items: start;
 }
 .screening-form .form-grid-2:last-child,
 .screening-form .form-grid-3:last-child,
@@ -275,16 +277,51 @@
   text-transform: none;
   white-space: nowrap;
 }
+/*
+  Side-by-side fields (Weeks/Days, LMP/EDD): labels on one line, boxes
+  on the next. Do not use align-items:end — that drops the last column
+  because the first grid child still has margin-bottom.
+  Subgrid keeps both columns' labels in row 1 and both inputs in row 2
+  even when one label wraps or one column has a hint under the box.
+*/
 .screening-form .form-grid-2,
 .screening-form .form-grid-3,
-.screening-form .form-grid-5 {
-  align-items: end;
+.screening-form .form-grid-5,
+.followup-box .form-grid-2,
+.followup-box .form-grid-3 {
+  align-items: start;
+}
+.screening-form .form-grid-2 > .form-group,
+.screening-form .form-grid-3 > .form-group,
+.screening-form .form-grid-5 > .form-group,
+.followup-box .form-grid-2 > .form-group,
+.followup-box .form-grid-3 > .form-group {
+  margin-bottom: 0;
+}
+@supports (grid-template-rows: subgrid) {
+  .screening-form .form-grid-2,
+  .screening-form .form-grid-3,
+  .screening-form .form-grid-5,
+  .followup-box .form-grid-2,
+  .followup-box .form-grid-3 {
+    align-items: stretch;
+  }
+  .screening-form .form-grid-2 > .form-group,
+  .screening-form .form-grid-3 > .form-group,
+  .screening-form .form-grid-5 > .form-group,
+  .followup-box .form-grid-2 > .form-group,
+  .followup-box .form-grid-3 > .form-group {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 3;
+    gap: 0;
+  }
 }
 .required   { color: #ef4444; margin-left: 2px; flex-shrink: 0; }
 .field-note { font-size: 10px; font-weight: 400; color: #9ca3af;
               text-transform: none; letter-spacing: 0; }
-.required   { color: #ef4444; margin-left: 2px; }
-.field-note { font-size: 10px; font-weight: 400; color: #9ca3af; text-transform: none; letter-spacing: 0; }
+.field-hint { font-size: 11px; font-weight: 400; color: #64748b;
+              text-transform: none; letter-spacing: 0; line-height: 1.4; }
 .field-error { font-size: 11px; color: #ef4444; font-weight: 600; margin-top: 2px; }
 
 /* ─── ALL INPUT CONTROLS — uniform 40px height ────────────── */
@@ -1038,6 +1075,18 @@
     grid-template-columns: 1fr;
     column-gap: 0;
     row-gap: 0;
+  }
+  /* Stacked column: drop subgrid so each field is one row, not span 3. */
+  .screening-form .form-grid-2 > .form-group,
+  .screening-form .form-grid-3 > .form-group,
+  .screening-form .form-grid-5 > .form-group,
+  .followup-box .form-grid-2 > .form-group,
+  .followup-box .form-grid-3 > .form-group {
+    display: flex;
+    flex-direction: column;
+    grid-row: auto;
+    gap: 6px;
+    margin-bottom: 16px;
   }
 
   .form-header-action-row {

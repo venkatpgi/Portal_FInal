@@ -158,7 +158,8 @@ function withCrfSubnum(label) {
   return parts;
 }
 
-// Additional-info column: small labeled fields stacked vertically.
+// Additional-info column: small labeled fields. PairGrid puts two
+// (or four) of them on one row so boxes are not stacked up/down.
 function Mini({ label, children }) {
   return (
     <div className="crf-mini">
@@ -166,6 +167,9 @@ function Mini({ label, children }) {
       {children}
     </div>
   );
+}
+function PairGrid({ children }) {
+  return <div className="crf-pair-grid">{children}</div>;
 }
 function MiniDate({ label, name }) {
   const { formData, setFormData, clearAutoFilled } = useContext(FormIDataContext);
@@ -371,9 +375,9 @@ function AddlInfoText({ fieldNum, placeholder = "Enter additional information" }
   const notes = formData.crf_additional_notes || {};
   const key = String(fieldNum);
   return (
-    <input
-      className="crf-text"
-      type="text"
+    <textarea
+      className="crf-text crf-addl"
+      rows={2}
       value={notes[key] ?? ""}
       onChange={(e) =>
         setFormData((p) => ({
@@ -429,7 +433,7 @@ function DeathInfo({ fieldPrefix, ageLabel, nums }) {
   const { formData } = useContext(FormIDataContext);
   const n = nums || {};
   return (
-    <>
+    <PairGrid>
       <MiniText label={`${n.cause ? `${n.cause}. ` : ""}Cause of death`} name={`${fieldPrefix}_cause`} placeholder="Enter cause" />
       <MiniDate label={`${n.date ? `${n.date}. ` : ""}Date of death`} name={`${fieldPrefix}_date`} />
       <MiniTime label={`${n.time ? `${n.time}. ` : ""}Time of death`} name={`${fieldPrefix}_time`} />
@@ -437,7 +441,7 @@ function DeathInfo({ fieldPrefix, ageLabel, nums }) {
         label={`${n.age ? `${n.age}. ` : ""}Age at death (${ageLabel})`}
         value={formData[`${fieldPrefix}_age_hrs`] ?? formData[`${fieldPrefix}_age_days`]}
       />
-    </>
+    </PairGrid>
   );
 }
 
@@ -1925,30 +1929,32 @@ export default function FormI() {
               showInfo={!!formData.bpd36_nichd_grade}
               info={<MiniDate label="32. Date of Diagnosis" name="bpd36_nichd_date" />} />
             <CrfRow num={33} outcome="NEC" definition="Modified Bell's Staging"
-              result={<><span className="crf-subline">Stage ≥ IIA</span><RYesNo name="nec36_stage" /></>}
+              result={<div className="crf-stack-item"><span className="crf-subline">Stage ≥ IIA</span><RYesNo name="nec36_stage" /></div>}
               showInfo={formData.nec36_stage === "Yes"}
-              info={<>
+              info={<PairGrid>
                 <Mini label="34. Surgical intervention required"><RYesNo name="nec36_surgery" /></Mini>
                 <MiniDate label="35. Date of Diagnosis" name="nec36_date" />
-              </>} />
+              </PairGrid>} />
             <CrfRow num={36} outcome="Brain injury"
               definition="Papile Classification for IVH / De Vries Classification for cPVL"
-              result={<>
-                <div className="crf-stack-item"><span>36 (a) IVH Grade ≥ III</span><RYesNo name="ivh36_grade3" /></div>
-                <div className="crf-stack-item"><span>36 (b) cPVL Grade ≥ II</span><RYesNo name="cpvl36_grade2" /></div>
-              </>}
+              result={
+                <div className="crf-stack">
+                  <div className="crf-stack-item"><span>36 (a) IVH Grade ≥ III</span><RYesNo name="ivh36_grade3" /></div>
+                  <div className="crf-stack-item"><span>36 (b) cPVL Grade ≥ II</span><RYesNo name="cpvl36_grade2" /></div>
+                </div>
+              }
               showInfo={formData.ivh36_grade3 === "Yes" || formData.cpvl36_grade2 === "Yes"}
-              info={<>
+              info={<PairGrid>
                 {formData.ivh36_grade3 === "Yes" && <MiniDate label="37. Date of Diagnosis (IVH)" name="ivh36_date" />}
                 {formData.cpvl36_grade2 === "Yes" && <MiniDate label="38. Date of Diagnosis (cPVL)" name="cpvl36_date" />}
-              </>} />
+              </PairGrid>} />
             <CrfRow num={39} outcome="ROP" definition="ICROP 3rd Edition"
               result={<RYesNo name="rop36" />}
               showInfo={formData.rop36 === "Yes"}
-              info={<>
+              info={<PairGrid>
                 <Mini label="40. Treated"><RYesNo name="rop36_treated" /></Mini>
                 <MiniDate label="41. Date of Diagnosis" name="rop36_date" />
-              </>} />
+              </PairGrid>} />
           </CrfTable>
         </div>
 
@@ -2030,29 +2036,31 @@ export default function FormI() {
               showInfo={formData.death40 === "Yes"}
               info={<DeathInfo fieldPrefix="death40" ageLabel="days" nums={{ cause: 45, date: 46, time: 47, age: 48 }} />} />
             <CrfRow num={49} outcome="NEC" definition="Modified Bell's Staging"
-              result={<><span className="crf-subline">Stage ≥ IIA</span><RYesNo name="nec40_stage" /></>}
+              result={<div className="crf-stack-item"><span className="crf-subline">Stage ≥ IIA</span><RYesNo name="nec40_stage" /></div>}
               showInfo={formData.nec40_stage === "Yes"}
-              info={<>
+              info={<PairGrid>
                 <Mini label="50. Surgical intervention required"><RYesNo name="nec40_surgery" /></Mini>
                 <MiniDate label="51. Date of Diagnosis" name="nec40_date" />
-              </>} />
+              </PairGrid>} />
             <CrfRow num={52} outcome="Brain injury" definition="Papile Classification for IVH / De Vries Classification for cPVL"
-              result={<>
-                <div className="crf-stack-item"><span>52 (a) IVH Grade ≥ III</span><RYesNo name="ivh40_grade3" /></div>
-                <div className="crf-stack-item"><span>52 (b) cPVL Grade ≥ II</span><RYesNo name="cpvl40_grade2" /></div>
-              </>}
+              result={
+                <div className="crf-stack">
+                  <div className="crf-stack-item"><span>52 (a) IVH Grade ≥ III</span><RYesNo name="ivh40_grade3" /></div>
+                  <div className="crf-stack-item"><span>52 (b) cPVL Grade ≥ II</span><RYesNo name="cpvl40_grade2" /></div>
+                </div>
+              }
               showInfo={formData.ivh40_grade3 === "Yes" || formData.cpvl40_grade2 === "Yes"}
-              info={<>
+              info={<PairGrid>
                 {formData.ivh40_grade3 === "Yes" && <MiniDate label="53. Date of Diagnosis (IVH)" name="ivh40_date" />}
                 {formData.cpvl40_grade2 === "Yes" && <MiniDate label="54. Date of Diagnosis (cPVL)" name="cpvl40_date" />}
-              </>} />
+              </PairGrid>} />
             <CrfRow num={55} outcome="ROP" definition="ICROP 3rd Edition"
               result={<RYesNo name="rop40" />}
               showInfo={formData.rop40 === "Yes"}
-              info={<>
+              info={<PairGrid>
                 <Mini label="56. Treated"><RYesNo name="rop40_treated" /></Mini>
                 <MiniDate label="57. Date of Diagnosis" name="rop40_date" />
-              </>} />
+              </PairGrid>} />
             <CrfRow num={58} outcome="Abnormal MRI Brain at TEA" definition="Abnormal MRI brain at 40 ± 2w PMA"
               result={<RSelect name="abnormal_mri_tea" options={["Yes", "No", "Not done"]} />}
               showInfo
@@ -2139,29 +2147,31 @@ export default function FormI() {
               showInfo={formData.death44 === "Yes"}
               info={<DeathInfo fieldPrefix="death44" ageLabel="days" nums={{ cause: 62, date: 63, time: 64, age: 65 }} />} />
             <CrfRow num={66} outcome="NEC" definition="Modified Bell's Staging"
-              result={<><span className="crf-subline">Stage ≥ IIA</span><RYesNo name="nec44_stage" /></>}
+              result={<div className="crf-stack-item"><span className="crf-subline">Stage ≥ IIA</span><RYesNo name="nec44_stage" /></div>}
               showInfo={formData.nec44_stage === "Yes"}
-              info={<>
+              info={<PairGrid>
                 <Mini label="67. Surgical intervention required"><RYesNo name="nec44_surgery" /></Mini>
                 <MiniDate label="68. Date of Diagnosis" name="nec44_date" />
-              </>} />
+              </PairGrid>} />
             <CrfRow num={69} outcome="Brain injury" definition="Papile Classification for IVH / De Vries Classification for cPVL"
-              result={<>
-                <div className="crf-stack-item"><span>69 (a) IVH Grade ≥ III</span><RYesNo name="ivh44_grade3" /></div>
-                <div className="crf-stack-item"><span>69 (b) cPVL Grade ≥ II</span><RYesNo name="cpvl44_grade2" /></div>
-              </>}
+              result={
+                <div className="crf-stack">
+                  <div className="crf-stack-item"><span>69 (a) IVH Grade ≥ III</span><RYesNo name="ivh44_grade3" /></div>
+                  <div className="crf-stack-item"><span>69 (b) cPVL Grade ≥ II</span><RYesNo name="cpvl44_grade2" /></div>
+                </div>
+              }
               showInfo={formData.ivh44_grade3 === "Yes" || formData.cpvl44_grade2 === "Yes"}
-              info={<>
+              info={<PairGrid>
                 {formData.ivh44_grade3 === "Yes" && <MiniDate label="70. Date of Diagnosis (IVH)" name="ivh44_date" />}
                 {formData.cpvl44_grade2 === "Yes" && <MiniDate label="71. Date of Diagnosis (cPVL)" name="cpvl44_date" />}
-              </>} />
+              </PairGrid>} />
             <CrfRow num={72} outcome="ROP" definition="ICROP 3rd Edition"
               result={<RYesNo name="rop44_assessed" />}
               showInfo={formData.rop44_assessed === "Yes"}
-              info={<>
+              info={<PairGrid>
                 <Mini label="73. Treated"><RYesNo name="rop44_treated" /></Mini>
                 <MiniDate label="74. Date of Diagnosis" name="rop44_date" />
-              </>} />
+              </PairGrid>} />
           </CrfTable>
         </div>
 

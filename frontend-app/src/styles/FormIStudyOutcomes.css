@@ -29,11 +29,28 @@
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   align-items: start !important;
-  gap: 16px 20px;
+  column-gap: 20px;
+  row-gap: 6px;
 }
 .form-i-page .form-row .form-group {
   flex: none;
   min-width: 0;
+  margin-bottom: 0;
+}
+.form-i-page .form-row .form-group > label {
+  display: block;
+  min-height: 32px;
+}
+@supports (grid-template-rows: subgrid) {
+  .form-i-page .form-row {
+    align-items: stretch !important;
+  }
+  .form-i-page .form-row > .form-group {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 3;
+    gap: 0;
+  }
 }
 
 /* ---------- Sub-group titles ("Death by 36 weeks PMA" etc.) ----------
@@ -207,14 +224,55 @@
 }
 
 .crf-encounter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: start;
+  column-gap: 20px;
+  row-gap: 6px;
   padding: 4px 2px 18px;
+}
+.crf-encounter-row > .crf-mini {
+  margin-bottom: 0;
+  min-width: 0;
+}
+@supports (grid-template-rows: subgrid) {
+  .crf-encounter-row {
+    align-items: stretch;
+  }
+  .crf-encounter-row > .crf-mini {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 3;
+    gap: 0;
+  }
+}
+
+.crf-pair-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  column-gap: 12px;
+  row-gap: 8px;
+  align-items: start;
+}
+.crf-pair-grid > .crf-mini {
+  margin-bottom: 0;
+  min-width: 0;
+}
+@supports (grid-template-rows: subgrid) {
+  .crf-pair-grid {
+    align-items: stretch;
+  }
+  .crf-pair-grid > .crf-mini {
+    display: grid;
+    grid-template-rows: subgrid;
+    grid-row: span 3;
+    gap: 0;
+  }
 }
 
 .crf-table-wrap {
   overflow-x: auto;
+  overflow-y: visible;
   border: 1px solid var(--fi-border);
   border-radius: 12px;
   margin: 4px 0 4px;
@@ -222,7 +280,7 @@
 
 .crf-table {
   width: 100%;
-  min-width: 720px;
+  min-width: 880px;
   border-collapse: separate;
   border-spacing: 0;
   background: #fff;
@@ -253,9 +311,15 @@
 
 .crf-table td {
   padding: 14px;
-  vertical-align: top;
+  vertical-align: middle;
   font-size: 13px;
   color: var(--fi-ink);
+}
+.crf-result-cell:has(.crf-stack),
+.crf-result-cell:has(.crf-stack-item),
+.crf-info-cell:has(.crf-pair-grid),
+.crf-info-cell:has(.crf-mini) {
+  vertical-align: top;
 }
 
 .crf-num-cell {
@@ -283,13 +347,15 @@
 }
 
 .crf-result-cell {
-  width: 20%;
-  min-width: 150px;
+  width: 22%;
+  min-width: 168px;
+  overflow: visible;
 }
 
 .crf-info-cell {
-  width: 27%;
-  min-width: 170px;
+  width: 32%;
+  min-width: 240px;
+  overflow: visible;
 }
 
 .crf-note-input {
@@ -323,14 +389,31 @@
   font-style: italic;
 }
 
-/* compact controls used inside table cells — must never shrink below
-   their real size, or they clip (this was the actual cause of the
-   "cut off" Yes/No pills and number inputs in stacked rows: the label
-   next to them was flex-shrink:0 so all the squeeze landed here instead) */
-.crf-yn.yes-no-buttons { width: 92px; flex-shrink: 0; }
-.crf-yn .yn-btn { width: 46px; height: 28px; font-size: 10px; }
-.crf-yn .yn-thumb { width: 46px; height: 28px; }
-.yes-no-buttons.yn-pos-2.crf-yn .yn-thumb { transform: translateX(46px); }
+/* Match FormComponents 104×32 / 52px halves. A shorter 92×36 override
+   left flex-basis at 52px, so NO and the sliding thumb were clipped. */
+.form-i-page .crf-yn.yes-no-buttons {
+  width: 104px;
+  height: 32px;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.form-i-page .crf-yn .yn-btn {
+  flex: 0 0 52px;
+  width: 52px;
+  max-width: 52px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  font-size: 11px;
+}
+.form-i-page .crf-yn .yn-thumb {
+  width: 52px;
+  height: 32px;
+}
+.form-i-page .yes-no-buttons.yn-pos-2.crf-yn .yn-thumb {
+  transform: translateX(52px);
+}
 
 /* Yes/No colors — matches Helper Form 1 (RespCVNeuro.css .rcn-yn-active-yes/no):
    green for Yes, red for No.
@@ -359,9 +442,29 @@
 
 .crf-select, .crf-text {
   width: 100%;
-  min-height: 36px !important;
+  min-height: 36px;
+  height: 36px;
   padding: 6px 10px;
   font-size: 12.5px !important;
+  margin: 0;
+  box-sizing: border-box;
+}
+.crf-info-cell > .crf-text,
+.crf-info-cell > .crf-addl,
+textarea.crf-addl {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 52px;
+  max-height: 220px;
+  padding: 8px 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  overflow-y: auto;
+  resize: vertical;
+  field-sizing: content;
 }
 
 .crf-num-wrap {
@@ -385,21 +488,50 @@
 .crf-stack {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
 }
+/* Label on its own row, control underneath — never squeeze YES/NO
+   or FiO2 next to a wrapping "Radiographic disease" label. */
 .crf-stack-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
 }
-.crf-stack-item span {
+.crf-stack-item > span,
+.crf-result-cell > .crf-subline {
+  flex: none;
+  width: 100%;
+  min-width: 0;
   font-size: 11.5px;
   color: var(--fi-muted);
   font-weight: 600;
-  flex: 1 1 110px;
-  min-width: 0;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.crf-stack-item .crf-yn,
+.crf-stack-item .yes-no-buttons,
+.crf-result-cell > .yes-no-buttons {
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.crf-stack-item .crf-num-wrap {
+  align-self: flex-start;
+}
+.crf-stack-item .crf-select {
+  width: 100%;
+  max-width: 100%;
+}
+.crf-subline {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  color: var(--fi-muted);
+  font-weight: 600;
 }
 
 .crf-mini {
@@ -410,19 +542,36 @@
 }
 .crf-mini:last-child { margin-bottom: 0; }
 .crf-mini-label {
+  display: block;
+  min-height: 28px;
   font-size: 10.5px;
   font-weight: 700;
   color: var(--fi-muted);
   text-transform: uppercase;
   letter-spacing: .03em;
+  line-height: 1.3;
 }
 .crf-mini-label .crf-subnum {
   text-transform: none;
   white-space: nowrap;
+}
+.form-i-page .crf-mini .react-datepicker-wrapper,
+.form-i-page .crf-mini .react-datepicker__input-container {
+  width: 100%;
+  display: block;
 }
 
 @media (max-width: 900px) {
   .crf-outcome-cell, .crf-def-cell, .crf-result-cell, .crf-info-cell {
     min-width: 220px;
   }
+  .form-i-page .form-row > .form-group,
+  .crf-encounter-row > .crf-mini,
+  .crf-pair-grid > .crf-mini {
+    display: flex;
+    flex-direction: column;
+    grid-row: auto;
+    gap: 4px;
+  }
+  .crf-pair-grid { grid-template-columns: 1fr; }
 }
