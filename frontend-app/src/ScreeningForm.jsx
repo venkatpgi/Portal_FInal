@@ -1506,9 +1506,10 @@ export default function ScreeningForm() {
                         readOnly={!isFieldEditable}/>
                     </div>
                     <div className="form-group">
-                      <label>2 (<span className="crf-subnum">b</span>). EDD <span className="field-note">(auto-calculated from LMP)</span></label>
+                      <label>2 (<span className="crf-subnum">b</span>). EDD</label>
                       <input value={formData.edd_date ? formatDateToDDMMYYYY(formData.edd_date) : ""}
                         readOnly className="readonly-input" placeholder="—"/>
+                      <div className="field-hint">Auto-calculated from LMP</div>
                     </div>
                   </div>
                 )}

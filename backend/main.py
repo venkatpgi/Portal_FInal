@@ -104,6 +104,7 @@ from stay_end import entries_after_death, is_blank_helper_day, refuse_after_stay
 import dms_sheets
 from routers import shift_report as shift_report_router
 from routers import followup_bookings as followup_bookings_router
+from routers import inbox as inbox_router
 from routers import auth as auth_router
 from baby_uid_duplicate import (
     find_baby_uid_conflict,
@@ -219,6 +220,7 @@ app.include_router(reports_router.router)
 app.include_router(site_summary_router.router)
 app.include_router(shift_report_router.router)
 app.include_router(followup_bookings_router.router)
+app.include_router(inbox_router.router)
 
 
 def _backfill_row_ids() -> None:
