@@ -49,6 +49,7 @@ REASONS = (
     "Other",
 )
 REMIND_DAYS = 2
+WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")   # date.weekday() order
 NOTICE_TABLE = "followup_booking_notice"
 REMIND_TABLE = "followup_booking_reminder"
 MISSED_TABLE = "followup_booking_missed"
@@ -76,13 +77,34 @@ def booking_text(b) -> str | None:
     return None
 
 
+def parse_weekdays(text: str | None) -> list[int]:
+    """'Wed,Fri' -> [2, 4]. Unknown names are ignored."""
+    out = []
+    for part in (text or "").replace(";", ",").split(","):
+        name = part.strip()[:3].title()
+        if name in WEEKDAYS and WEEKDAYS.index(name) not in out:
+            out.append(WEEKDAYS.index(name))
+    return sorted(out)
+
+
+def clinic_days(earliest: date | None, latest: date | None, weekdays: list[int]) -> list[date]:
+    """The site's clinic days from earliest to latest (inclusive)."""
+    if not (earliest and latest and weekdays):
+        return []
+    return [earliest + timedelta(days=i) for i in range((latest - earliest).days + 1)
+            if (earliest + timedelta(days=i)).weekday() in weekdays]
+
+
 def _done(form_i, wk) -> bool:
     reason = (getattr(form_i, f"ltfu{wk}_reason", None) or "").strip()
     return fd._answered(getattr(form_i, f"encounter{wk}_method", None)) or (bool(reason) and reason != fd.WITHDRAWN)
 
 
-def checkpoints(baby: dict, left_on: date | None, today: date, booked: dict) -> list[dict]:
-    """The calendar rows for one baby (followup_due.babies() dict)."""
+def checkpoints(baby: dict, left_on: date | None, today: date, booked: dict,
+                weekdays: list[int] | None = None) -> list[dict]:
+    """The calendar rows for one baby (followup_due.babies() dict). weekdays:
+    the site's clinic days (parse_weekdays); each bookable row then lists the
+    clinic days inside its range ("clinic_days") as suggestions."""
     eid, so = baby["enrollment_id"], baby["form_i"]
     open_wks = {r["checkpoint"]: r for r in fd.pending(baby["dob"], baby["ga_days"], so, baby["died"],
                                                          baby["death_date"], today)}
@@ -97,7 +119,8 @@ def checkpoints(baby: dict, left_on: date | None, today: date, booked: dict) -> 
                "earliest": None, "latest": None,
                "booked_date": b.booked_date if b else None, "mode": b.mode if b else None,
                "not_booked_reason": b.not_booked_reason if b else None,
-               "not_booked_other": b.not_booked_other if b else None, "problem": None}
+               "not_booked_other": b.not_booked_other if b else None, "problem": None,
+               "clinic_days": [], "not_clinic_day": False}
         if _done(so, wk):
             row["state"] = "done"
         elif wk not in open_wks:
@@ -109,6 +132,10 @@ def checkpoints(baby: dict, left_on: date | None, today: date, booked: dict) -> 
         else:
             row["state"] = "bookable"
             row["earliest"], row["latest"] = max(frm, left_on), to
+            row["clinic_days"] = clinic_days(row["earliest"], row["latest"], weekdays or [])
+            # a clinic visit booked on a day the clinic does not run: a hint, not refused
+            row["not_clinic_day"] = bool(weekdays and b and b.booked_date and b.mode == "Clinic visit"
+                                         and b.booked_date.weekday() not in weekdays)
             if b and b.booked_date and not (row["earliest"] <= b.booked_date <= row["latest"]):
                 row["problem"] = (f"booked {fd.fmt(b.booked_date)} is outside {fd.fmt(row['earliest'])} – "
                                   f"{fd.fmt(row['latest'])}: book again")
@@ -139,10 +166,14 @@ def calendar(db, enrollment_id: str, today: date) -> dict:
     if outcome not in ALIVE_OUTCOMES:
         return {"enrollment_id": enrollment_id, "site": baby["site"], "applies": False, "outcome": outcome,
                 "why": "The follow-up calendar opens once Form H is saved with the baby leaving alive.", "rows": []}
-    rows = checkpoints(baby, _left_on(baby), today, bookings_by_key(db, [enrollment_id]))
+    from models import FollowupClinic
+    clinic = db.get(FollowupClinic, baby["site"])
+    weekdays = parse_weekdays(clinic.weekdays if clinic else None)
+    rows = checkpoints(baby, _left_on(baby), today, bookings_by_key(db, [enrollment_id]), weekdays)
     return {"enrollment_id": enrollment_id, "site": baby["site"], "applies": True, "outcome": outcome,
             "left_on": _left_on(baby), "dob": baby["dob"], "rows": rows, "complete": is_complete(rows),
-            "modes": list(MODES), "reasons": list(REASONS), "window_days": fd.WINDOW_DAYS}
+            "modes": list(MODES), "reasons": list(REASONS), "window_days": fd.WINDOW_DAYS,
+            "clinic_weekdays": [WEEKDAYS[i] for i in weekdays]}
 
 
 class BookingError(ValueError):

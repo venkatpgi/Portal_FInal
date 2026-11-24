@@ -1415,3 +1415,10 @@ FORM_H_CV_MISC_PATCHES = [
     "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS bradycardia_type VARCHAR",
     "ALTER TABLE neonatal_morbidities ADD COLUMN IF NOT EXISTS heart_block_degree VARCHAR",
 ]
+
+
+# Follow-up calendar: the site's clinic weekdays, e.g. "Wed,Fri" (PI 2026-11-24).
+# IF EXISTS: on a fresh database create_all() makes the table with the column.
+FOLLOWUP_CLINIC_WEEKDAYS_PATCHES = [
+    "ALTER TABLE IF EXISTS followup_clinics ADD COLUMN IF NOT EXISTS weekdays VARCHAR",
+]

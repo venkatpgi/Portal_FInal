@@ -23,6 +23,12 @@ const fmt = (iso) => {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const dayLabel = (iso) => {
+  const d = new Date(`${String(iso).slice(0, 10)}T00:00:00`);
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" });
+};
+
 const STATE_TEXT = {
   done: "Done on Form I",
   ended: "Follow-up ended (death or consent withdrawn)",
@@ -124,8 +130,8 @@ export default function FollowupCalendar({ enrollmentId, outcome, dischargeDate,
   const saveClinic = async () => {
     try {
       const res = await api.put(`/followup-bookings/clinic/${encodeURIComponent(cal.site)}`, clinicEdit);
-      setCal((prev) => ({ ...prev, clinic: res.data }));
       setClinicEdit(null);
+      await load();   // clinic days change the suggestions
     } catch (err) {
       setMsg(`❌ ${err?.response?.data?.detail || "Could not save the clinic details."}`);
     }
@@ -196,6 +202,32 @@ export default function FollowupCalendar({ enrollmentId, outcome, dischargeDate,
                           {r.problem && r.problem !== "not booked" && (
                             <div className="error-text">{r.problem}</div>
                           )}
+                          {(r.clinic_days || []).length > 0 && (
+                            <div className="fu-cal-days">
+                              <span>Clinic day:</span>
+                              {r.clinic_days.map((d) => {
+                                const iso = String(d).slice(0, 10);
+                                const on = it.booked_date === iso && it.mode === "Clinic visit";
+                                return (
+                                  <button type="button" key={iso}
+                                    className={`fu-cal-pill${on ? " is-on" : ""}`}
+                                    onClick={() => set(r.checkpoint, { booked_date: iso, mode: "Clinic visit" })}>
+                                    {dayLabel(iso)}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {(cal.clinic_weekdays || []).length > 0 && (r.clinic_days || []).length === 0 && (
+                            <div className="field-note">
+                              No {cal.clinic_weekdays.join(" / ")} clinic in this window: book a telephone call
+                              or a special appointment.
+                            </div>
+                          )}
+                          {it.booked_date && it.mode === "Clinic visit" && (cal.clinic_weekdays || []).length > 0
+                            && (r.clinic_days || []).every((d) => String(d).slice(0, 10) !== it.booked_date) && (
+                            <div className="field-note">Not a clinic day: make sure the clinic expects the baby.</div>
+                          )}
                         </span>
                         <span>
                           {it.booked_date ? (
@@ -256,7 +288,7 @@ export default function FollowupCalendar({ enrollmentId, outcome, dischargeDate,
               {canSetClinic && !clinicEdit && (
                 <button type="button" className="fu-cal-link"
                   onClick={() => setClinicEdit({ place: clinic.place || "", days_times: clinic.days_times || "",
-                    phone: clinic.phone || "" })}>
+                    phone: clinic.phone || "", weekdays: clinic.weekdays || [] })}>
                   Edit for the site
                 </button>
               )}
@@ -268,6 +300,19 @@ export default function FollowupCalendar({ enrollmentId, outcome, dischargeDate,
                     onChange={(e) => setClinicEdit({ ...clinicEdit, days_times: e.target.value })} />
                   <input placeholder="Phone for families" value={clinicEdit.phone}
                     onChange={(e) => setClinicEdit({ ...clinicEdit, phone: e.target.value })} />
+                  <span className="fu-cal-days">
+                    <span>Clinic days (suggested in the calendar):</span>
+                    {WEEKDAYS.map((w) => {
+                      const on = clinicEdit.weekdays.includes(w);
+                      return (
+                        <button type="button" key={w} className={`fu-cal-pill${on ? " is-on" : ""}`}
+                          onClick={() => setClinicEdit({ ...clinicEdit,
+                            weekdays: on ? clinicEdit.weekdays.filter((x) => x !== w) : [...clinicEdit.weekdays, w] })}>
+                          {w}
+                        </button>
+                      );
+                    })}
+                  </span>
                   <button type="button" className="fu-cal-btn" onClick={saveClinic}>Save</button>
                   <button type="button" className="fu-cal-link" onClick={() => setClinicEdit(null)}>Cancel</button>
                 </div>
