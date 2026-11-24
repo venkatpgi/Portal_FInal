@@ -129,7 +129,7 @@ export default function FollowupCalendar({ enrollmentId, outcome, dischargeDate,
 
   const saveClinic = async () => {
     try {
-      const res = await api.put(`/followup-bookings/clinic/${encodeURIComponent(cal.site)}`, clinicEdit);
+      await api.put(`/followup-bookings/clinic/${encodeURIComponent(cal.site)}`, clinicEdit);
       setClinicEdit(null);
       await load();   // clinic days change the suggestions
     } catch (err) {

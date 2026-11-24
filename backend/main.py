@@ -4533,6 +4533,37 @@ def get_survival_check(
     return {"did_not_survive": True, "day": day, "date": date, **h}
 
 
+@app.get("/neonatal-morbidities/hospital-course-prefill/{enrollment_id}")
+def get_hospital_course_prefill(
+    enrollment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Form H H12 Hospital Course from the daily logs, once Form H has a
+    discharge date (hospital_course.py, PI 2026-11-24). Blank boxes only."""
+    import hospital_course
+    import range_rules
+    require_enrollment_access(enrollment_id, db, current_user)
+    nm = (db.query(NeonatalMorbidities).filter(NeonatalMorbidities.enrollment_id == enrollment_id)
+          .order_by(NeonatalMorbidities.id.desc()).first())
+    birth = db.query(BirthResuscitation).filter(BirthResuscitation.enrollment_id == enrollment_id).first()
+    end = nm.discharge_date if nm else None
+    if not end:
+        return hospital_course.build(None, None, [], [], [], {}, {})
+    resp = get_resp_prefill(enrollment_id, db, current_user)
+    gi = get_gi_prefill(enrollment_id, db, current_user)
+    helper5 = [(d, loc) for d, loc in db.query(MetabRenalVascEyeDayLog.nicu_day, MetabRenalVascEyeDayLog.location)
+               .filter(MetabRenalVascEyeDayLog.enrollment_id == enrollment_id)]
+    helper4 = [(d, v) for d, v in db.query(InfectGIHemaDayLog.nicu_day, InfectGIHemaDayLog.feed_volume)
+               .filter(InfectGIHemaDayLog.enrollment_id == enrollment_id)]
+    weights = []
+    for raw, day in db.query(MinimalMonitoringDayLog.entries_json, MinimalMonitoringDayLog.record_date).filter(
+            MinimalMonitoringDayLog.enrollment_id == enrollment_id):
+        weights += [(d or str(day or "")[:10], t, v) for d, t, v in range_rules.dms_values(raw, "growth_a", "weight_g")]
+    return hospital_course.build(birth.date_of_birth if birth else None, end, helper5, helper4, weights,
+                                 resp if isinstance(resp, dict) else {}, gi if isinstance(gi, dict) else {})
+
+
 @app.get("/neonatal-morbidities/post-resus-prefill/{enrollment_id}")
 def get_post_resus_prefill(
     enrollment_id: str,

@@ -301,6 +301,7 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [enrollmentId]);
 
+
 // NEC stage suggestion (H3 #71, PI 2026-09-28): the highest Bell stage the
 // nurses recorded in Helper 4, including IA/IB, so suspected NEC is recorded
 // here too (it stays out of Form I's ">= IIA" item and the composite).
@@ -4984,6 +4985,54 @@ const num = (v) => {
     };
   };
 
+// H12 Hospital Course from the daily logs (backend/hospital_course.py, PI
+// 2026-11-24): once Form H has a discharge date, BLANK H12 boxes are filled
+// and marked "from daily logs"; typed values are never overwritten. The mark
+// disappears as soon as the value is changed.
+const H12_AUTO = ["total_los", "nicu_days", "o2_days", "vent_days", "cpap_days",
+  "pn_days_summary", "age_full_feeds_summary", "discharge_weight"];
+const [courseFill, setCourseFill] = useState(null);
+const [courseAuto, setCourseAuto] = useState({});   // name -> { value, note }
+const fetchCoursePrefill = async () => {
+  if (!enrollmentId) return;
+  try {
+    const res = await api.get(`/neonatal-morbidities/hospital-course-prefill/${enrollmentId}`);
+    if (res?.data?.has_data) setCourseFill(res.data);
+  } catch (_) { /* suggestions only */ }
+};
+const courseHint = (name) => {
+  const m = courseAuto[name];
+  return m && String(formData[name] ?? "") === String(m.value)
+    ? <span className="field-hint-auto-inline">{m.note}</span> : null;
+};
+useEffect(() => {
+  if (!formHBootstrapping) fetchCoursePrefill();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [enrollmentId, formHBootstrapping]);
+useEffect(() => {
+  if (!courseFill) return;
+  const blank = (v) => v === undefined || v === null || v === "";
+  const marks = {};
+  H12_AUTO.forEach((k) => {
+    const v = courseFill[k];
+    if (v !== null && v !== undefined && blank(formData[k])) {
+      marks[k] = { value: String(v),
+        note: k === "discharge_weight" && courseFill.discharge_weight_date
+          ? `from DMS ${courseFill.discharge_weight_date}` : "from daily logs" };
+    }
+  });
+  setCourseFill(null);
+  if (Object.keys(marks).length) {
+    setFormData((prev) => {
+      const next = { ...prev };
+      Object.entries(marks).forEach(([k, m]) => { if (blank(prev[k])) next[k] = m.value; });
+      return next;
+    });
+    setCourseAuto((prev) => ({ ...prev, ...marks }));
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [courseFill]);
+
   // "Save" on the bottom nav bar — saves without leaving the page.
   const saveFormH = async () => {
     if (!(await confirmFormHConflicts())) return false;
@@ -5002,6 +5051,7 @@ const num = (v) => {
       // this never blocks saving, only the "done" tick.
       syncFormHTick();
       fetchBpdSuggestion(); // outcome/discharge may have changed
+      fetchCoursePrefill(); // H12 once the discharge date is saved
       fetchNecStageSuggestion();
       setIsSaved(true);
       setSaveMessage("✅ Saved");
@@ -11193,6 +11243,7 @@ const peripheralStatus= getPeripheralStatus();
           onChange={handleChange}
           onBlur={handleBlur}
         />
+        {courseHint("total_los")}
         {errors.total_los && <div className="error-text">{errors.total_los}</div>}
       </div>
 
@@ -11205,6 +11256,7 @@ const peripheralStatus= getPeripheralStatus();
           onChange={handleChange}
           onBlur={handleBlur}
         />
+        {courseHint("nicu_days")}
         {errors.nicu_days && <div className="error-text">{errors.nicu_days}</div>}
       </div>
 
@@ -11220,6 +11272,7 @@ const peripheralStatus= getPeripheralStatus();
           max="365"
           step="any"
         />
+        {courseHint("o2_days")}
         {errors.o2_days && <div className="error-text">{errors.o2_days}</div>}
       </div>
 
@@ -11235,6 +11288,7 @@ const peripheralStatus= getPeripheralStatus();
           max="365"
           step="any"
         />
+        {courseHint("vent_days")}
         {errors.vent_days && <div className="error-text">{errors.vent_days}</div>}
       </div>
 
@@ -11250,6 +11304,7 @@ const peripheralStatus= getPeripheralStatus();
           max="365"
           step="any"
         />
+        {courseHint("cpap_days")}
         {errors.cpap_days && <div className="error-text">{errors.cpap_days}</div>}
       </div>
 
@@ -11277,6 +11332,7 @@ const peripheralStatus= getPeripheralStatus();
           onChange={handleChange}
           onBlur={handleBlur}
         />
+        {courseHint("pn_days_summary")}
         {errors.pn_days_summary && <div className="error-text">{errors.pn_days_summary}</div>}
       </div>
 
@@ -11289,6 +11345,7 @@ const peripheralStatus= getPeripheralStatus();
           onChange={handleChange}
           onBlur={handleBlur}
         />
+        {courseHint("age_full_feeds_summary")}
         {errors.age_full_feeds_summary && (
           <div className="error-text">{errors.age_full_feeds_summary}</div>
         )}
@@ -11318,6 +11375,7 @@ const peripheralStatus= getPeripheralStatus();
           onChange={handleChange}
           onBlur={handleBlur}
         />
+        {courseHint("discharge_weight")}
         {errors.discharge_weight && (
           <div className="error-text">{errors.discharge_weight}</div>
         )}
@@ -11389,6 +11447,12 @@ const peripheralStatus= getPeripheralStatus();
         touched={!!errors.outcome}
       />
     </div>
+    {formData.outcome && (
+      <button type="button" className="fu-cal-link"
+        onClick={() => setFormData((prev) => ({ ...prev, outcome: "" }))}>
+        Clear outcome (baby still admitted)
+      </button>
+    )}
     {formData.outcome === "Died" && (
       <div className="fh-grid-row">
         <div className="form-group">

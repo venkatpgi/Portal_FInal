@@ -73,6 +73,10 @@ Ventricular tachycardia, Others + `tachycardia_other`); Bradycardia Yes/No
 
 **Outcome Died (PI 2026-10-31):** H12.4 asks Date of death (stored in `discharge_date`, prefilled from Helper 5) and Time of death (`death_time`); the Discharge Date box is hidden. Both are needed for the Form H tick. Form I's in-hospital mortality takes them.
 
+**H12 Hospital Course from the daily logs (PI 2026-11-24, `backend/hospital_course.py`, `GET /neonatal-morbidities/hospital-course-prefill/{id}`):** only once Form H has a discharge date (or date of death), blank H12 boxes are filled and marked "from daily logs"; typed values are never overwritten. 253 Total LOS = discharge date − date of birth (days, not +1); 254 NICU days = Helper 5 days whose Location includes NICU; 255 / 256 / 257 O₂ / Vent / CPAP days = the H2 counts (Helper 2 supp_o2, intubated, CPAP mode); 258 PN days = the H3 count (Helper 4 PN); 259 age at full feeds = first Helper 4 day with feed volume ≥ 150 ml/kg/day, as age (day 1 = 0); 260 discharge weight = last DMS weight in the 7 days up to the discharge date ("from DMS <date>"). 261 Discharge HC is typed (not in the logs).
+
+**Outcome without a date:** H12.4 has "Clear outcome (baby still admitted)" (the outcome buttons cannot be un-ticked). Data query `FORM_H_OUTCOME_NO_DATE` when Form H has an outcome but no discharge date / date of death, with the last DMS date and Helper 5 day (01-B-003, 24 Nov 2026).
+
 **Follow-up calendar H12.6 (PI 2026-11-19):** when the outcome is one where the baby leaves alive, the nurse books a date (Clinic visit / Telephone) for each Form I checkpoint still to come, inside its window, or records why not; Submit waits for it (Save does not). Rules, emails, data queries and the parent slip: README "Follow-up calendar on Form H".
 
 Sign-off (form completed by, designation, date) is at the end of H12 Hospital Course; the separate Review & Submit tab held nothing else and was removed (PI 2026-10-31). Completed by is a drop-down.
