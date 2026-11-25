@@ -55,3 +55,10 @@ def test_outpatient_rop_screen():
     died = kid(end={"date": date(2026, 11, 7), "died": True}, )
     died["died"] = True
     assert [r for r in fl.rows_for(died, date(2026, 11, 25), {}, None) if r["kind"] == "rop"] == []
+
+
+def test_new_columns_on_the_right_tables():
+    import models
+    assert hasattr(models.SAEReport, "withdrawn_at") and hasattr(models.SAEReport, "withdrawn_reason")
+    assert not hasattr(models.InfectGIHemaDayLog, "withdrawn_at")
+    assert models.AEDismissal.__tablename__ == "ae_dismissals"

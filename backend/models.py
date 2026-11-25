@@ -1790,7 +1790,13 @@ class SAEReport(Base):
     death_from_event = Column(Boolean, nullable=True)     # fatal report: this SAE led to the death (sae_rules.py)
 
     created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow) 
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    # Withdrawn: entered in error (PI 2026-11-25). Kept for the audit trail but
+    # left out of every count, list and alert.
+    withdrawn_at = Column(DateTime, nullable=True)
+    withdrawn_by = Column(String, nullable=True)
+    withdrawn_reason = Column(Text, nullable=True)
+
 
 class AdverseEvents(Base):
     __tablename__ = "adverse_events"
@@ -2024,11 +2030,6 @@ class InfectGIHemaDayLog(Base):
 
     created_at = Column(DateTime, default=utcnow)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
-    # Withdrawn: entered in error (PI 2026-11-25). Kept for the audit trail but
-    # left out of every count, list and alert (sae_rules.live_reports).
-    withdrawn_at = Column(DateTime, nullable=True)
-    withdrawn_by = Column(String, nullable=True)
-    withdrawn_reason = Column(Text, nullable=True)
 
     __table_args__ = (
         UniqueConstraint(
