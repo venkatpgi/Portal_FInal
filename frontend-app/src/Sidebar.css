@@ -663,3 +663,13 @@
 .sidebar-baby-btn small { font-size: 10px; font-weight: 500; color: var(--sb-text-sub); }
 .sidebar-baby-btn.is-current { border-color: var(--sb-primary); box-shadow: inset 0 0 0 1px var(--sb-primary); }
 .sidebar-baby-btn.is-missing small { color: #b45309; }
+
+/* "Go to another baby" (components/QuickSwitch.jsx, PI 2026-11-26) */
+.qs-box { position: relative; margin: 0 0 8px; }
+.qs-input { display: flex; align-items: center; gap: 6px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 8px; background: #fff; color: #64748b; }
+.qs-input input { border: 0; outline: none; width: 100%; font-size: 13px; background: transparent; color: #0f172a; }
+.qs-list { position: absolute; z-index: 50; left: 0; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, .12); max-height: 320px; overflow-y: auto; }
+.qs-item { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; border: 0; background: #fff; padding: 7px 10px; cursor: pointer; font-size: 13px; color: #0f172a; }
+.qs-item span { font-size: 11px; color: #64748b; }
+.qs-item:hover { background: #f1f5f9; }
+.qs-empty { padding: 8px 10px; font-size: 12px; color: #64748b; }

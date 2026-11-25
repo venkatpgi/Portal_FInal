@@ -15,6 +15,9 @@ them "from daily logs"; anything typed stays.
   260 discharge_weight       last DMS weight (5.7.A) in the 7 days up to the
                              discharge date
 Discharge HC (261) is not in the daily logs: typed by hand.
+Counts with nothing in the logs are 0, not blank (PI 2026-11-26): NICU, O2,
+vent, CPAP and PN days. Age at full feeds and discharge weight stay blank
+when the logs have no answer (0 would be a wrong value there).
 """
 from __future__ import annotations
 
@@ -65,11 +68,12 @@ def build(dob: date | None, end: date | None, helper5, helper4, weights, resp: d
     out = {
         "has_data": True,
         "total_los": (end - dob).days if dob else None,
-        "nicu_days": nicu_days(helper5, last_day),
-        "o2_days": resp.get("oxygen_days"),
-        "vent_days": resp.get("imv_days"),
-        "cpap_days": resp.get("cpap_days"),
-        "pn_days_summary": gi.get("pn_days"),
+        # nothing in the logs = 0, not blank (PI 2026-11-26)
+        "nicu_days": nicu_days(helper5, last_day) or 0,
+        "o2_days": resp.get("oxygen_days") or 0,
+        "vent_days": resp.get("imv_days") or 0,
+        "cpap_days": resp.get("cpap_days") or 0,
+        "pn_days_summary": gi.get("pn_days") or 0,
         "age_full_feeds_summary": age_full_feeds(helper4),
         "discharge_weight": w[0] if w else None,
         "discharge_weight_date": w[1] if w else None,

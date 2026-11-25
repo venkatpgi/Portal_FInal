@@ -108,7 +108,7 @@ function ynLabel(v) {
 // about Form A; `ga_log_missing` is purely about the Gestation Log and is
 // shown regardless of match_status (the PI explicitly wants an orphan
 // Form A -- matched, but the Gestation Log was bypassed -- flagged too).
-function MatchBadges({ status, screeningId, gaLogMissing, preTrial }) {
+function MatchBadges({ status, screeningId, gaLogMissing, preTrial, checked }) {
   // Born before the trial start (PI 2026-10-14): pre-trial Form A records
   // were deleted, so no Form A / GA-log alerts for these births.
   if (preTrial && status !== "matched") {
@@ -125,6 +125,16 @@ function MatchBadges({ status, screeningId, gaLogMissing, preTrial }) {
     badges.push(
       <span key="matched" className="lob-badge lob-badge--matched">
         <CheckCircle2 size={13} /> Matched{screeningId ? ` — ${screeningId}` : ""}
+      </span>
+    );
+  } else if (status === "possible_match" && checked) {
+    // The site answered the data query "different woman" (PI 2026-11-26):
+    // no longer an alert; the birth counts as having no Form A.
+    badges.push(
+      <span key="checked" className="lob-badge lob-badge--neutral"
+        title="Checked on Data Queries: a different woman with a similar name; the CR numbers are right.">
+        <CheckCircle2 size={13} /> Checked: different woman{screeningId ? ` (not ${screeningId})` : ""}
+        {checked === "awaiting_signoff" ? ", awaiting sign-off" : ""}
       </span>
     );
   } else if (status === "possible_match") {
@@ -224,7 +234,8 @@ export default function LogOfAllBirths() {
   }, [isSiteLocked, user?.site]);
 
   const alertCount = useMemo(
-    () => entries.filter((e) => !e.pre_trial && (["in_range_no_match", "possible_match"].includes(e.match_status) || e.ga_log_missing)).length,
+    () => entries.filter((e) => !e.pre_trial && (e.match_status === "in_range_no_match"
+      || (e.match_status === "possible_match" && !e.match_checked) || e.ga_log_missing)).length,
     [entries]
   );
   const crPendingCount = useMemo(() => entries.filter((e) => e.cr_pending).length, [entries]);
@@ -633,7 +644,8 @@ export default function LogOfAllBirths() {
             </thead>
             <tbody>
               {visibleEntries.map((e) => {
-                const isAlert = !e.pre_trial && (["in_range_no_match", "possible_match"].includes(e.match_status) || e.ga_log_missing);
+                const isAlert = !e.pre_trial && (e.match_status === "in_range_no_match"
+                  || (e.match_status === "possible_match" && !e.match_checked) || e.ga_log_missing);
                 // "Add reason" only makes sense when Form A is genuinely
                 // missing -- an orphan Form A (matched, but
                 // ga_log_missing=TRUE) has nothing to explain via "reason
@@ -668,7 +680,7 @@ export default function LogOfAllBirths() {
                     <td>{e.birth_weight_grams ?? "—"}</td>
                     <td>{ynLabel(e.resuscitation_required) || "—"}</td>
                     <td>{ynLabel(e.ppv_required) || "—"}</td>
-                    <td><MatchBadges status={e.match_status} screeningId={e.matched_screening_id} gaLogMissing={e.ga_log_missing} preTrial={e.pre_trial} /></td>
+                    <td><MatchBadges status={e.match_status} screeningId={e.matched_screening_id} gaLogMissing={e.ga_log_missing} preTrial={e.pre_trial} checked={e.match_checked} /></td>
                     <td>
                       {e.reason_not_approached || (canAddReason
                         ? <button type="button" className="lob-link-btn" onClick={() => startAddReason(e)}>+ Add reason</button>

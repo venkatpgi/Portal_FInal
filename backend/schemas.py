@@ -3139,6 +3139,7 @@ class BirthLogEntryOut(BirthLogEntryCreate):
     matched_screening_id: Optional[str] = None
     matched_enrollment_id: Optional[str] = None
     match_status: Optional[str] = None
+    match_checked: Optional[str] = None   # possible match answered "different woman": confirmed_correct / awaiting_signoff
     ga_log_missing: Optional[bool] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

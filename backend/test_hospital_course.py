@@ -30,9 +30,9 @@ def test_counts():
 
 def test_blank_when_not_in_logs():
     out = hc.build(DOB, END, [(1, None)], [(5, 100.0)], [("2026-11-01", "", 1200.0)], {}, {})
-    assert out["nicu_days"] is None and out["age_full_feeds_summary"] is None
+    assert out["nicu_days"] == 0 and out["age_full_feeds_summary"] is None   # counts 0, not blank (PI 2026-11-26)
     assert out["discharge_weight"] is None                 # older than 7 days before discharge
-    assert out["o2_days"] is None
+    assert out["o2_days"] == 0 and out["vent_days"] == 0 and out["cpap_days"] == 0 and out["pn_days_summary"] == 0
 
 
 def test_query_outcome_without_date():

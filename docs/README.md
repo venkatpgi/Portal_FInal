@@ -443,3 +443,22 @@ Columns `withdrawn_at / _by / _reason`. The report stays (audit trail, shown
 "withdrawn" with a red banner, no edits) but is left out of the monthly AE / SAE
 summary, dashboard safety tables, site summary (W9 / W11), death alerts, the
 14-day banner and the prior-reports list of the CIOMS document.
+
+
+## Clean-up 26 Nov 2026 (PI)
+
+- **Go to another baby:** the forms sidebar has a search box at the top
+  (`components/QuickSwitch.jsx`): enrolment / screening number or the mother's
+  name (names only with PII rights, same lists as View Entries). Picking a baby
+  saves the current form and opens the same form for that baby (forms keyed by
+  enrolment number), else Form A / Form B by screening id, else Form A.
+- **Birth log possible match answered:** when the `BIRTH_POSSIBLE_MATCH` data
+  query is confirmed correct ("different woman"; awaiting or after the second
+  sign-off), the Log of All Births shows "Checked: different woman", it is no
+  longer an alert (`/birth-log/alerts`, the alert count), and the Eligible births
+  to consent report counts that birth as having **no** Form A
+  (`birth_log_matching.checked_possible_matches`).
+- **H12 counts default to 0:** with a discharge date, NICU / O₂ / Vent / CPAP /
+  PN days with nothing in the logs are filled as 0 (not blank); the empty boxes
+  show a grey 0 before then. Age at full feeds and discharge weight stay blank
+  when the logs have no answer.
