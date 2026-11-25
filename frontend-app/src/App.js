@@ -2,7 +2,7 @@
 
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation, useParams } from "react-router-dom";
-import { Activity, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartPulse, Home, Hospital, Plus, Search, Users } from "lucide-react";
+import { Activity, CalendarClock, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartPulse, Home, Hospital, Plus, Search, Users } from "lucide-react";
 
 import { FormProgressProvider } from "./context/FormProgressContext";
 import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
@@ -243,6 +243,14 @@ function AppContent() {
                   className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
                 >
                   <ClipboardCheck size={16} /> <span>Twice-daily report</span>
+                </NavLink>
+              )}
+              {canUseShiftReport(user) && (
+                <NavLink
+                  to="/follow-up"
+                  className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
+                >
+                  <CalendarClock size={16} /> <span>Follow-up list</span>
                 </NavLink>
               )}
               {canSeeAnalytics(user) && (

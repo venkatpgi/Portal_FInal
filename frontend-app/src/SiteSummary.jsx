@@ -207,7 +207,7 @@ export default function SiteSummary() {
             </section>
 
             <section className="ss-card" id="ss-active">
-              <h2>Active morbidities, babies in the NICU ({active.length})</h2>
+              <h2>Active morbidities, admitted babies ({active.length})</h2>
               {active.length ? (
                 <div className="ss-table-wrap">
                   <table className="ss-table">

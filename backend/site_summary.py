@@ -792,7 +792,7 @@ def render_email(s: dict) -> tuple[str, str]:
   {by_site}
   {_h3(WATCH_HEADING + ": close to an SAE", len(watch), "watch")}{rule_table(watch, all_sites)}
   {_h3("Advisory: AE grades to review", len(advisory), "advisory")}{rule_table(advisory, all_sites)}
-  {_h3("Active morbidities (babies in the NICU)", len(active_rows), "active")}{_rows_table(site_col + ["Baby", "Age", "Active"], active_rows)}
+  {_h3("Active morbidities (admitted babies)", len(active_rows), "active")}{_rows_table(site_col + ["Baby", "Age", "Active"], active_rows)}
   {_h3("Missed data collection", len(missed), "missed")}{rule_table(missed, all_sites)}
   {_h3("Follow-up coming up (Form I, window ± 2 days)", len(followup_rows), "followup")}{_rows_table(site_col + ["Baby", "Checkpoint", "Date", "Window", "Now"], followup_rows)}
   {_h3("Census: admitted or stay ended since last", len(census), "census")}{_rows_table(site_col + ["Baby", "Age", "Status"], census)}
