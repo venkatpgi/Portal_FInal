@@ -14,7 +14,7 @@ Never by arm.
 Cell: {state, text, source, note}
   state   yes      occurred / done (with its date when known)
           no       did not occur
-          val      a measured value (days, seconds)
+          val      a number (days, seconds); totals give median (range)
           pending  not due yet ("due <date>", "at discharge")
           overdue  due and nothing known ("not entered", "overdue · <date>")
           na       not applicable (after the baby died; not in the MRI subset)
@@ -343,12 +343,44 @@ def totals(rows: list[dict]) -> dict:
     return out
 
 
-STATE_WORDS = {"yes": "Yes", "no": "No", "val": "Value", "pending": "Due", "overdue": "Overdue", "na": "N/A"}
+STATE_WORDS = {"yes": "Yes", "no": "No", "val": "Number", "pending": "Due", "overdue": "Overdue", "na": "N/A"}
+# number items: unit shown in the totals summary (PI 2026-11-26)
+UNITS = {"time_to_spontaneous_breathing": "s", "mv_days": "d", "cpap_days": "d", "hfnc_days": "d",
+         "nippv_days": "d"}
 
 
 def total_text(t: dict) -> str:
     """'Yes 2 · No 21 · Due 3' (empty states left out)."""
     return " · ".join(f"{STATE_WORDS[s]} {t[s]}" for s in STATES if t.get(s))
+
+
+def _median(xs: list[float]) -> float:
+    xs = sorted(xs)
+    n = len(xs)
+    return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
+
+def summary_texts(rows: list[dict]) -> dict:
+    """Totals line per column. Number items: 'Median 5 d (0–21) · 15 babies',
+    then the other states; everything else: total_text (PI 2026-11-26)."""
+    t = totals(rows)
+    out = {k: total_text(v) for k, v in t.items()}
+    for key, unit in UNITS.items():
+        nums = []
+        for r in rows:
+            c = r["cells"].get(key) or {}
+            if c.get("state") == "val":
+                try:
+                    nums.append(float(c["text"]))
+                except (TypeError, ValueError):
+                    pass
+        if not nums:
+            continue
+        g = lambda x: f"{x:g}"   # noqa: E731
+        rest = " · ".join(f"{STATE_WORDS[s]} {t[key][s]}" for s in STATES if s != "val" and t[key].get(s))
+        out[key] = (f"Median {g(_median(nums))} {unit} ({g(min(nums))}–{g(max(nums))}) · {len(nums)} "
+                    f"bab{'y' if len(nums) == 1 else 'ies'}" + (f" · {rest}" if rest else ""))
+    return out
 
 
 def report_sections(rows: list[dict], site_label) -> list[dict]:
@@ -361,14 +393,14 @@ def report_sections(rows: list[dict], site_label) -> list[dict]:
 
     for sec, title in SECTIONS:
         sc = [c for c in cols if c["section"] == sec]
-        t = totals(rows)
+        t = summary_texts(rows)
         out.append({
             "title": f"{title} ({len(rows)} babies)",
             "note": ("Form I first; where Form I is blank, what the data show (marked *: not yet saved on "
                      "Form I). Due = when it is assessed; overdue = due and nothing known. — = not applicable. "
                      "All arms together, never by arm.") if sec == "key" else "",
             "columns": ["Enrollment ID", "Site", "Status"] + [c["label"] for c in sc],
-            "rows": ([["Totals", "", ""] + [total_text(t[c["key"]]) for c in sc]]
+            "rows": ([["Totals", "", ""] + [t[c["key"]] for c in sc]]
                      + [[r["enrollment_id"], site_label(r["site"]), r["status"]] + [show(r["cells"][c["key"]]) for c in sc]
                         for r in rows]),
         })

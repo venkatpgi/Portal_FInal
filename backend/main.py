@@ -5521,7 +5521,7 @@ def get_outcome_matrix(
             r["name"] = names.get(r["enrollment_id"])
     totals = om.totals(rows)
     return {"sections": [{"key": k, "label": label} for k, label in om.SECTIONS], "columns": om.columns(),
-            "rows": rows, "totals": totals, "totals_text": {k: om.total_text(v) for k, v in totals.items()},
+            "rows": rows, "totals": totals, "totals_text": om.summary_texts(rows),
             "sites": sites}
 
 

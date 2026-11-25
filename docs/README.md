@@ -500,6 +500,9 @@ per randomised baby born since the trial start.
   up. Due: birth items at birth (blank = "not entered"), 72 h items day 3,
   ≤ 7 d day 7, ≤ 28 d day 28, LOS / culture / overall at the end of stay,
   checkpoint items at 36 / 40 / 44 wk (+2 days). Items due after a death are "—".
+- **Number items** (time to breathing in seconds; ventilation / CPAP / HFNC /
+  NIPPV days) show the number; their totals give "Median 5 d (0–21) · 15
+  babies" (`summary_texts`).
 - **Totals row in words** per column ("Yes 2 · No 21 · Due 3"), all arms
   together; never by arm. Filters: overdue / not entered, still due, not yet on
   Form I.

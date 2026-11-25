@@ -110,3 +110,15 @@ def test_form_i_items_in_time_order_with_suggestions():
     assert c["sepsis_los"]["state"] == "overdue"                        # stay ended 1 Dec, nothing known
     admitted = om.row_for(baby(form_i=None), {"components": {}, "mri_abnormality": {}}, {}, TODAY, None, {})
     assert admitted["cells"]["sepsis_los"]["text"] == "at discharge"
+
+
+
+def test_number_columns_median_and_range():
+    def r(n):
+        return {"cells": {"mv_days": {"state": "val", "text": str(n), "source": "recorded"},
+                          "cpap_days": {"state": "pending", "text": "at discharge", "source": ""}}}
+    rows = [r(0), r(5), r(21), {"cells": {"mv_days": {"state": "pending", "text": "at discharge", "source": ""}}}]
+    t = om.summary_texts(rows)
+    assert t["mv_days"] == "Median 5 d (0–21) · 3 babies · Due 1"
+    assert t["cpap_days"] == "Due 3"                                      # no numbers yet: counts as before
+    assert om.summary_texts([r(4), r(7)])["mv_days"].startswith("Median 5.5 d (4–7) · 2 babies")

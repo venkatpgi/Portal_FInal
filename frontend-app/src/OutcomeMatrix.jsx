@@ -16,7 +16,7 @@ import { formatSiteName } from "./components/dashboard/siteLabels";
 import "./SiteSummary.css";
 
 const LEGEND = [
-  ["yes", "Yes / done (date)"], ["no", "No"], ["val", "Value"], ["pending", "Due later"],
+  ["yes", "Yes / done (date)"], ["no", "No"], ["val", "Number (days / seconds)"], ["pending", "Due later"],
   ["overdue", "Overdue / not entered"], ["na", "— not applicable"],
 ];
 const FORM_OF = { k_mri: "form-k" };   // everything else is on Form I
