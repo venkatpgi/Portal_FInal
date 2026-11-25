@@ -58,3 +58,27 @@ def get_followup_list(site: str | None = None, db: Session = Depends(get_db),
         out.append(x)
     return {"today": clinical_today().isoformat(), "rows": out,
             "sites": list(ALL_SITES) if (current_user.role or "").lower() in CENTRAL else _sites(current_user, None)}
+
+
+@router.get("/timeline")
+def get_followup_timeline(site: str | None = None, db: Session = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    """Baby-by-baby follow-up (followup_timeline.py, PI 2026-11-26): each
+    randomised baby's time points from GA / DOB / PMA, what to document at
+    each, dates and status. Same people as /followup-list."""
+    import followup_timeline
+    cards = followup_timeline.build(db, _sites(current_user, site), clinical_today())
+    allowed = sorted({c["enrollment_id"] for c in cards if can_view_pii_for_site(current_user, c["site"])})
+    names = {}
+    if allowed:
+        from site_summary import pii_names
+        brs = db.query(BirthResuscitation).filter(BirthResuscitation.enrollment_id.in_(allowed)).all()
+        found = pii_names(db, [b.screening_id for b in brs], [b.enrollment_id for b in brs if (b.baby_number or 1) > 1])
+        for b in brs:
+            mine = found.get(b.enrollment_id) if (b.baby_number or 1) > 1 else found.get(b.screening_id)
+            names[b.enrollment_id] = (mine or {}).get("baby")
+    for c in cards:
+        c["name"] = names.get(c["enrollment_id"])
+        c.pop("sort", None)
+    return {"today": clinical_today().isoformat(), "cards": cards,
+            "sites": list(ALL_SITES) if (current_user.role or "").lower() in CENTRAL else _sites(current_user, None)}
