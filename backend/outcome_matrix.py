@@ -16,7 +16,7 @@ Cell: {state, text, source, note}
           no       did not occur
           val      a measured value (days, seconds)
           pending  not due yet ("due <date>", "at discharge")
-          overdue  due and nothing known ("not entered", "overdue since ...")
+          overdue  due and nothing known ("not entered", "overdue · <date>")
           na       not applicable (after the baby died; not in the MRI subset)
   source  recorded on Form I (Form K for MRI, Form L for a saved composite)
           detected from the data, not yet saved on Form I
@@ -116,7 +116,8 @@ STATES = ("yes", "no", "val", "pending", "overdue", "na")
 
 
 def fmt(d: date | None) -> str:
-    return d.strftime("%d %b %Y") if d else ""
+    """Short date for a cell: 23 Oct 26."""
+    return d.strftime("%d %b %y") if d else ""
 
 
 def _iso(v) -> date | None:
@@ -161,7 +162,7 @@ def cell(value, *, target: date | None, today: date, died: bool, recorded: bool,
         return {"state": "pending", "text": "date unknown", "source": "", "note": note or detail}
     if today <= target + timedelta(days=GRACE_DAYS):
         return {"state": "pending", "text": f"due {fmt(target)}", "source": "", "note": note or detail}
-    return {"state": "overdue", "text": f"overdue since {fmt(target)}", "source": "", "note": note or detail}
+    return {"state": "overdue", "text": f"overdue · {fmt(target)}", "source": "", "note": note or detail}
 
 
 def visit_cell(row: dict | None) -> dict:
@@ -174,7 +175,7 @@ def visit_cell(row: dict | None) -> dict:
     if st == "ended":
         return {"state": "na", "text": "—", "source": "", "note": row["text"]}
     if st == "overdue":
-        return {"state": "overdue", "text": f"overdue since {fmt(row['window_to'])}", "source": "",
+        return {"state": "overdue", "text": f"overdue · {fmt(row['window_to'])}", "source": "",
                 "note": row["text"]}
     label = "booked" if st == "booked" else "due"
     when = row.get("booked") or row["due"]
@@ -239,7 +240,7 @@ def item_cell(item, fi, sugg: dict, *, dob, t: dict, end, admitted: bool, died: 
     grace = GRACE_DAYS if rule.startswith("cp") else 0
     if today <= target + timedelta(days=grace) and rule != "birth":
         return {"state": "pending", "text": f"due {fmt(target)}", "source": "", "note": ""}
-    return {"state": "overdue", "text": "not entered" if rule == "birth" else f"overdue since {fmt(target)}",
+    return {"state": "overdue", "text": "not entered" if rule == "birth" else f"overdue · {fmt(target)}",
             "source": "", "note": ""}
 
 
