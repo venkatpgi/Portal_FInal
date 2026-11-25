@@ -137,8 +137,8 @@ button.ss-tile:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; 
 .omx-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
 .omx-table { border-collapse: collapse; font-size: 12px; min-width: 100%; }
 .omx-table th { background: #f8fafc; color: #475569; font-weight: 600; text-align: left; padding: 6px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: bottom; min-width: 92px; }
-.omx-table td { padding: 4px 6px; border-bottom: 1px solid #eef2f7; vertical-align: top; white-space: nowrap; }
-.omx-sticky { position: sticky; left: 0; background: #fff; z-index: 1; min-width: 120px; }
+.omx-table td { padding: 4px 6px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+.omx-sticky { position: sticky; left: 0; background: #fff; z-index: 1; min-width: 150px; max-width: 190px; white-space: normal; box-shadow: 1px 0 0 #e2e8f0; }
 .omx-table th.omx-sticky { background: #f8fafc; }
 .omx-totals th { font-weight: 500; white-space: nowrap; }
 .omx-cell { display: inline-block; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; font-size: 12px; line-height: 1.35; cursor: pointer; text-align: left; white-space: nowrap; }
