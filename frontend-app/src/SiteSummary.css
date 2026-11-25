@@ -172,3 +172,5 @@ button.ss-tile:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; 
 .flist-b-due { background: #f1f5f9; color: #475569; }
 .flist-b-na { background: transparent; color: #94a3b8; font-weight: 500; }
 @media (max-width: 720px) { .flist-tp, .flist-date { white-space: normal; width: auto; } }
+.ss-field input[type="text"], .ss-field input:not([type]) { min-width: 180px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font-size: 13.5px; color: #0f172a; }
+.flist-check input[type="checkbox"] { appearance: auto; -webkit-appearance: checkbox; width: 16px; height: 16px; min-width: 16px; display: inline-block; margin: 0; }
