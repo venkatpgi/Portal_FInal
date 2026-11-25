@@ -473,23 +473,33 @@ summary, dashboard safety tables, site summary (W9 / W11), death alerts, the
   everything on this page is for baby 2" (`components/TwinBanner.jsx`).
 
 
-## Outcome matrix (PI 2026-11-26)
+## Outcome matrix (PI 2026-11-26, redesigned the same day)
 
 Left panel / top menu **Outcome matrix** (`/outcome-matrix`, `OutcomeMatrix.jsx`,
 `GET /outcome-matrix`, `backend/outcome_matrix.py`) and the ready-made report
-**Outcome matrix** (`outcome_matrix`, PDF / CSV). Global PI, Project Scientist,
-Site PIs and Site Scientists (own site). One row per randomised baby born since
-the trial start; columns: death (by 44 wk), BPD at 36 wk, NEC ≥ IIA, brain
-injury (IVH ≥ III / cPVL ≥ II), ROP needing treatment, MRI at term (subset),
-composite 1 (36 wk), composite 2 (44 wk), Form I visits 36 / 40 / 44 wk.
-- Values: the same rules as Form L's composite suggestion
-  (`get_composite_suggestion`, chapter 05): Form I first, else the live
-  suggestions from daily logs, Form H, Form F, Form J. Dates of occurrence from
-  Form I's date items (death from the logs when not on Form I).
-- Cell states: occurred (with date), No, due (checkpoint date: 36 wk for BPD /
-  composite 1, 44 wk otherwise), overdue (2 days after it with nothing known),
-  not applicable (after death; not in the MRI subset). Dashed outline / "*" in
-  the report = found in the logs etc. but not yet on Form I. A Form L composite,
-  once entered, wins.
-- Totals row per column, all arms together; never by arm. Filters: overdue,
-  still due, not yet on Form I.
+**Outcome matrix** (`outcome_matrix`, PDF / CSV: one table per section).
+Global PI, Project Scientist, Site PIs and Site Scientists (own site). One row
+per randomised baby born since the trial start.
+- **Columns = every Form I item, in the order it happens** (`SECTIONS`, `ITEMS`):
+  at birth (I.1: PPV, 100% O₂, compressions, intubation, time to breathing,
+  HIE) → first 72 h – 7 days (resp support 0.5–72 h, EOS, death ≤ 7 d) → up to
+  28 days / the stay (LOS, culture-positive sepsis, death ≤ 28 d) → 36 wk PMA
+  (visit, death, BPD Jensen + NICHD, NEC, IVH, cPVL, ROP, ROP treated) → 40 wk
+  (visit, death 36–40, NEC, IVH, cPVL, ROP, treated, MRI at TEA) → 44 wk
+  (visit, death 40–44, NEC, IVH, cPVL, ROP, treated) → overall (support days,
+  sepsis, death in hospital / after discharge) and composites 1 and 2. A
+  "Key outcomes (summary)" view keeps death, BPD, NEC, brain injury, ROP
+  treated, MRI and the composites (Form L composite rules). The "Outcomes"
+  drop-down shows one section or all.
+- **Values:** Form I's saved answer; where blank, the same fill-in Form I uses
+  (`main._form_i_suggestions`: Form B for I.1, post-resus / resp / infection /
+  survival checks for I.2 and I.6, the 36/40/44 wk assessment suggestion).
+  Dashed outline / "*" = not yet saved on Form I.
+- **Cell text says the answer** ("Yes · 03 Nov 2026", "No", "Grade 2", "5",
+  "due 15 Dec 2026", "at discharge", "not entered", "—"); colour only backs it
+  up. Due: birth items at birth (blank = "not entered"), 72 h items day 3,
+  ≤ 7 d day 7, ≤ 28 d day 28, LOS / culture / overall at the end of stay,
+  checkpoint items at 36 / 40 / 44 wk (+2 days). Items due after a death are "—".
+- **Totals row in words** per column ("Yes 2 · No 21 · Due 3"), all arms
+  together; never by arm. Filters: overdue / not entered, still due, not yet on
+  Form I.

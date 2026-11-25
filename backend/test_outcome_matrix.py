@@ -51,19 +51,22 @@ def test_row_sources_dates_and_composites():
                    "window_to": date(2027, 1, 14)}}
     r = om.row_for(baby(form_i=fi), c, visits, TODAY)
     cells = r["cells"]
-    assert cells["bpd"]["text"] == "Yes · 15 Dec 2026" and cells["bpd"]["source"] == "recorded"
-    assert cells["nec"]["text"] == "Yes · 20 Nov 2026"
-    assert cells["brain"]["state"] == "no" and cells["brain"]["source"] == "detected"
-    assert cells["rop"]["state"] == "pending" and cells["rop"]["text"] == "due 09 Feb 2027"
-    assert cells["death"]["state"] == "pending"
-    assert cells["mri"]["state"] == "na"
+    assert cells["k_bpd"]["text"] == "Yes · 15 Dec 2026" and cells["k_bpd"]["source"] == "recorded"
+    assert cells["k_nec"]["text"] == "Yes · 20 Nov 2026"
+    assert cells["k_brain"]["state"] == "no" and cells["k_brain"]["source"] == "detected"
+    assert cells["k_rop"]["state"] == "pending" and cells["k_rop"]["text"] == "due 09 Feb 2027"
+    assert cells["k_death"]["state"] == "pending"
+    assert cells["k_mri"]["state"] == "na"
     assert cells["composite_1"]["state"] == "yes" and cells["composite_1"]["source"] == "recorded"
     assert cells["visit36"]["text"] == "Done" and cells["visit40"]["text"] == "booked 13 Jan 2027"
     assert cells["visit44"]["text"] == "date unknown"
     t = om.totals([r])
-    assert t["nec"]["yes"] == 1 and t["rop"]["pending"] == 1
+    assert t["k_nec"]["yes"] == 1 and t["k_rop"]["pending"] == 1
+    assert om.total_text(t["k_nec"]).startswith("Yes 1")
     secs = om.report_sections([r], lambda s: s)
-    assert secs[1]["rows"][0][0] == "01-B-001" and "No *" in secs[1]["rows"][0]   # brain injury detected only
+    assert all(x["title"].startswith(label) for x, (_, label) in zip(secs, om.SECTIONS)) and len(secs) == len(om.SECTIONS)
+    key = secs[0]
+    assert key["rows"][0][0] == "Totals" and key["rows"][1][0] == "01-B-001" and "No *" in key["rows"][1]
 
 
 def test_died_baby_rest_not_applicable():
@@ -74,6 +77,36 @@ def test_died_baby_rest_not_applicable():
          "mri_abnormality": {"value": None}}
     r = om.row_for(baby(died=True, death_date=date(2026, 10, 22), end={"date": date(2026, 10, 22), "died": True}),
                    c, {}, TODAY)
-    assert r["cells"]["death"]["text"] == "Yes · 22 Oct 2026" and r["cells"]["death"]["source"] == "detected"
-    assert r["cells"]["bpd"]["state"] == "na" and r["status"] == "Died"
+    assert r["cells"]["k_death"]["text"] == "Yes · 22 Oct 2026" and r["cells"]["k_death"]["source"] == "detected"
+    assert r["cells"]["k_bpd"]["state"] == "na" and r["status"] == "Died"
+    # Form I items due after the death are not applicable; birth items still asked
+    assert r["cells"]["bpd36_jensen_grade"]["state"] == "na"
+    assert r["cells"]["ventilation_required"]["text"] == "not entered"
     assert r["cells"]["composite_1"]["source"] == "detected"
+
+
+
+def test_form_i_items_in_time_order_with_suggestions():
+    cols = om.columns()
+    secs = [c["section"] for c in cols]
+    order = [k for k, _ in om.SECTIONS]
+    assert secs == sorted(secs, key=order.index)                     # never goes back in time
+    assert [c["key"] for c in cols if c["section"] == "birth"][0] == "ventilation_required"
+    fi = NS(ventilation_required=True, hie_grade="None", bpd36_jensen_grade=None, mv_days=None)
+    sugg = {"resp_support_72h": "Yes", "mv_days": 5, "bpd36_jensen_grade": "Grade 2",
+            "mortality_7_days": "No", "time_to_spontaneous_breathing": 45}
+    b = baby(form_i=fi, end={"date": date(2026, 12, 1), "died": False})
+    r = om.row_for(b, {"checkpoint_36": "2026-12-15", "checkpoint_44": "2027-02-09", "components": {},
+                       "mri_abnormality": {}}, {}, TODAY, None, sugg)
+    c = r["cells"]
+    assert c["ventilation_required"] == {"state": "yes", "text": "Yes", "source": "recorded", "note": ""}
+    assert c["hie_grade"]["state"] == "no" and c["hie_grade"]["text"] == "None"
+    assert c["resp_support_72h"]["state"] == "yes" and c["resp_support_72h"]["source"] == "detected"
+    assert c["mv_days"]["text"] == "5" and c["mv_days"]["state"] == "val"
+    assert c["time_to_spontaneous_breathing"]["text"] == "45"
+    assert c["bpd36_jensen_grade"]["text"] == "Grade 2" and c["bpd36_jensen_grade"]["source"] == "detected"
+    assert c["switched_100_o2"]["text"] == "not entered"                 # birth item, nothing anywhere
+    assert c["death40"]["text"] == "due 12 Jan 2027"
+    assert c["sepsis_los"]["state"] == "overdue"                        # stay ended 1 Dec, nothing known
+    admitted = om.row_for(baby(form_i=None), {"components": {}, "mri_abnormality": {}}, {}, TODAY, None, {})
+    assert admitted["cells"]["sepsis_los"]["text"] == "at discharge"
