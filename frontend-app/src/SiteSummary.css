@@ -165,7 +165,8 @@ button.ss-tile:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; 
 .flist-tl td { padding: 5px 10px; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
 .flist-tl tr.flist-tp-first td { border-top: 1px solid #e2e8f0; }
 .flist-tp { font-weight: 600; white-space: nowrap; width: 130px; }
-.flist-date { white-space: nowrap; width: 170px; }
+.flist-date { white-space: nowrap; width: 180px; }
+.flist-date .flist-window { white-space: normal; }
 .flist-window { font-size: 11px; color: #64748b; }
 .flist-tl a { color: #0f172a; text-decoration: none; }
 .flist-tl a:hover { text-decoration: underline; }

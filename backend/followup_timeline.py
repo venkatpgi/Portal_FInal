@@ -139,9 +139,9 @@ def timeline(baby: dict, today: date, *, scan_dates: list, rop, mri, booked: dic
 
     # Form I checkpoints
     visit_rows = {r["checkpoint"]: r for r in fl.rows_for(baby, today, booked, rop) if r["kind"] == "form_i"}
-    what = {36: "Form I visit: death, BPD, NEC, IVH / cPVL, ROP",
-            40: "Form I visit: NEC, IVH / cPVL, ROP",
-            44: "Form I visit: NEC, IVH / cPVL, ROP, death after discharge"}
+    what = {36: "Visit: death, BPD, NEC, IVH / cPVL, ROP",
+            40: "Visit: NEC, IVH / cPVL, ROP",
+            44: "Visit: NEC, IVH / cPVL, ROP, death after discharge"}
     cps = {}
     for wk in (36, 40, 44):
         due = fd.checkpoint_date(dob, ga, wk)
@@ -187,13 +187,13 @@ def timeline(baby: dict, today: date, *, scan_dates: list, rop, mri, booked: dic
     # Discharge (or death) row
     if died and death_date:
         add("end", "Death", death_date, "", [
-            item("Form H", "Form H: outcome Died, date and time; Form Y / SAE", "done" if form_h_done else "overdue",
+            item("Form H", "Outcome Died, date and time; Form Y / SAE", "done" if form_h_done else "overdue",
                  "Done" if form_h_done else "Form H not complete", fh, death_date)])
     else:
-        items = [item("Form H", "Form H complete (hospital course, outcome)",
+        items = [item("Form H", "Complete (hospital course, outcome)",
                       ("done" if form_h_done else ("at_discharge" if end is None else "overdue")),
                       ("Done" if form_h_done else ("at discharge" if end is None else "Form H not complete")), fh, end),
-                 item("Form I", "Form I overall: support days, sepsis, death in hospital",
+                 item("Form I", "Overall: support days, sepsis, death in hospital",
                       ("done" if _answered(g("mortality_in_hospital")) and _answered(g("sepsis_overall"))
                        else ("at_discharge" if end is None else "overdue")),
                       ("Done" if _answered(g("mortality_in_hospital")) and _answered(g("sepsis_overall"))
@@ -209,7 +209,7 @@ def timeline(baby: dict, today: date, *, scan_dates: list, rop, mri, booked: dic
                 items.append(item("Form F", "Final cranial USG if leaving before 40 wk", "at_discharge",
                                   "at discharge", ff))
         if calendar_complete is not None:
-            items.append(item("Form H", "Follow-up dates booked (Form H calendar)",
+            items.append(item("Form H", "Follow-up dates booked (calendar H12.6)",
                               "done" if calendar_complete else ("at_discharge" if end is None else "overdue"),
                               "Done" if calendar_complete else ("at discharge" if end is None else "Not booked"),
                               fh, end))

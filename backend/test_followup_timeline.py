@@ -66,7 +66,7 @@ def test_discharged_and_died():
     r = by_key(c)
     assert r["end"]["date"] == "2026-11-20" and r["end"]["label"] == "Discharge"
     forms = {i["text"]: i for i in r["end"]["items"]}
-    assert forms["Follow-up dates booked (Form H calendar)"]["status"] == "done"
+    assert forms["Follow-up dates booked (calendar H12.6)"]["status"] == "done"
     assert forms["Final cranial USG (before discharge)"]["status"] == "overdue"
     assert len(r["cp40"]["items"]) == 2 and r["cp40"]["items"][1]["status_text"] == "not in the MRI subset"
     assert c["status"] == "Discharged 20 Nov 26"
