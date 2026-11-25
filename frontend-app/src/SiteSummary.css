@@ -117,17 +117,17 @@ button.ss-tile:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; 
 .ss-card { scroll-margin-top: 16px; }
 
 /* Follow-up list (FollowupList.jsx) */
-.fl-tiles { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
-.fl-tile { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; padding: 10px 14px; font-size: 13px; cursor: pointer; color: #334155; }
-.fl-tile strong { font-size: 20px; margin-right: 4px; }
-.fl-red strong { color: #b91c1c; } .fl-amber strong { color: #b45309; } .fl-blue strong { color: #1d4ed8; }
-.fl-views { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
-.fl-view { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
-.fl-view.is-on { background: #00132c; border-color: #00132c; color: #fff; }
-.fl-badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 600; background: #f1f5f9; color: #334155; }
-.fl-b-overdue { background: #fee2e2; color: #b91c1c; }
-.fl-b-window { background: #fef3c7; color: #b45309; }
-.fl-b-booked { background: #dbeafe; color: #1d4ed8; }
-.fl-b-in_nicu { background: #e0f2fe; color: #0369a1; }
-.fl-b-done { background: #dcfce7; color: #15803d; }
-.fl-text { font-size: 12px; color: #475569; margin-top: 2px; }
+.flist-tiles { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+.flist-tile { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; padding: 10px 14px; font-size: 13px; cursor: pointer; color: #334155; }
+.flist-tile strong { font-size: 20px; margin-right: 4px; }
+.flist-red strong { color: #b91c1c; } .flist-amber strong { color: #b45309; } .flist-blue strong { color: #1d4ed8; }
+.flist-views { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.flist-view { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.flist-view.is-on { background: #00132c; border-color: #00132c; color: #fff; }
+.flist-badge { display: inline-block; white-space: nowrap; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 600; background: #f1f5f9; color: #334155; }
+.flist-b-overdue { background: #fee2e2; color: #b91c1c; }
+.flist-b-window { background: #fef3c7; color: #b45309; }
+.flist-b-booked { background: #dbeafe; color: #1d4ed8; }
+.flist-b-in_nicu { background: #e0f2fe; color: #0369a1; }
+.flist-b-done { background: #dcfce7; color: #15803d; }
+.flist-text { font-size: 12px; color: #475569; margin-top: 2px; }

@@ -105,18 +105,18 @@ export default function FollowupList() {
           )}
         </div>
 
-        <div className="fl-tiles">
-          <button type="button" className="fl-tile fl-red" onClick={() => setView("overdue")}>
+        <div className="flist-tiles">
+          <button type="button" className="flist-tile flist-red" onClick={() => setView("overdue")}>
             <strong>{counts.overdue}</strong> overdue</button>
-          <button type="button" className="fl-tile fl-amber" onClick={() => setView("due")}>
+          <button type="button" className="flist-tile flist-amber" onClick={() => setView("due")}>
             <strong>{counts.soon}</strong> due in 14 days</button>
-          <button type="button" className="fl-tile fl-blue" onClick={() => setView("upcoming")}>
+          <button type="button" className="flist-tile flist-blue" onClick={() => setView("upcoming")}>
             <strong>{counts.booked}</strong> booked</button>
         </div>
 
-        <div className="fl-views">
+        <div className="flist-views">
           {VIEWS.map(([k, label]) => (
-            <button type="button" key={k} className={`fl-view${view === k ? " is-on" : ""}`}
+            <button type="button" key={k} className={`flist-view${view === k ? " is-on" : ""}`}
               onClick={() => setView(k)}>{label}</button>
           ))}
         </div>
@@ -132,14 +132,14 @@ export default function FollowupList() {
               </tr></thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={`${r.enrollment_id}-${r.assessment}`} className={`fl-row fl-${r.status}`}>
+                  <tr key={`${r.enrollment_id}-${r.assessment}`} className={`flist-row flist-${r.status}`}>
                     {showSite && <td>{formatSiteName(r.site)}</td>}
                     <td><span className="ss-id">{r.enrollment_id}</span>{r.name ? <div className="ss-name">{r.name}</div> : null}</td>
                     <td>{r.assessment}</td>
                     <td>{fmt(r.due)}</td>
                     <td>{r.window_from ? `${fmt(r.window_from)} – ${fmt(r.window_to)}` : `by ${fmt(r.window_to)}`}</td>
-                    <td><span className={`fl-badge fl-b-${r.status}`}>{STATUS_LABEL[r.status] || r.status}</span>
-                      <div className="fl-text">{r.text}</div></td>
+                    <td><span className={`flist-badge flist-b-${r.status}`}>{STATUS_LABEL[r.status] || r.status}</span>
+                      <div className="flist-text">{r.text}</div></td>
                     <td>{r.where}</td>
                     <td>
                       <Link to={r.kind === "rop" ? `/form-g/${r.enrollment_id}` : `/form-i/${r.enrollment_id}`}>
