@@ -213,3 +213,21 @@ def test_ae_form_term_by_key_code_or_name():
 def test_converted_yes_without_a_report_is_flagged():
     ev = {"description": "Bradycardia", "grade": "4", "start_date": "2026-11-10", "converted_to_sae": "Yes"}
     assert "W11" in codes(evaluate(baby(ae_events=[ev]), TODAY, NOW, None), "watch")
+
+
+def test_cleanup_1125_m6_form_h_only_m4_once_m9_per_item():
+    ended = baby(end_date=date(2026, 11, 18))
+    # M6: Form H only; Form I is filled at the follow-up checkpoints (PI 2026-11-25)
+    r = evaluate(dict(ended, form_h_complete=True, form_i_complete=False), TODAY, NOW, None)
+    assert "M6" not in codes(r, "missed")
+    r = evaluate(dict(ended, form_h_complete=False), TODAY, NOW, None)
+    assert [t for c, t in r["missed"] if c == "M6"] == ["Form H incomplete, stay ended 18/11/26"] or \
+        any(c == "M6" and t.startswith("Form H incomplete") for c, t in r["missed"])
+    # M4 left before an ROP screen: only in the first report after the stay ended
+    left = baby(end_date=date(2026, 11, 10))          # DOL 10
+    assert "M4" in codes(evaluate(dict(left, since=date(2026, 11, 9)), TODAY, NOW, None), "missed")
+    assert "M4" not in codes(evaluate(dict(left, since=date(2026, 11, 16)), TODAY, NOW, None), "missed")
+    # M9: one item per suggestion, with its evidence
+    c = {"definition_no": "osteopenia", "description": "Osteopenia", "evidence": "Form H records Osteopenia."}
+    m9 = [t for k, t in evaluate(baby(candidates=[c, dict(c)]), TODAY, NOW, None)["missed"] if k == "M9"]
+    assert len(m9) == 1 and "Form H records Osteopenia" in m9[0] and "Not an AE" in m9[0]

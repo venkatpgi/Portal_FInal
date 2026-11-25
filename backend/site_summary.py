@@ -79,7 +79,7 @@ RULES = {
     "M3": "Brain scan asked for by Helper 2",
     "M4": "ROP screen",
     "M5": "Form I checkpoint",
-    "M6": "Forms after discharge or death",
+    "M6": "Form H after discharge or death",
     "M7": "Form C (maternal details)",
     "M8": "Form B after delivery",
     "M9": "AE review",
@@ -455,8 +455,11 @@ def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> d
     if dol_today and not visits:
         if dol_today > ROP_FIRST_SCREEN_DOL and (end_dol is None or end_dol > ROP_FIRST_SCREEN_DOL):
             missed.append(("M4", f"No ROP screen by DOL {ROP_FIRST_SCREEN_DOL}"))
-        elif end_dol is not None and end_dol <= ROP_FIRST_SCREEN_DOL and not died:
-            missed.append(("M4", "Left the NICU before an ROP screen"))
+        elif (end_dol is not None and end_dol <= ROP_FIRST_SCREEN_DOL and not died
+              and end >= b.get("since", end)):
+            # once, in the first report after the stay ended (PI 2026-11-25); after that the
+            # outpatient screen is on the Follow-up list (followup_list.py) until Form G has one
+            missed.append(("M4", "Left the NICU before an ROP screen: outpatient screen now on the Follow-up list"))
     for a in (compute_rop_review_alerts(rop.screenings) if rop else []):
         when = f"DOL {a['nicu_day']}" if a.get("nicu_day") is not None else (a.get("detected_date") or "")
         missed.append(("M4", f"Auto-suggested Form G visit ({when}) not filled"))
@@ -469,14 +472,22 @@ def evaluate(b: dict, today: date, now: datetime, prev_grades: dict | None) -> d
                                  f"{_fmt(r['window_to'])}) not entered"))
 
     if end and now >= datetime.combine(end, datetime.min.time()) + timedelta(hours=FORMS_AFTER_END_HOURS):
-        left = [f for f, ok in (("Form H", b.get("form_h_complete")), ("Form I", b.get("form_i_complete"))) if not ok]
-        if left:
-            missed.append(("M6", f"{' and '.join(left)} incomplete, stay ended {_fmt(end)}"))
+        # Form H only (PI 2026-11-25): Form I is filled at the follow-up checkpoints (M5, Follow-up list)
+        if not b.get("form_h_complete"):
+            missed.append(("M6", f"Form H incomplete, stay ended {_fmt(end)}"))
 
-    not_saved = [c for c in cands if term_of(c) not in terms_on_form]
-    if not_saved:
-        missed.append(("M9", f"{len(not_saved)} auto-detected AE(s) whose term is not on the AE form: "
-                             + ", ".join(sorted({c.get('description') for c in not_saved}))))
+    # one item per suggestion, with where it came from (PI 2026-11-25: "not clear")
+    seen_terms = set()
+    for c in cands:
+        t = term_of(c)
+        if t in terms_on_form or t in seen_terms:
+            continue
+        seen_terms.add(t)
+        ev = " ".join(str(c.get("evidence") or "").split())
+        grade = f" grade {c['grade']}" if c.get("grade") else ""
+        missed.append(("M9", f"Suggested AE {c.get('description')}{grade}, from data already entered"
+                             + (f" ({ev[:160]})" if ev else "")
+                             + ": add it to the Adverse Events table, or mark it 'Not an AE' there with a reason"))
 
     return {"watch": watch, "active": active, "missed": missed, "advisory": advisory, "grades": grades}
 
@@ -518,6 +529,7 @@ def _load(db, sites: list[str], now: datetime) -> list[dict]:
             end = min(end, dd) if end else dd
         signatures = [w["signature"] for w in _compute_infection_windows(inf, nicu)] if inf else []
         so = q(StudyOutcomes, StudyOutcomes.id.desc()).first()
+        area = _area_of(metab)
         cand = collect_ae_candidates(db, eid)
         ga_days = (br.gestation_weeks * 7 + (br.gestation_days or 0)) if br.gestation_weeks is not None else None
         helper_days = {2: {l.nicu_day for l in resp}, 4: {l.nicu_day for l in inf}, 5: {l.nicu_day for l in metab}}
@@ -537,9 +549,11 @@ def _load(db, sites: list[str], now: datetime) -> list[dict]:
             "ae_events": (ae.events if ae else None) or [], "sae_rows": (sae.rows if sae else None) or [],
             # an empty Form Y (no diagnosis) is not a report (01-B-001, PI 2026-10-26); a report
             # about another event does not record the death (PI 2026-10-31)
-            "has_death_report": any(answered(r.diagnosis) and is_fatal(r) for r in q(SAEReport).all()),
-            "sae_reports": q(SAEReport).all(),
+            "has_death_report": any(answered(r.diagnosis) and is_fatal(r)
+                                    for r in q(SAEReport).filter(SAEReport.withdrawn_at.is_(None)).all()),
+            "sae_reports": q(SAEReport).filter(SAEReport.withdrawn_at.is_(None)).all(),
             "resp_logs": resp, "inf_logs": inf, "metab_logs": metab,
+            "location": area[0], "location_day": area[1],
             "nec_stage": nm.nec_stage if nm else None,
             "rop": q(ROPScreening, ROPScreening.id.desc()).first(),
             "scan_entries": (usg.scan_entries if usg else None) or [],
@@ -549,6 +563,11 @@ def _load(db, sites: list[str], now: datetime) -> list[dict]:
             "form_i_complete": form_i_complete(so), "tasks": tasks,
         })
     return babies
+
+
+def _area_of(metab_logs):
+    from shift_report import area_of   # (latest Helper 5 Location, its day), shared with the shift report
+    return area_of(metab_logs)
 
 
 def last_snapshot(db):
@@ -572,13 +591,20 @@ def build(db, scope: str, now: datetime | None = None, snapshot=None) -> dict:
 
     babies = []
     for b in _load(db, sites, now):
+        b["since"] = since
         r = evaluate(b, today, now, prev.get(b["enrollment_id"]))
         dol = (today - b["dob"]).days + 1 if b["dob"] else None
         pma = b["ga_days"] + dol - 1 if b["ga_days"] is not None and dol else None
         end = b["end_date"]
         babies.append({
             "enrollment_id": b["enrollment_id"], "screening_id": b["screening_id"], "site": b["site"], "dol": dol, "pma": _fmt_pma(pma),
-            "status": ("Died" if b["died"] else "Stay ended") if end else "In NICU",
+            # Census (PI 2026-11-25): an admitted baby's area is the latest Helper 5
+            # Location (same as the twice-daily report), not always "NICU".
+            "status": ("Died" if b["died"] else "Stay ended") if end else "Admitted",
+            "location": None if end else b["location"],
+            "status_text": (("Died" if b["died"] else "Stay ended") if end
+                            else (f"Admitted: {b['location']} (Helper 5, DOL {b['location_day']})"
+                                  if b["location_day"] else "Admitted: location not recorded on Helper 5")),
             "ended_on": end.isoformat() if end else None,
             "ended_since_last": bool(end and end >= since),
             "watch": [{"rule": c, "title": RULES[c], "detail": t} for c, t in r["watch"]],
@@ -603,11 +629,11 @@ def build(db, scope: str, now: datetime | None = None, snapshot=None) -> dict:
                  "ended_on": r["ended_on"].isoformat() if r["ended_on"] else None,
                  "when": followup_due.when_text(r)}
                 for r in followup_due.coming_up(followup_due.collect(db, sites, today))]
-    in_nicu = [b for b in babies if b["status"] == "In NICU"]
+    in_nicu = [b for b in babies if b["status"] == "Admitted"]
     per_site = {s: {"in_nicu": 0, "watch": 0, "missed": 0, "red_queries": red.get(s, 0)} for s in sites}
     for b in babies:
         p = per_site.setdefault(b["site"], {"in_nicu": 0, "watch": 0, "missed": 0, "red_queries": 0})
-        p["in_nicu"] += b["status"] == "In NICU"
+        p["in_nicu"] += b["status"] == "Admitted"
         p["watch"] += len(b["watch"])
         p["missed"] += len(b["missed"])
     for m in mothers:
@@ -716,7 +742,7 @@ def render_email(s: dict) -> tuple[str, str]:
                   f"{c['in_nicu']} in NICU, {c['watch_babies']} on safety watch list, {c['missed']} missed items"))
     page = PORTAL_URL + ("" if all_sites else f"?site={s['scope']}")
     tile_html = tile_cells([
-        ("In NICU", c["in_nicu"], "#0f172a", f"{page}#census"),
+        ("Admitted", c["in_nicu"], "#0f172a", f"{page}#census"),
         ("Stays ended since last", c["ended_since_last"], "#475569", f"{page}#census"),
         ("Babies on safety watch list", c["watch_babies"], "#b91c1c", f"{page}#watch"),
         ("With active morbidity", c["active_babies"], "#b45309", f"{page}#active"),
@@ -731,7 +757,7 @@ def render_email(s: dict) -> tuple[str, str]:
               + s["mothers"])
     active_rows = [([escape(_site_display(b["site"]))] if all_sites else [])
                    + [escape(b["enrollment_id"]), escape(f"DOL {b['dol']} · {b['pma']}"), escape("; ".join(b["active"]))]
-                   for b in s["babies"] if b["status"] == "In NICU" and b["active"]]
+                   for b in s["babies"] if b["status"] == "Admitted" and b["active"]]
     followup_rows = [([escape(_site_display(r["site"]))] if all_sites else [])
                      + [escape(r["enrollment_id"]), f"{r['checkpoint']} wk PMA",
                         escape(f"{_fmt(date.fromisoformat(r['due']))} ({r['when']})"),
@@ -739,12 +765,12 @@ def render_email(s: dict) -> tuple[str, str]:
                         escape(r["where"] or "")]
                      for r in s.get("followup", [])]
     census = [([escape(_site_display(b["site"]))] if all_sites else [])
-              + [escape(b["enrollment_id"]), escape(f"DOL {b['dol']} · {b['pma']}"), escape(b["status"])]
-              for b in s["babies"] if b["status"] == "In NICU" or b["ended_since_last"]]
+              + [escape(b["enrollment_id"]), escape(f"DOL {b['dol']} · {b['pma']}"), escape(b["status_text"])]
+              for b in s["babies"] if b["status"] == "Admitted" or b["ended_since_last"]]
     by_site = ""
     if all_sites:
         by_site = _h3("By site") + _rows_table(
-            ["Site", "In NICU", "Watch-list items", "Missed items", "Overdue queries"],
+            ["Site", "Admitted", "Watch-list items", "Missed items", "Overdue queries"],
             [[escape(_site_display(site)), p["in_nicu"], p["watch"], p["missed"], p["red_queries"]]
              for site, p in s["per_site"].items()])
     nil_line = ('<p style="margin:16px 0 0;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;'
@@ -769,7 +795,7 @@ def render_email(s: dict) -> tuple[str, str]:
   {_h3("Active morbidities (babies in the NICU)", len(active_rows), "active")}{_rows_table(site_col + ["Baby", "Age", "Active"], active_rows)}
   {_h3("Missed data collection", len(missed), "missed")}{rule_table(missed, all_sites)}
   {_h3("Follow-up coming up (Form I, window ± 2 days)", len(followup_rows), "followup")}{_rows_table(site_col + ["Baby", "Checkpoint", "Date", "Window", "Now"], followup_rows)}
-  {_h3("Census: in the NICU or stay ended since last", len(census), "census")}{_rows_table(site_col + ["Baby", "Age", "Status"], census)}
+  {_h3("Census: admitted or stay ended since last", len(census), "census")}{_rows_table(site_col + ["Baby", "Age", "Status"], census)}
   <p style="margin:22px 0 0;"><a href="{PORTAL_URL}" style="display:inline-block;background:#00132c;color:#fff;
   text-decoration:none;padding:10px 16px;border-radius:8px;font-size:14px;">Open the site summary in the portal</a></p>
   <p style="margin:18px 0 0;font-size:11px;color:#94a3b8;">IDs only: no names, CR or phone numbers, and nothing by

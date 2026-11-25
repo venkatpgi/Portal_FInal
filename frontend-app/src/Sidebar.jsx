@@ -7,6 +7,7 @@ import {
   Activity, Eye, Stethoscope, TrendingUp, BarChart3,
   Building2, Cpu, ShieldAlert, ClipboardList, FileText,
   LayoutDashboard, LogOut, Check, Lock, ChevronRight, Menu, X, Search,
+  CalendarClock,
 } from 'lucide-react';
 import { useFormProgress } from './context/FormProgressContext';
 import { useActiveFormSessionRegistry } from './context/ActiveFormSessionContext';
@@ -547,6 +548,12 @@ export default function Sidebar({ currentForm }) {
             className={({ isActive }) => `sidebar-dash-link${isActive ? ' active' : ''}`}>
             <Hospital size={14} strokeWidth={2} />
             <span>Log of All Births</span>
+          </NavLink>
+          <NavLink to="/follow-up"
+            onClick={(e) => guardedNavigate(e, '/follow-up')}
+            className={({ isActive }) => `sidebar-dash-link${isActive ? ' active' : ''}`}>
+            <CalendarClock size={14} strokeWidth={2} />
+            <span>Follow-up list</span>
           </NavLink>
           <div className="sidebar-sep" />
 

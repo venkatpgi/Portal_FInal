@@ -104,6 +104,7 @@ from stay_end import entries_after_death, is_blank_helper_day, refuse_after_stay
 import dms_sheets
 from routers import shift_report as shift_report_router
 from routers import followup_bookings as followup_bookings_router
+from routers import followup_list as followup_list_router
 from routers import inbox as inbox_router
 from routers import auth as auth_router
 from baby_uid_duplicate import (
@@ -220,6 +221,7 @@ app.include_router(reports_router.router)
 app.include_router(site_summary_router.router)
 app.include_router(shift_report_router.router)
 app.include_router(followup_bookings_router.router)
+app.include_router(followup_list_router.router)
 app.include_router(inbox_router.router)
 
 
@@ -6289,6 +6291,8 @@ def update_sae_report(
     if not record:
         raise HTTPException(status_code=404, detail="SAE report not found")
     require_enrollment_access(record.enrollment_id, db, current_user)
+    if record.withdrawn_at is not None:
+        raise HTTPException(status_code=422, detail="This SAE report was withdrawn (entered in error) and cannot be edited.")
     if data.enrollment_id and data.enrollment_id != record.enrollment_id:
         require_enrollment_access(data.enrollment_id, db, current_user)
     _refuse_empty_sae_report(data)
@@ -6303,6 +6307,40 @@ def update_sae_report(
     db.commit()
     db.refresh(record)
     _mark_14_day_report(db, record)
+    return record
+
+
+@app.post("/sae-report/{report_id}/withdraw", response_model=SAEReportOut)
+def withdraw_sae_report(
+    report_id: int,
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Withdraw a Form Y entered in error (PI 2026-11-25): Site PI of that site or
+    the Global PI, with a reason. The row stays (audit trail) but drops out of
+    every count, list and alert. {"reason": "...", "restore": true} undoes it
+    (Global PI only)."""
+    record = db.query(SAEReport).filter(SAEReport.id == report_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="SAE report not found")
+    require_enrollment_access(record.enrollment_id, db, current_user)
+    role = (current_user.role or "").lower()
+    if data.get("restore"):
+        if not is_superadmin(current_user):
+            raise HTTPException(status_code=403, detail="Only the Global PI can restore a withdrawn SAE report.")
+        record.withdrawn_at = record.withdrawn_by = record.withdrawn_reason = None
+    else:
+        if not (is_superadmin(current_user) or role == "site_pi"):
+            raise HTTPException(status_code=403, detail="Only the Site PI or the Global PI can withdraw an SAE report.")
+        reason = (data.get("reason") or "").strip()
+        if len(reason) < 5:
+            raise HTTPException(status_code=422, detail="Give the reason (e.g. entered in error: not an SAE).")
+        record.withdrawn_at = datetime.utcnow()
+        record.withdrawn_by = (current_user.full_name or current_user.username or "").strip() or current_user.username
+        record.withdrawn_reason = reason[:1000]
+    db.commit()
+    db.refresh(record)
     return record
 
 
@@ -6443,7 +6481,8 @@ def _assemble_sae_context(db, enrollment_id, record, current_user):
 
     prior = (
         db.query(SAEReport)
-        .filter(SAEReport.enrollment_id == enrollment_id, SAEReport.id != record.id)
+        .filter(SAEReport.enrollment_id == enrollment_id, SAEReport.id != record.id,
+                SAEReport.withdrawn_at.is_(None))
         .order_by(SAEReport.id.asc())
         .all()
     )
@@ -6820,6 +6859,71 @@ def match_adverse_event_candidates(
     for c in out.get("candidates") or []:
         c["duplicate_of"] = duplicate_of(c, rows)
     return out
+
+
+@app.get("/adverse-events/suggestions/{enrollment_id}")
+def get_ae_suggestions(
+    enrollment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Auto-detected AEs whose term is not yet a row in the saved Adverse Events
+    table, and the ones marked 'Not an AE' (PI 2026-11-25)."""
+    from ae_candidates import dismissed_terms
+    from ae_terms import term_of
+    require_enrollment_access(enrollment_id, db, current_user)
+    out = collect_ae_candidates(db, enrollment_id)
+    ae = db.query(AdverseEvents).filter(AdverseEvents.enrollment_id == enrollment_id).first()
+    on_form = {term_of(e) for e in ((ae.events if ae else None) or []) if isinstance(e, dict)}
+    pending, seen = [], set()
+    for c in out.get("candidates") or []:
+        t = term_of(c)
+        if not t or t in on_form or t in seen:
+            continue
+        seen.add(t)
+        pending.append({"term": t, "description": c.get("description"), "grade": c.get("grade"),
+                        "evidence": c.get("evidence")})
+    gone = dismissed_terms(db, enrollment_id)
+    return {"pending": pending,
+            "dismissed": [{"term": d.term, "description": d.description, "reason": d.reason,
+                           "by": d.dismissed_by, "at": d.created_at.isoformat() if d.created_at else None}
+                          for d in gone.values()]}
+
+
+@app.post("/adverse-events/suggestions/{enrollment_id}/dismiss")
+def dismiss_ae_suggestion(
+    enrollment_id: str,
+    data: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark a suggestion 'Not an AE' ({term, description, reason}) or undo it
+    ({term, undo: true}). Site PI, Site Scientist, Global PI."""
+    from models import AEDismissal
+    require_enrollment_access(enrollment_id, db, current_user)
+    role = (current_user.role or "").lower()
+    if not (is_superadmin(current_user) or role in ("site_pi", "site_scientist")):
+        raise HTTPException(status_code=403, detail="The Site PI or a Site Scientist decides that a suggestion is not an AE.")
+    term = (data.get("term") or "").strip()
+    if not term:
+        raise HTTPException(status_code=422, detail="term is required")
+    row = db.query(AEDismissal).filter(AEDismissal.enrollment_id == enrollment_id, AEDismissal.term == term).first()
+    if data.get("undo"):
+        if row is not None:
+            db.delete(row)
+            db.commit()
+        return {"ok": True}
+    reason = (data.get("reason") or "").strip()
+    if len(reason) < 5:
+        raise HTTPException(status_code=422, detail="Give the reason it is not an AE.")
+    if row is None:
+        row = AEDismissal(enrollment_id=enrollment_id, term=term)
+        db.add(row)
+    row.description = (data.get("description") or "")[:200] or None
+    row.reason = reason[:1000]
+    row.dismissed_by = (current_user.full_name or current_user.username or "").strip() or current_user.username
+    db.commit()
+    return {"ok": True}
 
 
 @app.post("/sae-list/", response_model=SAEListOut)
@@ -8116,7 +8220,8 @@ def get_sae_alerts(
     import sae_rules
     listing = db.query(SAEList).filter(SAEList.enrollment_id == enrollment_id).first()
     ae = db.query(AdverseEvents).filter(AdverseEvents.enrollment_id == enrollment_id).first()
-    reports = db.query(SAEReport).filter(SAEReport.enrollment_id == enrollment_id).all()
+    reports = db.query(SAEReport).filter(SAEReport.enrollment_id == enrollment_id,
+                                         SAEReport.withdrawn_at.is_(None)).all()
     due = sae_rules.fourteen_day_items(listing.rows if listing else None, clinical_now().date())
     return {"fourteen_day": [{**d, "due": d["due"].isoformat()} for d in due],
             "unreported": sae_rules.unreported_sae(ae.events if ae else None, reports)}

@@ -79,7 +79,8 @@ def status(db, enrollment_id: str) -> dict:
     if not died:
         return none
     ae = db.query(AdverseEvents).filter(AdverseEvents.enrollment_id == enrollment_id).first()
-    reports = db.query(SAEReport).filter(SAEReport.enrollment_id == enrollment_id).all()
+    reports = db.query(SAEReport).filter(SAEReport.enrollment_id == enrollment_id,
+                                         SAEReport.withdrawn_at.is_(None)).all()
     listing = db.query(SAEList).filter(SAEList.enrollment_id == enrollment_id).first()
     fatal = [r for r in reports if (r.diagnosis or "").strip() and is_fatal(r)]
     term = event_title(fatal[-1].diagnosis, True) if fatal else "Death"

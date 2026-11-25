@@ -1422,3 +1422,11 @@ FORM_H_CV_MISC_PATCHES = [
 FOLLOWUP_CLINIC_WEEKDAYS_PATCHES = [
     "ALTER TABLE IF EXISTS followup_clinics ADD COLUMN IF NOT EXISTS weekdays VARCHAR",
 ]
+
+
+# Form Y withdrawn as entered in error (PI 2026-11-25).
+SAE_REPORT_WITHDRAWN_PATCHES = [
+    "ALTER TABLE sae_reports ADD COLUMN IF NOT EXISTS withdrawn_at TIMESTAMP",
+    "ALTER TABLE sae_reports ADD COLUMN IF NOT EXISTS withdrawn_by VARCHAR",
+    "ALTER TABLE sae_reports ADD COLUMN IF NOT EXISTS withdrawn_reason TEXT",
+]

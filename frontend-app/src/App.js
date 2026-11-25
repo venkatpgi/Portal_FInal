@@ -42,6 +42,7 @@ import AuditTrail from "./AuditTrail";
 import DataQueries from "./DataQueries";
 import ReportBuilder from "./ReportBuilder";
 import SiteSummary from "./SiteSummary";
+import FollowupList from "./FollowupList";
 import ShiftReport from "./ShiftReport";
 import DataQueriesNavLink from "./components/DataQueriesNavLink";
 import EditScreening from "./EditScreening";
@@ -295,6 +296,7 @@ function AppContent() {
                       <Route path="/data-queries" element={<ProtectedRoute><DataQueries /></ProtectedRoute>} />
                       <Route path="/reports" element={<ProtectedRoute><ReportBuilder /></ProtectedRoute>} />
                       <Route path="/site-summary" element={<ProtectedRoute><SiteSummary /></ProtectedRoute>} />
+                      <Route path="/follow-up" element={<ProtectedRoute><FollowupList /></ProtectedRoute>} />
                       <Route path="/shift-report" element={<ProtectedRoute><ShiftReport /></ProtectedRoute>} />
                       <Route path="/edit/:id" element={<ProtectedRoute><EditScreening /></ProtectedRoute>} />
                       <Route path="/form-a/:screeningId?" element={<ProtectedRoute><FormLayout currentForm="form_a"><ScreeningForm /></FormLayout></ProtectedRoute>} />

@@ -363,10 +363,10 @@ https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
 | M1 / M7 / M8 | existing Dashboard tasks: daily logs ≥ 2 days missing, Form C missing, delivered without Form B |
 | M2 Cranial USG | a Form F schedule window (< 28 wk or < 1000 g: Day 1–3, 4–7, 10–14, 28, 36 and 40 wk PMA; else Day 4–7, 10–14, 28, 40 wk PMA) ended 2 days ago with no scan in it (± tolerance), skipping windows after the stay ended |
 | M3 | Helper 2 IVH / cPVL flag and no Form F scan |
-| M4 ROP | no real Form G visit by DOL 30 (national ROP operational guidelines, RBSK / NPCB), or discharged before one; auto-suggested visit unfilled |
+| M4 ROP | no real Form G visit by DOL 30 (national ROP operational guidelines, RBSK / NPCB); auto-suggested visit unfilled. Left the NICU before a screen: only in the first summary after the stay ended (PI 2026-11-25), then the outpatient screen is on the Follow-up list until Form G records one |
 | M5 | Form I 36 / 40 / 44 wk checkpoint window (date ± 2 days, PI 2026-11-17) closed with no encounter method, death or loss-to-follow-up reason recorded |
-| M6 | Form H or Form I incomplete 48 h after discharge / death (**not Form L**: it is filled after unblinding) |
-| M9 | an auto-detected AE whose term is not on the AE form |
+| M6 | Form H incomplete 48 h after discharge / death (**not Form I** (PI 2026-11-25: filled at the 36 / 40 / 44 wk checkpoints, M5 and the Follow-up list) and **not Form L**: it is filled after unblinding) |
+| M9 | one item per suggested AE (from data already entered: daily-log values over a grade threshold, transfusions, Form D / H diagnoses) whose term is not a row in the Adverse Events table, with its evidence; cleared by adding the row or by the Site PI / a Site Scientist marking it "Not an AE" with a reason (`ae_dismissals`, `POST /adverse-events/suggestions/{id}/dismiss`, undo possible; a dismissed term is also left out of the AE scan, W1 and the reports) |
 | M10 | red data queries (count per site) |
 
 AE-form rows are matched to terms by key, CDISC / MedDRA code ("C154928 |
@@ -412,3 +412,34 @@ unlocks, data queries and emails were audited.
 3. If derived: check the **source** record(s) named there (the playbook, chapter 09, has read-only queries).
 4. If the source is right but the field is wrong: the field was probably **answered before the source existed** (fill-if-blank never overwrites) — use the form's Force refill / Apply, or correct by hand.
 5. If the source itself is wrong, go one step further upstream and repeat.
+
+
+## Follow-up list (PI 2026-11-25)
+
+Left panel **Follow-up list** (`/follow-up`, `FollowupList.jsx`, `GET /followup-list`,
+`backend/followup_list.py`), for all site staff (own site) and the central team
+(any or all sites); the baby's name only with PII rights. One row per assessment
+for every randomised baby born since the trial start:
+- **Form I 36 / 40 / 44 wk PMA** (window ± 2 days): Done (Form I), Ended (death,
+  consent withdrawn), Booked (Form H follow-up calendar), Admitted (assess on
+  the ward), Coming up, Window open, Overdue.
+- **ROP screen (outpatient)**: a baby who left alive by DOL 30 with no Form G
+  visit, due by DOL 30, until Form G records a screen (here or elsewhere).
+Views: due or overdue in the next 14 days (default), overdue, all still to do,
+done, everything. The site summary keeps its "Follow-up coming up" section; the
+tablet's in-app notifications (`inbox.py`, Harsh) carry the same follow-up items.
+
+## Census location (PI 2026-11-25)
+
+Site summary census and tiles say **Admitted** with the latest Helper 5 Location
+(e.g. "Admitted: Nursery (Helper 5, DOL 39)"), the same source as the twice-daily
+report, instead of "In NICU" for every admitted baby.
+
+## Form Y withdrawn: entered in error (PI 2026-11-25)
+
+The Site PI (own site) or the Global PI can withdraw a Form Y with a reason
+(`POST /sae-report/{id}/withdraw`; Global PI can restore with `restore: true`).
+Columns `withdrawn_at / _by / _reason`. The report stays (audit trail, shown
+"withdrawn" with a red banner, no edits) but is left out of the monthly AE / SAE
+summary, dashboard safety tables, site summary (W9 / W11), death alerts, the
+14-day banner and the prior-reports list of the CIOMS document.
