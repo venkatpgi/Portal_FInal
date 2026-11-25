@@ -131,3 +131,21 @@ button.ss-tile:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; 
 .flist-b-in_nicu { background: #e0f2fe; color: #0369a1; }
 .flist-b-done { background: #dcfce7; color: #15803d; }
 .flist-text { font-size: 12px; color: #475569; margin-top: 2px; }
+
+/* Outcome matrix (OutcomeMatrix.jsx, PI 2026-11-26); prefix omx- is unused elsewhere */
+.omx-legend { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
+.omx-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
+.omx-table { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+.omx-table th { background: #f8fafc; color: #475569; font-weight: 600; text-align: left; padding: 6px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: bottom; min-width: 92px; }
+.omx-table td { padding: 4px 6px; border-bottom: 1px solid #eef2f7; vertical-align: top; white-space: nowrap; }
+.omx-sticky { position: sticky; left: 0; background: #fff; z-index: 1; min-width: 120px; }
+.omx-table th.omx-sticky { background: #f8fafc; }
+.omx-totals th { font-weight: 500; white-space: nowrap; }
+.omx-cell { display: inline-block; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; font-size: 12px; line-height: 1.35; cursor: pointer; text-align: left; white-space: nowrap; }
+.omx-yes { background: #fee2e2; color: #991b1b; }
+.omx-no { background: #dcfce7; color: #166534; }
+.omx-pending { background: #f1f5f9; color: #475569; }
+.omx-overdue { background: #ffedd5; color: #9a3412; font-weight: 600; }
+.omx-na { background: transparent; color: #94a3b8; }
+.omx-detected { border: 1.5px dashed currentColor; }
+.omx-n { display: inline-block; min-width: 18px; text-align: center; border-radius: 4px; padding: 0 3px; margin-right: 2px; font-size: 11px; }

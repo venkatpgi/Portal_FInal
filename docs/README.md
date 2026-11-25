@@ -471,3 +471,25 @@ summary, dashboard safety tables, site summary (W9 / W11), death alerts, the
   baby's Form B. The "Go to another baby" box lists each baby separately. Every
   baby form of a multiple birth shows a coloured bar "Twin 2 of 2 · <ID>:
   everything on this page is for baby 2" (`components/TwinBanner.jsx`).
+
+
+## Outcome matrix (PI 2026-11-26)
+
+Left panel / top menu **Outcome matrix** (`/outcome-matrix`, `OutcomeMatrix.jsx`,
+`GET /outcome-matrix`, `backend/outcome_matrix.py`) and the ready-made report
+**Outcome matrix** (`outcome_matrix`, PDF / CSV). Global PI, Project Scientist,
+Site PIs and Site Scientists (own site). One row per randomised baby born since
+the trial start; columns: death (by 44 wk), BPD at 36 wk, NEC ≥ IIA, brain
+injury (IVH ≥ III / cPVL ≥ II), ROP needing treatment, MRI at term (subset),
+composite 1 (36 wk), composite 2 (44 wk), Form I visits 36 / 40 / 44 wk.
+- Values: the same rules as Form L's composite suggestion
+  (`get_composite_suggestion`, chapter 05): Form I first, else the live
+  suggestions from daily logs, Form H, Form F, Form J. Dates of occurrence from
+  Form I's date items (death from the logs when not on Form I).
+- Cell states: occurred (with date), No, due (checkpoint date: 36 wk for BPD /
+  composite 1, 44 wk otherwise), overdue (2 days after it with nothing known),
+  not applicable (after death; not in the MRI subset). Dashed outline / "*" in
+  the report = found in the logs etc. but not yet on Form I. A Form L composite,
+  once entered, wins.
+- Totals row per column, all arms together; never by arm. Filters: overdue,
+  still due, not yet on Form I.

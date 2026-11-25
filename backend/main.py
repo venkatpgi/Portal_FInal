@@ -5389,8 +5389,72 @@ def _ready_report(key, site, date_from, date_to, db, current_user):
             follow.update({e: (st, why) for e, (_, st, why) in followup_by_baby(db).items()})
         return follow.get(eid, ({}, {}))
 
+    if key == "outcome_matrix":
+        import outcome_matrix as om
+        rows = _outcome_matrix_rows(db, sites, current_user)
+        return ready_reports._report(key, sites, "randomised babies born since the trial start",
+                                     om.report_sections(rows, ready_reports.site_label))
     return ready_reports.build(key, db, sites, date_from, date_to, status_for=status_for,
                                composite_for=composite_for, followup_for=followup_for)
+
+
+def _outcome_matrix_rows(db, sites, current_user):
+    """outcome_matrix.py rows for these sites (PI 2026-11-26)."""
+    import followup_booking as fbk
+    import followup_due as fd
+    import followup_list as fl
+    import outcome_matrix as om
+    from clinical_time import clinical_today
+    today = clinical_today()
+    kids = fd.babies(db, sites)
+    eids = [b["enrollment_id"] for b in kids]
+    if not eids:
+        return []
+    booked = fbk.bookings_by_key(db, eids)
+    rops, form_l = {}, {}
+    for r in db.query(ROPScreening).filter(ROPScreening.enrollment_id.in_(eids)).order_by(ROPScreening.id):
+        rops[r.enrollment_id] = r
+    for r in db.query(BlenderStudySummary).filter(BlenderStudySummary.enrollment_id.in_(eids)):
+        form_l[r.enrollment_id] = r
+    rows = []
+    for b in kids:
+        eid = b["enrollment_id"]
+        try:
+            comp = get_composite_suggestion(eid, db=db, current_user=current_user)
+        except HTTPException:
+            comp = {}
+        visits = {r["checkpoint"]: r for r in fl.rows_for(b, today, booked, rops.get(eid)) if r["kind"] == "form_i"}
+        rows.append(om.row_for(b, comp, visits, today, form_l.get(eid)))
+    return rows
+
+
+@app.get("/outcome-matrix")
+def get_outcome_matrix(
+    site: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Outcome matrix page (outcome_matrix.py): one row per randomised baby,
+    one column per protocol outcome. Same people as Reports (Global PI,
+    Project Scientist, Site PIs / Scientists own site). Never by arm; the
+    baby's name only with PII rights."""
+    import outcome_matrix as om
+    from routers.reports import _scope_sites
+    sites = _scope_sites(current_user, site)
+    rows = _outcome_matrix_rows(db, sites, current_user)
+    allowed = [r["enrollment_id"] for r in rows if can_view_pii_for_site(current_user, r["site"])]
+    if allowed:
+        from site_summary import pii_names
+        brs = db.query(BirthResuscitation).filter(BirthResuscitation.enrollment_id.in_(allowed)).all()
+        found = pii_names(db, [b.screening_id for b in brs], [b.enrollment_id for b in brs if (b.baby_number or 1) > 1])
+        names = {}
+        for b in brs:
+            mine = found.get(b.enrollment_id) if (b.baby_number or 1) > 1 else found.get(b.screening_id)
+            names[b.enrollment_id] = (mine or {}).get("baby")
+        for r in rows:
+            r["name"] = names.get(r["enrollment_id"])
+    return {"columns": [{"key": k, "label": label} for k, label in om.COLUMNS], "rows": rows,
+            "totals": om.totals(rows), "sites": sites}
 
 
 @app.get("/reports/ready")
