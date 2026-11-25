@@ -35,9 +35,18 @@ export default function QuickSwitch({ go }) {
         const sids = list.map((s) => s.screening_id);
         if (sids.length) pii = (await api.post("/pii/batch", { screening_ids: sids })).data?.items || {};
       } catch { pii = {}; }
-      const out = list.map((s) => ({
-        sid: s.screening_id, eid: s.enrollment_id || "", mother: formatMotherFirstName(pii[s.screening_id]) || "",
-      }));
+      let stages = {};
+      try { stages = (await api.get("/screenings/stages")).data || {}; } catch { stages = {}; }
+      // twins / triplets: one item per baby, so twin 2 opens twin 2 (PI 2026-11-26)
+      const out = list.flatMap((s) => {
+        const mother = formatMotherFirstName(pii[s.screening_id]) || "";
+        const babies = stages[s.screening_id]?.babies || [];
+        if (babies.length > 1) {
+          return babies.map((b) => ({ sid: s.screening_id, eid: b.enrollment_id || "", n: b.baby_number,
+            total: babies.length, mother }));
+        }
+        return [{ sid: s.screening_id, eid: s.enrollment_id || "", n: 1, total: 1, mother }];
+      });
       cache = { at: Date.now(), rows: out };
       setRows(out);
     } catch { setRows([]); }
@@ -60,7 +69,9 @@ export default function QuickSwitch({ go }) {
     const parts = location.pathname.split("/").filter(Boolean);
     const form = parts[0] || "";
     if (BY_ENROLLMENT.has(form) && r.eid) return `/${form}/${r.eid}`;
+    if (form === "form-b") return r.n > 1 ? `/form-b/${r.sid}/${r.n}` : `/form-b/${r.sid}`;
     if (BY_SCREENING.has(form)) return `/${form}/${r.sid}`;
+    if (r.n > 1) return `/form-b/${r.sid}/${r.n}`;   // twin 2+ with no enrolment yet: its own Form B
     return `/form-a/${r.sid}`;
   };
 
@@ -92,8 +103,8 @@ export default function QuickSwitch({ go }) {
           {rows === null && <div className="qs-empty">Loading…</div>}
           {rows !== null && hits.length === 0 && <div className="qs-empty">No match</div>}
           {hits.map((r) => (
-            <button type="button" key={r.sid} className="qs-item" onClick={() => pick(r)}>
-              <strong>{r.eid || r.sid}</strong>
+            <button type="button" key={`${r.sid}/${r.n}`} className="qs-item" onClick={() => pick(r)}>
+              <strong>{r.eid || r.sid}{r.total > 1 ? ` · baby ${r.n} of ${r.total}` : ""}</strong>
               <span>{[r.eid ? r.sid : "", r.mother].filter(Boolean).join(" · ")}</span>
             </button>
           ))}

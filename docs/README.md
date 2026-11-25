@@ -462,3 +462,12 @@ summary, dashboard safety tables, site summary (W9 / W11), death alerts, the
   PN days with nothing in the logs are filled as 0 (not blank); the empty boxes
   show a grey 0 before then. Age at full feeds and discharge weight stay blank
   when the logs have no answer.
+- **Twins / triplets open the right baby (PI 2026-11-26; twin 2 entries had
+  gone into twin 1):** View Entries shows a mother's babies as B1 / B2 buttons
+  in the Enrollment ID column; the selected baby drives the form dots,
+  completion, next action and the expanded Forms panel, and every form opens
+  for that baby (Form B of baby 2+ = `/form-b/<screening>/<n>`). Searching a
+  twin's number selects that twin. Tile pop-up rows for baby 2+ open that
+  baby's Form B. The "Go to another baby" box lists each baby separately. Every
+  baby form of a multiple birth shows a coloured bar "Twin 2 of 2 · <ID>:
+  everything on this page is for baby 2" (`components/TwinBanner.jsx`).

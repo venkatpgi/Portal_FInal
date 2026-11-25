@@ -8,6 +8,7 @@ import DeathReportBanner from '../components/DeathReportBanner';
 import SaeDeadlineBanner from '../components/SaeDeadlineBanner';
 import CranialUsgDueBanner from '../components/CranialUsgDueBanner';
 import RangeWatch from '../components/RangeWatch';
+import TwinBanner from '../components/TwinBanner';
 import './FormLayout.css';
 import '../styles/Theme.css';
 import { useAuth } from '../context/AuthContext';
@@ -52,6 +53,7 @@ const FormLayout = ({ children, currentForm, headerProps }) => {
           idBadge={headerProps?.idBadge}
         />
         <main className="form-layout-content">
+          <TwinBanner />
           <DeathReportBanner />
           <SaeDeadlineBanner />
           <CranialUsgDueBanner />

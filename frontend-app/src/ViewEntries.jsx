@@ -43,7 +43,8 @@ const FORM_LABELS = [
 
 const ROUTE_MAP = {
   form_a:              (s, e) => `/form-a/${s}`,
-  form_b:              (s, e) => `/form-b/${s}`,
+  // twins / triplets: baby 2+ has its own Form B address (PI 2026-11-26)
+  form_b:              (s, e, n) => (n > 1 ? `/form-b/${s}/${n}` : `/form-b/${s}`),
   form_c:              (s, e) => `/form-c/${e}`,
   form_d:              (s, e) => `/form-d/${e}`,
   form_e:              (s, e) => `/form-e/${e}`,
@@ -532,7 +533,7 @@ function ActionBtn({ label, variant, onClick }) {
 }
 
 /* ─── Expanded detail panel ──────────────────────────────────── */
-function ExpandedPanel({ entry, forms, onEdit, onDelete, onViewForm, babyName, initialTab }) {
+function ExpandedPanel({ entry, forms, onEdit, onDelete, onViewForm, babyName, initialTab, babyLabel }) {
   const [tab, setTab] = useState(initialTab || "Forms");
   const [saves, setSaves] = useState(null);
   const [savesError, setSavesError] = useState("");
@@ -597,6 +598,9 @@ function ExpandedPanel({ entry, forms, onEdit, onDelete, onViewForm, babyName, i
       <div className="exp-body">
         {tab === "Forms" && (
           <div className="exp-forms">
+            {babyLabel && (
+              <p className="exp-forms-baby">Forms of <strong>{babyLabel}</strong>. Pick the other baby with the B1 / B2 buttons in the row.</p>
+            )}
             <p className="exp-forms-hint">
               Open any completed form to review what was entered earlier (opens read-only; use Edit on the form if changes are needed).
             </p>
@@ -729,6 +733,10 @@ export default function ViewEntries() {
 
   const [entries,    setEntries]    = useState([]);
   const [enrollData, setEnrollData] = useState({});
+  // Twins / triplets (PI 2026-11-26): which baby a mother's row shows and opens
+  // ({screening_id: baby_number}); default baby 1, or the baby whose number
+  // was searched for. Never silently baby 1 after picking baby 2.
+  const [babySel, setBabySel] = useState({});
   const [piiByScreening, setPiiByScreening] = useState({});
   const [saeCount,   setSaeCount]   = useState(0);
   const [saeItems,   setSaeItems]   = useState([]);
@@ -785,16 +793,19 @@ export default function ViewEntries() {
   useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
   useEffect(() => {
-    entries
-      .filter(e => e.enrollment_id)
-      .forEach(async e => {
-        if (enrollData[e.enrollment_id]) return;
+    const eids = new Set(entries.filter(e => e.enrollment_id).map(e => e.enrollment_id));
+    // every baby of a twin / triplet mother too, so baby 2's dots are its own
+    entries.forEach(e => (stageByScreening[e.screening_id]?.babies || []).forEach(b => {
+      if (b.enrollment_id && !String(b.enrollment_id).startsWith("NR-")) eids.add(b.enrollment_id);
+    }));
+    eids.forEach(async eid => {
+        if (enrollData[eid]) return;
         try {
-          const res = await api.get(`/enrollment-status/${e.enrollment_id}`);
-          setEnrollData(prev => ({ ...prev, [e.enrollment_id]: res.data }));
+          const res = await api.get(`/enrollment-status/${eid}`);
+          setEnrollData(prev => ({ ...prev, [eid]: res.data }));
         } catch {}
       });
-  }, [entries]); // eslint-disable-line
+  }, [entries, stageByScreening]); // eslint-disable-line
 
   /* ── Actions ── */
   const handleDelete = async (id, sid) => {
@@ -830,7 +841,7 @@ export default function ViewEntries() {
     if (!formKey || !ROUTE_MAP[formKey]) return;
     setSessionIds(entry);
     seedSidebar(entry);
-    navigate(ROUTE_MAP[formKey](entry.screening_id, entry.enrollment_id));
+    navigate(ROUTE_MAP[formKey](entry.screening_id, entry.enrollment_id, entry.baby_number));
   };
 
   const handleAction = (entry, action) => {
@@ -1023,7 +1034,16 @@ export default function ViewEntries() {
                     <p>No participants match your filters.</p>
                   </td>
                 </tr>
-              ) : paged.map(entry => {
+              ) : paged.map(mother => {
+                // twins / triplets: the row shows and opens the selected baby
+                const babies    = stageByScreening[mother.screening_id]?.babies || [];
+                const multi     = babies.length > 1;
+                const q         = search.trim().toLowerCase();
+                const searched  = multi && q ? babies.find(b => (b.enrollment_id || "").toLowerCase().includes(q)) : null;
+                const selNo     = babySel[mother.screening_id] || searched?.baby_number || 1;
+                const selBaby   = multi ? (babies.find(b => b.baby_number === selNo) || babies[0]) : null;
+                const selEid    = multi ? (selBaby?.enrollment_id || null) : mother.enrollment_id;
+                const entry     = multi ? { ...mother, enrollment_id: selEid, baby_number: selBaby?.baby_number } : mother;
                 const sk        = statusKey(entry.screening_status);
                 const enr       = entry.enrollment_id ? enrollData[entry.enrollment_id] : null;
                 const formProg  = buildFormProgress(enr);
@@ -1049,11 +1069,15 @@ export default function ViewEntries() {
                         {listNameForEntry(piiByScreening[entry.screening_id], enr) || "—"}
                       </td>
                       <td className="ve-td ve-td--md">
-                        {(stageByScreening[entry.screening_id]?.babies || []).length > 1
-                          ? stageByScreening[entry.screening_id].babies.map(b => (
-                              <div key={b.enrollment_id} title={`Baby ${b.baby_number} of this mother`}>
+                        {multi
+                          ? babies.map(b => (
+                              <button type="button" key={b.enrollment_id || b.baby_number}
+                                className={`ve-baby-chip${b.baby_number === selBaby?.baby_number ? " is-on" : ""}`}
+                                title={`Show and open baby ${b.baby_number} of this mother`}
+                                onClick={ev => { ev.stopPropagation();
+                                  setBabySel(prev => ({ ...prev, [mother.screening_id]: b.baby_number })); }}>
                                 <small>B{b.baby_number}</small> {babyIdLabel(b)}
-                              </div>))
+                              </button>))
                           : (entry.enrollment_id || "—")}
                       </td>
                       <td className="ve-td ve-td--md" title={formatSiteName(entry.site_name)}>{formatSiteShort(entry.site_name)}</td>
@@ -1160,6 +1184,7 @@ export default function ViewEntries() {
                             onEdit={() => handleEdit(entry)}
                             onDelete={() => handleDelete(entry.id, entry.screening_id)}
                             onViewForm={(formKey) => openForm(entry, formKey)}
+                            babyLabel={multi && selBaby ? `Baby ${selBaby.baby_number} of ${babies.length} (${babyIdLabel(selBaby)})` : ""}
                           />
                         </td>
                       </tr>
@@ -1219,6 +1244,8 @@ export default function ViewEntries() {
         openLabel={kpiModal.key === "drafts" ? "Open draft" : "View"}
         onOpenParticipant={(entry) => {
           setKpiModal(null);
+          // a twin 2 / 3 row (Form B tiles list babies) opens that baby's own Form B
+          if (entry.rowKey && entry.baby_number > 1) { openForm(entry, "form_b"); return; }
           handleEdit(entry);
         }}
         onOpenSae={(row) => {

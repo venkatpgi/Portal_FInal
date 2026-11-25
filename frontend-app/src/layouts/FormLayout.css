@@ -92,3 +92,7 @@
     padding: 12px 10px 130px;
   }
 }
+
+/* Twin / triplet bar (components/TwinBanner.jsx, PI 2026-11-26) */
+.twin-banner { border: 2px solid; border-radius: 10px; background: #fff; padding: 8px 12px; margin: 0 0 12px; font-size: 14px; }
+.twin-banner strong { font-size: 15px; }
