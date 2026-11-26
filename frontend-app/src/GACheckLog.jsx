@@ -22,7 +22,7 @@ import { useNavigate } from "react-router-dom";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import { isGlobalUser } from "./utils/roles";
-import { SITE_ORDER } from "./utils/siteNames";
+import { SITE_ORDER, siteDisplayName } from "./utils/siteNames";
 import { formatDateToDDMMYYYY } from "./utils/datetime";
 import { findDuplicateCr, maternalUidLiveError, maternalUidPlaceholder, maternalUidSaveError, sanitizeMaternalUid } from "./utils/maternalUid";
 import { collapseSearchSpaces, filterGaChecks } from "./utils/gaCheckSearch";
@@ -195,15 +195,38 @@ export default function GACheckLog() {
     return () => clearTimeout(t);
   }, [searchText]);
 
+  // Global PI / Project Scientist see every site: a site dropdown narrows
+  // the list and the counts (PI 2026-11-26, as on the Log of All Births).
+  // Remembered per browser; site staff only get their own site.
+  const isGlobal = isGlobalUser(user);
+  const [viewSite, setViewSiteState] = useState(() => {
+    try { return (isGlobalUser(user) && window.localStorage.getItem("gac-view-site")) || ""; } catch { return ""; }
+  });
+  const setViewSite = useCallback((v) => {
+    setViewSiteState(v);
+    try { window.localStorage.setItem("gac-view-site", v); } catch { /* private window */ }
+  }, []);
+  const siteCounts = useMemo(() => {
+    const m = new Map();
+    entries.forEach((e) => m.set(e.site_name, (m.get(e.site_name) || 0) + 1));
+    return m;
+  }, [entries]);
+  const bySite = useCallback(
+    (list) => (isGlobal && viewSite ? list.filter((e) => e.site_name === viewSite) : list),
+    [isGlobal, viewSite]
+  );
+  const siteEntries = useMemo(() => bySite(entries), [bySite, entries]);
+  const siteGap = useMemo(() => bySite(gapEntries), [bySite, gapEntries]);
+
   const [liveFilter, setLiveFilter] = useState("all");
   const visibleEntries = useMemo(() => {
-    const found = filterGaChecks(entries, appliedQuery);
+    const found = filterGaChecks(siteEntries, appliedQuery);
     if (liveFilter === "delivered") return found.filter((e) => e.live_status === "delivered");
     if (liveFilter === "pregnant") {
       return found.filter((e) => !e.found_iufd && !["delivered", "pre_trial"].includes(e.live_status));
     }
     return found;
-  }, [entries, appliedQuery, liveFilter]);
+  }, [siteEntries, appliedQuery, liveFilter]);
   const searching = collapseSearchSpaces(appliedQuery).length > 0;
 
   // /ga-check?entry=64 (from a data query): show and highlight that entry.
@@ -211,19 +234,20 @@ export default function GACheckLog() {
     setSearchText("");
     setAppliedQuery("");
     setLiveFilter("all");
+    setViewSiteState("");
   }, []);
   const { focusedId, missingId } = useEntryFocus({
     entries, loading, reveal: revealAll, rowIdPrefix: "gac-entry",
   });
 
   const stats = useMemo(() => {
-    const total = entries.length;
-    const eligible = entries.filter((e) => e.eligible === true).length;
-    const continued = entries.filter((e) => e.continued_to_screening).length;
-    const crPending = entries.filter((e) => e.cr_pending).length;
-    const delivered = entries.filter((e) => e.live_status === "delivered").length;
-    return { total, eligible, continued, gap: gapEntries.length, crPending, delivered };
-  }, [entries, gapEntries]);
+    const total = siteEntries.length;
+    const eligible = siteEntries.filter((e) => e.eligible === true).length;
+    const continued = siteEntries.filter((e) => e.continued_to_screening).length;
+    const crPending = siteEntries.filter((e) => e.cr_pending).length;
+    const delivered = siteEntries.filter((e) => e.live_status === "delivered").length;
+    return { total, eligible, continued, gap: siteGap.length, crPending, delivered };
+  }, [siteEntries, siteGap]);
 
   const duplicateCr = useMemo(
     () => findDuplicateCr(entries, { site: form.site_name, uid: form.mother_uid, excludeId: editingId }),
@@ -593,7 +617,20 @@ export default function GACheckLog() {
 
       <div className="gac-card">
         <div className="gac-card-head">
-          <h2>Recent checks {user?.site ? `— ${user.site}` : ""}</h2>
+          <h2>
+            Recent checks {user?.site ? `— ${user.site}` : isGlobal ? `— ${viewSite ? siteDisplayName(viewSite) : "all sites"}` : ""}
+          </h2>
+          {isGlobal && (
+            <select
+              className="gac-live-filter"
+              value={viewSite}
+              onChange={(ev) => setViewSite(ev.target.value)}
+              aria-label="Site"
+            >
+              <option value="">All sites ({entries.length})</option>
+              {SITE_ORDER.map((s) => <option key={s} value={s}>{siteDisplayName(s)} ({siteCounts.get(s) || 0})</option>)}
+            </select>
+          )}
           <select
             className="gac-live-filter"
             value={liveFilter}
