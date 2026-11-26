@@ -165,7 +165,7 @@ Known gap: hyperglycaemia from Helper 5 only sees readings > 180 mg/dL
 - SAE e-mail notification (`email_service.py`, recipients
   `main._sae_notification_recipients`), sent when a Form Y is saved: the
   site's active Site Scientist(s), the site PI email in `sae_config.py`, and
-  (PI 2026-10-25) the Global PI and Overall Project Scientist for **every**
+  (PI 2026-10-25) the Global PI and Project Scientist for **every**
   site (active superadmin / project_scientist / global_scientist accounts
   with an email). Duplicates removed ignoring case. SES production access
   granted 2026-10-25; failures never block saving.

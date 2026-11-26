@@ -7,7 +7,7 @@ const CENTRAL_ANALYTICS_ROLES = new Set(["superadmin", "project_scientist", "glo
 const CENTRAL_REVIEWER_ROLES = new Set(["superadmin", "project_scientist", "global_scientist"]);
 const SITE_QUERY_ROLES = new Set(["site_pi", "site_scientist"]);
 
-/** Data queries inbox: Global PI, Overall Project Scientist, Site PI, Site Scientist. */
+/** Data queries inbox: Global PI, Project Scientist, Site PI, Site Scientist. */
 export function canSeeDataQueries(user) {
   const r = (user?.role || "").toLowerCase();
   return CENTRAL_REVIEWER_ROLES.has(r) || SITE_QUERY_ROLES.has(r);
@@ -28,7 +28,7 @@ export function isCentralReviewer(user) {
   return CENTRAL_REVIEWER_ROLES.has((user?.role || "").toLowerCase());
 }
 
-/** Overall Project Scientist oversight (PI 2026-11-26): Override & Unlock,
+/** Project Scientist oversight (PI 2026-11-26): Override & Unlock,
  * "Not an AE", withdraw an SAE report, follow-up clinic details, at every
  * site, while still not entering forms. Mirrors deps.OVERSIGHT_ROLES. */
 const OVERSIGHT_ROLES = new Set(["project_scientist", "global_scientist"]);
@@ -41,7 +41,7 @@ export function isReadOnlyUser(user) {
   return READ_ONLY_ROLES.has((user?.role || "").toLowerCase());
 }
 
-/** Trial Monitoring, AI Insights, CSV export: Global PI + Overall Project Scientist. */
+/** Trial Monitoring, AI Insights, CSV export: Global PI + Project Scientist. */
 export function canSeeAnalytics(user) {
   return CENTRAL_ANALYTICS_ROLES.has((user?.role || "").toLowerCase());
 }
@@ -60,7 +60,7 @@ export function roleDisplayLabel(role) {
   const map = {
     superadmin: "Global PI (Superadmin)",
     global_scientist: "Global Scientist",
-    project_scientist: "Overall Project Scientist",
+    project_scientist: "Project Scientist",
     tech_support: "Technical Support (PTS3)",
     site_pi: "Site PI",
     site_scientist: "Site Scientist",

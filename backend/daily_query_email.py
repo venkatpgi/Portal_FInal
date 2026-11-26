@@ -4,7 +4,7 @@
 
 Who gets what:
   - Site PI and Site Scientist: their own site.
-  - Overall Project Scientist (and Global Scientist) and the Global PI
+  - Project Scientist (and Global Scientist) and the Global PI
     (superadmin): one email covering all sites.
 Each email lists queries new in the last 24 h, overdue (red, 7 days past
 due), and resolved / confirmed correct in the last 24 h, with open counts,

@@ -12,7 +12,7 @@ import "./ManageStaff.css";
 
 const ROLES = [
   { value: "superadmin",        label: "Superadmin (Global PI)",                          short: "Global PI",         tone: "purple" },
-  { value: "project_scientist", label: "Overall Project Scientist (PRS3-M) — all sites, oversight, no form entry", short: "Overall Project Scientist", tone: "sky" },
+  { value: "project_scientist", label: "Project Scientist (PRS3-M) — all sites, oversight, no form entry", short: "Project Scientist", tone: "sky" },
   { value: "site_pi",           label: "Site PI",                                         short: "Site PI",           tone: "teal" },
   { value: "site_scientist",    label: "Site scientist",                                  short: "Site scientist",    tone: "blue" },
   { value: "nurse",             label: "Nurse",                                           short: "Nurse",             tone: "green" },

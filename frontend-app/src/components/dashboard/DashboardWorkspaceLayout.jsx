@@ -5,6 +5,10 @@ import DashboardShell from "./DashboardShell";
 
 const RL_MAP = {
   superadmin: "Super Admin",
+  project_scientist: "Project Scientist",
+  site_pi: "Site PI",
+  site_scientist: "Site Scientist",
+  tech_support: "Technical Support (PTS3)",
   admin: "Administrator",
   pi: "Principal Investigator",
   scientist: "Scientist",

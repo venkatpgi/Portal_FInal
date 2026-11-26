@@ -1,7 +1,7 @@
 // Report builder (PI 2026-10-24): pick columns from any form, filter, preview,
 // download CSV. The server (backend/routers/reports.py) decides which columns
 // exist -- never names, CR / UID numbers, phone, address or signatures, and
-// nothing that could unblind. Global PI + Overall Project Scientist: all
+// nothing that could unblind. Global PI + Project Scientist: all
 // sites; Site PI / Site Scientist: own site. Downloads go to the audit trail.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Download, Eye, FileSpreadsheet, Filter, Save, Search, Trash2, X } from "lucide-react";

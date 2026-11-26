@@ -2,7 +2,7 @@
 // 2026-10-15). Problems found by the server's fixed checks
 // (backend/data_checks.py); this page only shows them and records what the
 // scientist did. Queries close by themselves once the data is corrected.
-// Site PI / Site Scientist: own site. Global PI + Overall Project Scientist:
+// Site PI / Site Scientist: own site. Global PI + Project Scientist:
 // all sites, and the second sign-off.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
