@@ -31,6 +31,7 @@ export default function OutcomeMatrix() {
   const [only, setOnly] = useState("all");
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  const [picked, setPicked] = useState("");   // highlighted baby (tap the ID or an empty part of the row)
 
   useEffect(() => {
     if (!allowed) return;
@@ -87,7 +88,7 @@ export default function OutcomeMatrix() {
               Every randomised baby against every Form I outcome, in the order they happen: at birth, first week,
               up to 28 days, 36, 40 and 44 weeks PMA, then overall and the composites. Form I first; where Form I
               is blank, what the forms and daily logs show (dashed: not yet saved on Form I). All arms together,
-              never by arm. Tap a cell to open the form. PDF / CSV: Reports → Outcome matrix.
+              never by arm. Tap a baby's ID (or a blank part of the row) to highlight that row; tap a cell to open the form. PDF / CSV: Reports → Outcome matrix.
             </p>
           </div>
         </div>
@@ -150,15 +151,24 @@ export default function OutcomeMatrix() {
                   <th className="omx-sticky">All {data.rows.length} babies</th>
                   {showSite && <th />}
                   <th /><th />
-                  {cols.map((c) => <th key={c.key}>{data.totals_text?.[c.key] || ""}</th>)}
+                  {cols.map((c) => (
+                    <th key={c.key}>
+                      {data.totals_text?.[c.key] ? <span className="omx-total-box">{data.totals_text[c.key]}</span> : null}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.enrollment_id}>
+                  <tr key={r.enrollment_id}
+                    className={picked === r.enrollment_id ? "omx-picked" : undefined}
+                    onClick={(e) => { if (!e.target.closest(".omx-cell")) setPicked((p) => (p === r.enrollment_id ? "" : r.enrollment_id)); }}>
                     <td className="omx-sticky">
-                      <span className="ss-id">{r.enrollment_id}</span>
-                      {r.name ? <div className="ss-name">{r.name}</div> : null}
+                      <button type="button" className="omx-pick" aria-pressed={picked === r.enrollment_id}
+                        title={picked === r.enrollment_id ? "Tap again to clear the highlight" : "Tap to highlight this baby's row"}>
+                        <span className="ss-id">{r.enrollment_id}</span>
+                        {r.name ? <div className="ss-name">{r.name}</div> : null}
+                      </button>
                     </td>
                     {showSite && <td>{formatSiteName(r.site)}</td>}
                     <td>{r.ga}</td>
