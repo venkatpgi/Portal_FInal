@@ -429,19 +429,28 @@ to document, the date / window and the status:
 | Time point | Date | To document |
 |---|---|---|
 | Day 3 (72 h) | DOL 3 | Form I: resp support 0.5–72 h, early-onset sepsis |
-| Day 7 ± 1 | DOL 6–8 | Form F cranial USG 1; Form I death ≤ 7 days |
+| Day 7 ± 1 | DOL 6–8 | Form F cranial USG 1; Form I death ≤ 7 days; Form B baby UID, admission no. and (PGIMER annual no., AMC logbook serial, IOG SNCU no.; none at GMCH / GMCH-A) by DOL 7 (PI 2026-11-26) |
 | Day 28 ± 2 | DOL 26–30 | Form F cranial USG 2; Form I death ≤ 28 days |
 | DOL 30 | by DOL 30 | Form G first ROP screen |
 | 36 wk PMA | ± 2 days | Form I visit: death, BPD, NEC, IVH / cPVL, ROP |
-| Discharge | when it happens | Form H; Form I overall; final cranial USG if before the 40 wk window; follow-up booked |
+| Discharge | when it happens | Form H; Form I overall; final cranial USG if before the 40 wk window; follow-up booked; Form B designated gender if sex at birth is DSD (also on the death row; PI 2026-11-26) |
 | 40 wk PMA (TEA) | ± 2 days | Form I visit; Form K MRI (subset); final cranial USG (40 ± 1 wk) if still admitted |
 | 44 wk PMA | ± 2 days | Form I visit incl. death after discharge |
 
 Status: Done, Booked (Form H calendar), due in N days, due now, Overdue / Scan
 missing / Not entered, at discharge, not applicable (after a death, not in the
-MRI subset, left before the window). Default view: babies with something due in
-14 days or overdue; "All randomised babies", find by ID / name, "Hide done
-lines". The old row-per-assessment API (`GET /followup-list`,
+MRI subset, left before the window). The **Show** filter filters lines, not
+just babies (PI 2026-11-26): "Due in 14 days or overdue" (default) shows only
+overdue lines and open lines dated within 14 days (`soon` on each item), "Overdue
+only" only overdue lines; done, not-applicable and at-discharge lines are left
+out of both and a baby with no line left is hidden. "Everything" shows every line
+of every randomised baby, with "Hide done lines". Find by ID / name.
+**Calendar** view (PI 2026-11-26): month grid (Monday first) with each day's
+babies (worst status colour, ×N tasks); click a day for its tasks grouped by
+baby; Overdue and Due now (window open) panels above. A task sits on its item
+date: a scan window's first day, a deadline (DOL 7 IDs, DOL 30 ROP), a checkpoint
+date, or a booked visit's booked date. At-discharge lines are not on the
+calendar. The old row-per-assessment API (`GET /followup-list`,
 `followup_list.py`) stays for the outcome matrix and the Form I visit rules.
 
 ## Census location (PI 2026-11-25)

@@ -76,3 +76,54 @@ def test_discharged_and_died():
     assert r["end"]["label"] == "Death"
     assert r["cp36"]["items"][0]["status"] == "na" and r["d28"]["items"][0]["status"] == "na"
     assert r["d7"]["items"][1]["text"] == "Death ≤ 7 days" and r["d7"]["items"][1]["status"] == "overdue"
+
+
+def fb(**kw):
+    base = {"screening_id": "01-0123", "baby_number": 1, "baby_uid": None, "baby_admission_no": None,
+            "baby_annual_no": None, "gender": "Male", "designated_gender": None}
+    base.update(kw)
+    return NS(**base)
+
+
+def items_of(c, key, form):
+    return [it for it in by_key(c)[key]["items"] if it["form"] == form]
+
+
+def test_form_b_baby_ids_by_dol_7():
+    """PI 2026-11-26: UID, admission no. and (where the site has one) annual no. a few days after birth."""
+    dol7 = DOB + timedelta(days=6)
+    early = card(baby(form_b=fb()), DOB + timedelta(days=2))
+    [it] = items_of(early, "d7", "Form B")
+    assert it["status"] == "due_now" and "UID" in it["status_text"] and "annual no." in it["status_text"]
+    assert it["date"] == dol7.isoformat() and it["route"] == "/form-b/01-0123"
+    late = card(baby(form_b=fb(baby_uid="12345")), dol7 + timedelta(days=3))
+    [it] = items_of(late, "d7", "Form B")
+    assert it["status"] == "overdue" and it["status_text"] == "Missing: admission no., annual no."
+    done = card(baby(form_b=fb(baby_uid="1", baby_admission_no="2", baby_annual_no="3")), dol7 + timedelta(days=3))
+    assert items_of(done, "d7", "Form B")[0]["status"] == "done"
+    # GMCH-A has no annual number; a twin's link carries the baby number
+    gm = card(baby(site="GMCH-A", form_b=fb(baby_uid="1", baby_admission_no="2", baby_number=2)), dol7)
+    [it] = items_of(gm, "d7", "Form B")
+    assert it["status"] == "done" and it["route"] == "/form-b/01-0123/2" and "annual" not in it["text"]
+
+
+def test_dsd_designated_gender_at_discharge():
+    today = DOB + timedelta(days=20)
+    assert not items_of(card(baby(form_b=fb()), today), "end", "Form B")
+    [it] = items_of(card(baby(form_b=fb(gender="DSD")), today), "end", "Form B")
+    assert it["status"] == "at_discharge" and not it["soon"]
+    home = baby(form_b=fb(gender="DSD"), end={"date": DOB + timedelta(days=15), "died": False})
+    [it] = items_of(card(home, today), "end", "Form B")
+    assert it["status"] == "overdue" and it["soon"]
+    home["form_b"] = fb(gender="DSD", designated_gender="Female")
+    assert items_of(card(home, today), "end", "Form B")[0]["status"] == "done"
+
+
+def test_soon_flag_per_line():
+    c = card(baby(form_b=fb()), DOB + timedelta(days=2))
+    for r in c["rows"]:
+        for it in r["items"]:
+            if it["status"] in ("done", "na", "at_discharge"):
+                assert not it["soon"]
+            if it["status"] == "overdue":
+                assert it["soon"]

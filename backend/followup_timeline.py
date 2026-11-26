@@ -7,12 +7,16 @@ gestation at birth and PMA, what has to be documented at each, the date or
 window, and whether it is done.
 
   Day 3 (72 h)     DOL 3              Form I: resp support 0.5-72 h, early-onset sepsis
-  Day 7 ± 1        DOL 6-8            Form F: cranial USG 1 · Form I: death ≤ 7 days
+  Day 7 ± 1        DOL 6-8            Form F: cranial USG 1 · Form I: death ≤ 7 days ·
+                                      Form B: baby's UID, admission no., annual no. by DOL 7
+                                      (PI 2026-11-26; annual no. only where the site has one)
   Day 28 ± 2       DOL 26-30          Form F: cranial USG 2 · Form I: death ≤ 28 days
   DOL 30           by DOL 30          Form G: first ROP screen (RBSK / NPCB)
   36 wk PMA ± 2 d  checkpoint         Form I visit: death, BPD, NEC, IVH / cPVL, ROP
   Discharge        when it happens    Form H; Form I overall; final cranial USG if before
-                                      the 40 wk window; follow-up booked (Form H calendar)
+                                      the 40 wk window; follow-up booked (Form H calendar);
+                                      Form B designated gender if sex at birth is DSD
+                                      (PI 2026-11-26; also on the death row)
   40 wk PMA (TEA)  ± 2 d (scan ± 7 d) Form I visit: NEC, IVH / cPVL, ROP · Form K MRI
                                       (subset) · final cranial USG if still admitted
   44 wk PMA ± 2 d  checkpoint         Form I visit: NEC, IVH / cPVL, ROP, death after discharge
@@ -35,6 +39,40 @@ import followup_list as fl
 GRACE = 2
 SOON_DAYS = 14
 ROP_DOL = 30
+IDS_BY_DOL = 7   # Form B baby UID / admission no. / annual no. "a few days after birth" (PI 2026-11-26)
+# Sites whose Form B asks a baby annual number (BirthResuscitationForm BABY_ANNUAL_RULES):
+# PGIMER annual no., AMC delivery-room logbook serial, IOG SNCU no.; GMCH and GMCH-A have none.
+ANNUAL_NO_SITES = {"PGIMER": "annual no.", "AMC": "logbook serial no.", "IOG": "SNCU no."}
+
+
+def form_b_route(fb, eid: str) -> str:
+    """Form B opens by screening id; twins / triplets add the baby number."""
+    sid = getattr(fb, "screening_id", None) if fb is not None else None
+    if not sid:
+        return f"/form-b/{eid}"
+    n = getattr(fb, "baby_number", None) or 1
+    return f"/form-b/{sid}/{n}" if n > 1 else f"/form-b/{sid}"
+
+
+def form_b_ids_missing(fb, site: str | None) -> list[str]:
+    """Which baby identifiers Form B still lacks."""
+    if fb is None:
+        return []
+    need = [("baby_uid", "UID"), ("baby_admission_no", "admission no.")]
+    if site in ANNUAL_NO_SITES:
+        need.append(("baby_annual_no", ANNUAL_NO_SITES[site]))
+    return [label for col, label in need if not _answered(getattr(fb, col, None))]
+
+
+def designated_gender_item(fb, end: date | None, route: str) -> dict | None:
+    """Sex at birth DSD: designated gender to be filled at discharge (or death)."""
+    if fb is None or (getattr(fb, "gender", None) or "") != "DSD":
+        return None
+    if _answered(getattr(fb, "designated_gender", None)):
+        return item("Form B", "Designated gender (sex at birth DSD)", "done", "Done", route, end)
+    if end is None:
+        return item("Form B", "Designated gender (sex at birth DSD)", "at_discharge", "at discharge", route)
+    return item("Form B", "Designated gender (sex at birth DSD)", "overdue", "Not entered", route, end)
 
 
 def fmt(d: date | None) -> str:
@@ -83,6 +121,8 @@ def timeline(baby: dict, today: date, *, scan_dates: list, rop, mri, booked: dic
     g = (lambda k: getattr(so, k, None)) if so is not None else (lambda k: None)
     scan_dols = sorted((d - dob).days + 1 for d in scan_dates if d and dob)
     fi, ff, fg, fh, fk = (f"/form-i/{eid}", f"/form-f/{eid}", f"/form-g/{eid}", f"/form-h/{eid}", f"/form-k/{eid}")
+    fb = baby.get("form_b")
+    fbr = form_b_route(fb, eid)
     rows = []
 
     def add(key, label, when, window, items):
@@ -123,6 +163,15 @@ def timeline(baby: dict, today: date, *, scan_dates: list, rop, mri, booked: dic
         # the death questions stay asked after a death (the answer is Yes)
         st, tx = timed(_answered(g(mort)), b, b, today, missing_text="Not entered")
         items.append(item("Form I", mort_text, st, tx, fi, b))
+        if key == "d7" and fb is not None:
+            ids_by = _dol_date(dob, IDS_BY_DOL)
+            missing = form_b_ids_missing(fb, baby.get("site"))
+            st, tx = timed(not missing, dob, ids_by, today, missing_text="Missing: " + ", ".join(missing))
+            if st == "due_now":
+                tx = f"by {fmt(ids_by)}: " + ", ".join(missing)
+            label_ids = "Baby's UID, admission no." + (f", {ANNUAL_NO_SITES[baby['site']]}"
+                                                       if baby.get("site") in ANNUAL_NO_SITES else "")
+            items.append(item("Form B", label_ids, st, tx, fbr, ids_by))
         add(key, label, mid, f"{fmt(a)} – {fmt(b)}", items)
 
     # DOL 30: first ROP screen
@@ -163,7 +212,8 @@ def timeline(baby: dict, today: date, *, scan_dates: list, rop, mri, booked: dic
                              if today < r["window_from"] else f"assess on the ward now (to {fmt(r['window_to'])})"),
                  "upcoming": ("due", fl._when("upcoming", due, r["window_to"], today))}
             st, tx = m.get(s, ("due", r["text"]))
-            it = item("Form I", what[wk], st, tx, fi, due)
+            # a booked visit sits on its booked date (calendar view)
+            it = item("Form I", what[wk], st, tx, fi, (r.get("booked") if s == "booked" and r.get("booked") else due))
         items = [it]
         if wk == 40:
             # MRI at term (Form K, subset) and the final cranial USG if still admitted
@@ -186,9 +236,12 @@ def timeline(baby: dict, today: date, *, scan_dates: list, rop, mri, booked: dic
 
     # Discharge (or death) row
     if died and death_date:
-        add("end", "Death", death_date, "", [
-            item("Form H", "Outcome Died, date and time; Form Y / SAE", "done" if form_h_done else "overdue",
-                 "Done" if form_h_done else "Form H not complete", fh, death_date)])
+        items = [item("Form H", "Outcome Died, date and time; Form Y / SAE", "done" if form_h_done else "overdue",
+                      "Done" if form_h_done else "Form H not complete", fh, death_date)]
+        dg = designated_gender_item(fb, death_date, fbr)
+        if dg:
+            items.append(dg)
+        add("end", "Death", death_date, "", items)
     else:
         items = [item("Form H", "Complete (hospital course, outcome)",
                       ("done" if form_h_done else ("at_discharge" if end is None else "overdue")),
@@ -208,6 +261,9 @@ def timeline(baby: dict, today: date, *, scan_dates: list, rop, mri, booked: dic
             elif end is None:
                 items.append(item("Form F", "Final cranial USG if leaving before 40 wk", "at_discharge",
                                   "at discharge", ff))
+        dg = designated_gender_item(fb, end, fbr)
+        if dg:
+            items.append(dg)
         if calendar_complete is not None:
             items.append(item("Form H", "Follow-up dates booked (calendar H12.6)",
                               "done" if calendar_complete else ("at_discharge" if end is None else "overdue"),
@@ -227,6 +283,12 @@ def timeline(baby: dict, today: date, *, scan_dates: list, rop, mri, booked: dic
     overdue = sum(1 for _, it in open_items if it["status"] == "overdue")
     soon = [(r, it) for r, it in open_items if it["status"] != "overdue" and it["date"]
             and date.fromisoformat(it["date"]) <= today + timedelta(days=SOON_DAYS)]
+    # per line: in the "due in 14 days or overdue" view (Follow-up list filters, PI 2026-11-26)
+    for r in rows:
+        for it in r["items"]:
+            it["soon"] = it["status"] == "overdue" or (
+                it["status"] in ("due", "due_now", "booked") and bool(it["date"])
+                and date.fromisoformat(it["date"]) <= today + timedelta(days=SOON_DAYS))
     upcoming = sorted(((date.fromisoformat(it["date"]), r, it) for r, it in open_items
                        if it["status"] != "overdue" and it["date"]), key=lambda x: x[0])
     nxt = None

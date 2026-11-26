@@ -147,7 +147,7 @@ def babies(db, sites, eids=None) -> list[dict]:
         home = bool(end and not end["died"] and not fi_died)
         where = (f"Discharged {fmt(end['date'])}" if home else "Died" if (died or fi_died) else "In NICU")
         out.append({"site": site, "enrollment_id": eid, "dob": dob, "ga_days": ga, "form_h": nm, "form_i": so,
-                    "end": end, "died": died or fi_died, "death_date": death_date, "home": home, "where": where})
+                    "form_b": br, "end": end, "died": died or fi_died, "death_date": death_date, "home": home, "where": where})
     return out
 
 
