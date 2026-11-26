@@ -261,3 +261,9 @@
 .lob-entry-no { color: var(--lob-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lob-table tr.lob-row--focus td { background: #e0f2fe; }
 .lob-table tr.lob-row--focus td:first-child { box-shadow: inset 4px 0 0 var(--lob-sky); }
+
+/* Site dropdown for the Global PI / Project Scientist (PI 2026-11-26) */
+.lob-site-filter { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 13px; font-weight: 600; color: #334155; }
+.lob-site-filter select { padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; min-width: 220px; }
+.lob-count { font-weight: 500; color: var(--lob-muted); font-size: 0.85em; }
+.lob-site-cell { font-weight: 600; white-space: nowrap; }

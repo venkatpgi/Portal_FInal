@@ -10,7 +10,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "./api/axios";
 import { useAuth } from "./context/AuthContext";
 import { isGlobalUser } from "./utils/roles";
-import { SITE_ORDER } from "./utils/siteNames";
+import { SITE_ORDER, siteDisplayName } from "./utils/siteNames";
 import { formatDateToDDMMYYYY } from "./utils/datetime";
 import { findDuplicateCr, maternalUidLiveError, maternalUidPlaceholder, maternalUidSaveError, normalizeCr, sanitizeMaternalUid } from "./utils/maternalUid";
 import {
@@ -217,13 +217,35 @@ export default function LogOfAllBirths() {
     const t = setTimeout(() => setAppliedQuery(searchText), 300);
     return () => clearTimeout(t);
   }, [searchText]);
-  const visibleEntries = useMemo(() => filterLogEntries(entries, appliedQuery), [entries, appliedQuery]);
+  // Global PI / Project Scientist see every site: a site dropdown narrows
+  // the list (PI 2026-11-26). Remembered per browser; site staff only ever
+  // get their own site from the API, so they never see the dropdown.
+  const isGlobal = isGlobalUser(user);
+  const [viewSite, setViewSiteState] = useState(() => {
+    try { return (isGlobalUser(user) && window.localStorage.getItem("lob-view-site")) || ""; } catch { return ""; }
+  });
+  const setViewSite = useCallback((v) => {
+    setViewSiteState(v);
+    try { window.localStorage.setItem("lob-view-site", v); } catch { /* private window */ }
+  }, []);
+  const siteCounts = useMemo(() => {
+    const m = new Map();
+    entries.forEach((e) => m.set(e.site_name, (m.get(e.site_name) || 0) + 1));
+    return m;
+  }, [entries]);
+  const siteEntries = useMemo(
+    () => (isGlobal && viewSite ? entries.filter((e) => e.site_name === viewSite) : entries),
+    [entries, isGlobal, viewSite]
+  );
+  const showSiteCol = isGlobal && !viewSite;
+  const visibleEntries = useMemo(() => filterLogEntries(siteEntries, appliedQuery), [siteEntries, appliedQuery]);
   const searching = collapseSearchSpaces(appliedQuery).length > 0;
 
   // /log-of-all-births?entry=64 (from a data query): show and highlight it.
   const revealAll = useCallback(() => {
     setSearchText("");
     setAppliedQuery("");
+    setViewSiteState("");
   }, []);
   const { focusedId, missingId } = useEntryFocus({
     entries, loading, reveal: revealAll, rowIdPrefix: "lob-entry",
@@ -234,11 +256,11 @@ export default function LogOfAllBirths() {
   }, [isSiteLocked, user?.site]);
 
   const alertCount = useMemo(
-    () => entries.filter((e) => !e.pre_trial && (e.match_status === "in_range_no_match"
+    () => siteEntries.filter((e) => !e.pre_trial && (e.match_status === "in_range_no_match"
       || (e.match_status === "possible_match" && !e.match_checked) || e.ga_log_missing)).length,
-    [entries]
+    [siteEntries]
   );
-  const crPendingCount = useMemo(() => entries.filter((e) => e.cr_pending).length, [entries]);
+  const crPendingCount = useMemo(() => siteEntries.filter((e) => e.cr_pending).length, [siteEntries]);
 
   // How many entries at this site share the same CR number + date of birth --
   // a genuine multiple birth (PI 2026-10-01). Used only to flag the rows
@@ -594,7 +616,10 @@ export default function LogOfAllBirths() {
 
       <div className="lob-card">
         <div className="lob-card-head">
-          <h2>Entries {user?.site_name ? `— ${user.site_name}` : ""}</h2>
+          <h2>
+            Entries {user?.site_name ? `— ${user.site_name}` : isGlobal ? `— ${viewSite ? siteDisplayName(viewSite) : "all sites"}` : ""}
+            <span className="lob-count"> ({siteEntries.length})</span>
+          </h2>
           <button type="button" className="lob-icon-btn" onClick={load} disabled={loading} title="Refresh">
             <RefreshCw size={14} className={loading ? "lob-spin" : ""} />
           </button>
@@ -602,6 +627,17 @@ export default function LogOfAllBirths() {
         {loadError && <div className="lob-form-error">{loadError}</div>}
         {missingId != null && (
           <div className="lob-form-error">Entry #{missingId} is not in this log (it may have been deleted).</div>
+        )}
+        {isGlobal && (
+          <label className="lob-site-filter">
+            <span>Site</span>
+            <select value={viewSite} onChange={(e) => setViewSite(e.target.value)} aria-label="Show births from site">
+              <option value="">All sites ({entries.length})</option>
+              {SITE_ORDER.map((s) => (
+                <option key={s} value={s}>{siteDisplayName(s)} ({siteCounts.get(s) || 0})</option>
+              ))}
+            </select>
+          </label>
         )}
         <div className="lob-search">
           <Search size={16} className="lob-search-icon" aria-hidden="true" />
@@ -628,6 +664,7 @@ export default function LogOfAllBirths() {
             <thead>
               <tr>
                 <th>#</th>
+                {showSiteCol && <th>Site</th>}
                 <th>Date / Time</th>
                 <th>Birth order</th>
                 <th>Mother's UID</th>
@@ -658,6 +695,7 @@ export default function LogOfAllBirths() {
                     className={[isAlert ? "lob-row--alert" : "", focusedId === e.id ? "lob-row--focus" : ""].join(" ").trim()}
                   >
                     <td className="lob-entry-no">#{e.id}</td>
+                    {showSiteCol && <td className="lob-site-cell">{e.site_name || "—"}</td>}
                     <td>{e.date_of_birth ? formatDateToDDMMYYYY(e.date_of_birth) : "—"}{e.time_of_birth ? ` ${e.time_of_birth}` : ""}</td>
                     <td>
                       {e.multiple_birth_count != null && e.birth_order != null ? (
@@ -692,12 +730,14 @@ export default function LogOfAllBirths() {
                   </tr>
                 );
               })}
-              {!loading && entries.length === 0 && (
-                <tr><td colSpan={13} className="lob-empty">No births logged yet.</td></tr>
+              {!loading && siteEntries.length === 0 && (
+                <tr><td colSpan={showSiteCol ? 14 : 13} className="lob-empty">
+                  {isGlobal && viewSite ? `No births logged yet at ${siteDisplayName(viewSite)}.` : "No births logged yet."}
+                </td></tr>
               )}
-              {!loading && searching && entries.length > 0 && visibleEntries.length === 0 && (
+              {!loading && searching && siteEntries.length > 0 && visibleEntries.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="lob-empty">
+                  <td colSpan={showSiteCol ? 14 : 13} className="lob-empty">
                     No matching births found.{" "}
                     <button type="button" className="lob-link-btn" onClick={() => setSearchText("")}>Clear search</button>
                   </td>
