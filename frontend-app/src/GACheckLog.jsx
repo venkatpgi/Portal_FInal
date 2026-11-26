@@ -622,7 +622,7 @@ export default function GACheckLog() {
           </h2>
           {isGlobal && (
             <select
-              className="gac-live-filter"
+              className="gac-live-filter gac-site-filter"
               value={viewSite}
               onChange={(ev) => setViewSite(ev.target.value)}
               aria-label="Site"
