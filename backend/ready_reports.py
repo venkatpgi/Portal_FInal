@@ -57,6 +57,10 @@ REPORTS = [
     {"key": "followup_due", "title": "Follow-up due",
      "description": "Form I at 36 / 40 / 44 wk PMA (window ± 2 days): checkpoints coming up (14 days ahead for "
                     "babies at home, 7 in the NICU) and those whose window closed with nothing entered."},
+    {"key": "outcome_matrix", "title": "Outcome matrix",
+     "description": "One row per randomised baby: each protocol outcome (death, BPD, NEC, brain injury, ROP "
+                    "needing treatment, MRI, composites 1 and 2, Form I visits) as occurred with date, No, due or "
+                    "overdue; * = found in the logs, not yet on Form I. Pooled, never by arm. Dates are ignored."},
     {"key": "ae_summary", "title": "AE summary for IEC / DSMB",
      "description": "Monthly: AEs and SAEs by term and site, pooled (blinded), with the literature baseline. "
                     "Dates = AE start date."},

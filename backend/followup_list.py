@@ -59,7 +59,7 @@ def rows_for(baby: dict, today: date, booked: dict, rop) -> list[dict]:
             break
         frm, to = due - timedelta(days=fd.WINDOW_DAYS), due + timedelta(days=fd.WINDOW_DAYS)
         row = {"assessment": f"Form I {wk} wk PMA", "kind": "form_i", "checkpoint": wk, "due": due,
-               "window_from": frm, "window_to": to, "booking": None}
+               "window_from": frm, "window_to": to, "booking": None, "booked": None}
         b = booked.get((eid, wk))
         if fbk._done(so, wk):
             row.update(status="done", text="Done on Form I")
@@ -69,6 +69,7 @@ def rows_for(baby: dict, today: date, booked: dict, rop) -> list[dict]:
             st = _stage(due, frm, to, today)
             row["booking"] = fbk.booking_text(b)
             if st != "overdue" and b is not None and b.booked_date:
+                row["booked"] = b.booked_date
                 row.update(status="booked", text=f"{fbk.booking_text(b)}; {_when(st, due, to, today)}")
             elif admitted and st != "overdue":
                 row.update(status="in_nicu", text=f"Baby admitted: assess on the ward, {_when(st, due, to, today)}")

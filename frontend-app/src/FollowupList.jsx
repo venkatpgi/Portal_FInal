@@ -1,7 +1,9 @@
-// Follow-up list (PI 2026-11-25): every outcome assessment per randomised baby,
-// Form I 36 / 40 / 44 wk PMA (window ± 2 days) and the outpatient ROP screen
-// for babies who left before one (backend/followup_list.py). All staff: own
-// site; Global PI and central scientists pick a site. Names only with PII rights.
+// Follow-up list, baby by baby (PI 2026-11-26): for every randomised baby, its
+// time points worked out from date of birth, gestation and PMA (day 3, day 7,
+// day 28, DOL 30 ROP, 36 / 40 / 44 wk PMA, discharge), what to document at each,
+// the date or window and whether it is done (backend/followup_timeline.py,
+// GET /followup-list/timeline). All staff: own site; central team any site.
+// Names only with PII rights.
 import React, { useEffect, useMemo, useState } from "react";
 import { CalendarClock } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -13,60 +15,39 @@ import { SITE_ORDER } from "./utils/siteNames";
 import { formatSiteName } from "./components/dashboard/siteLabels";
 import "./SiteSummary.css";
 
-const VIEWS = [
-  ["due", "Due or overdue (next 14 days)"],
-  ["overdue", "Overdue"],
-  ["upcoming", "All still to do"],
-  ["done", "Done"],
-  ["all", "Everything"],
-];
-
-const STATUS_LABEL = {
-  overdue: "Overdue", window: "Window open", booked: "Booked", upcoming: "Coming up",
-  in_nicu: "Admitted", done: "Done", ended: "Ended",
+const BADGE = {
+  done: "flist-b-done", booked: "flist-b-booked", due_now: "flist-b-window", overdue: "flist-b-overdue",
+  due: "flist-b-due", at_discharge: "flist-b-in_nicu", na: "flist-b-na",
 };
-
-const fmt = (iso) => (iso
-  ? new Date(`${String(iso).slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB",
-    { day: "2-digit", month: "short", year: "numeric" })
-  : "");
-
-const TODO = new Set(["overdue", "window", "booked", "upcoming", "in_nicu"]);
 
 export default function FollowupList() {
   const { user } = useAuth();
   const allowed = canUseShiftReport(user);
   const global = isGlobalUser(user);
   const [site, setSite] = useState("");
-  const [view, setView] = useState("due");
+  const [show, setShow] = useState("soon");
+  const [q, setQ] = useState("");
+  const [hideDone, setHideDone] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!allowed) return;
+    setData(null);
     setError("");
-    api.get("/followup-list", { params: global && site ? { site } : {} })
+    api.get("/followup-list/timeline", { params: global && site ? { site } : {} })
       .then((res) => setData(res.data))
       .catch((e) => setError(e?.response?.data?.detail || "Could not load the follow-up list."));
   }, [allowed, global, site]);
 
-  const rows = useMemo(() => {
-    const all = data?.rows || [];
-    if (view === "all") return all;
-    if (view === "done") return all.filter((r) => r.status === "done");
-    if (view === "overdue") return all.filter((r) => r.status === "overdue");
-    if (view === "upcoming") return all.filter((r) => TODO.has(r.status));
-    return all.filter((r) => r.status === "overdue" || (TODO.has(r.status) && r.days_to_due <= 14));
-  }, [data, view]);
-
-  const counts = useMemo(() => {
-    const all = data?.rows || [];
-    return {
-      overdue: all.filter((r) => r.status === "overdue").length,
-      soon: all.filter((r) => TODO.has(r.status) && r.status !== "overdue" && r.days_to_due <= 14).length,
-      booked: all.filter((r) => r.status === "booked").length,
-    };
-  }, [data]);
+  const cards = useMemo(() => {
+    let all = data?.cards || [];
+    if (show === "soon") all = all.filter((c) => c.counts.overdue || c.counts.soon);
+    if (show === "overdue") all = all.filter((c) => c.counts.overdue);
+    const s = q.trim().toLowerCase();
+    if (s) all = all.filter((c) => c.enrollment_id.toLowerCase().includes(s) || (c.name || "").toLowerCase().includes(s));
+    return all;
+  }, [data, show, q]);
 
   if (!allowed) {
     return (
@@ -76,7 +57,7 @@ export default function FollowupList() {
     );
   }
 
-  const showSite = global && !site;
+  const total = data?.cards?.length || 0;
   return (
     <DashboardWorkspaceLayout pageTitle="Follow-up list">
       <div className="ss-root">
@@ -85,9 +66,10 @@ export default function FollowupList() {
           <div>
             <h1>Follow-up list</h1>
             <p>
-              Outcome assessments for every randomised baby: Form I at 36, 40 and 44 weeks PMA (window
-              ± 2 days), and the outpatient ROP screen for babies who left before one. Booked dates come
-              from the Form H follow-up calendar. A row clears itself when Form I or Form G is filled.
+              Baby by baby: what has to be documented and when, worked out from the date of birth, gestation and
+              PMA: day 3, day 7 and day 28 (cranial USG, early outcomes), the first ROP screen by DOL 30, Form I at
+              36, 40 and 44 weeks PMA, MRI at term (subset) and discharge. Each line clears itself when the form is
+              filled. Tap a line to open the form.
             </p>
           </div>
         </div>
@@ -103,55 +85,66 @@ export default function FollowupList() {
           ) : (
             <span className="ss-note">Site: {formatSiteName(user?.site_name)}</span>
           )}
-        </div>
-
-        <div className="fl-tiles">
-          <button type="button" className="fl-tile fl-red" onClick={() => setView("overdue")}>
-            <strong>{counts.overdue}</strong> overdue</button>
-          <button type="button" className="fl-tile fl-amber" onClick={() => setView("due")}>
-            <strong>{counts.soon}</strong> due in 14 days</button>
-          <button type="button" className="fl-tile fl-blue" onClick={() => setView("upcoming")}>
-            <strong>{counts.booked}</strong> booked</button>
-        </div>
-
-        <div className="fl-views">
-          {VIEWS.map(([k, label]) => (
-            <button type="button" key={k} className={`fl-view${view === k ? " is-on" : ""}`}
-              onClick={() => setView(k)}>{label}</button>
-          ))}
+          <label className="ss-field">
+            <span>Babies</span>
+            <select value={show} onChange={(e) => setShow(e.target.value)}>
+              <option value="soon">Something due in 14 days or overdue</option>
+              <option value="overdue">Something overdue</option>
+              <option value="all">All randomised babies</option>
+            </select>
+          </label>
+          <label className="ss-field">
+            <span>Find</span>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="ID or name" />
+          </label>
+          <label className="flist-check">
+            <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} /> Hide done lines
+          </label>
         </div>
 
         {error && <p className="ss-none">{error}</p>}
         {!data && !error && <p className="ss-none">Loading…</p>}
-        {data && (rows.length ? (
-          <div className="ss-table-wrap">
-            <table className="ss-table">
-              <thead><tr>
-                {showSite && <th>Site</th>}<th>Baby</th><th>Assessment</th><th>Date</th><th>Window</th>
-                <th>Status</th><th>Now</th><th />
-              </tr></thead>
+        {data && <p className="flist-count">{cards.length} of {total} babies shown</p>}
+        {data && cards.length === 0 && <p className="ss-none">No baby in this view.</p>}
+
+        {cards.map((c) => (
+          <section key={c.enrollment_id} className="flist-card">
+            <header className="flist-card-head">
+              <div>
+                <span className="ss-id">{c.enrollment_id}</span>
+                {c.name && <span className="flist-name"> · {c.name}</span>}
+                <span className="flist-meta"> · GA {c.ga} · born {c.dob_text}{global && !site ? ` · ${formatSiteName(c.site)}` : ""}</span>
+              </div>
+              <div className="flist-meta">Now: {c.now} · {c.status}</div>
+              <div className="flist-next">
+                {c.counts.overdue > 0 && <span className="flist-badge flist-b-overdue">{c.counts.overdue} overdue</span>}
+                {c.next ? <span>Next: <strong>{c.next.text}</strong></span> : <span>Nothing left to schedule</span>}
+              </div>
+            </header>
+            <table className="flist-tl">
+              <thead><tr><th>Time point</th><th>Date / window</th><th>To document</th><th>Status</th></tr></thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={`${r.enrollment_id}-${r.assessment}`} className={`fl-row fl-${r.status}`}>
-                    {showSite && <td>{formatSiteName(r.site)}</td>}
-                    <td><span className="ss-id">{r.enrollment_id}</span>{r.name ? <div className="ss-name">{r.name}</div> : null}</td>
-                    <td>{r.assessment}</td>
-                    <td>{fmt(r.due)}</td>
-                    <td>{r.window_from ? `${fmt(r.window_from)} – ${fmt(r.window_to)}` : `by ${fmt(r.window_to)}`}</td>
-                    <td><span className={`fl-badge fl-b-${r.status}`}>{STATUS_LABEL[r.status] || r.status}</span>
-                      <div className="fl-text">{r.text}</div></td>
-                    <td>{r.where}</td>
-                    <td>
-                      <Link to={r.kind === "rop" ? `/form-g/${r.enrollment_id}` : `/form-i/${r.enrollment_id}`}>
-                        {r.kind === "rop" ? "Form G" : "Form I"}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+                {c.rows.map((r) => {
+                  const items = hideDone ? r.items.filter((i) => i.status !== "done" && i.status !== "na") : r.items;
+                  if (!items.length) return null;
+                  return items.map((it, i) => (
+                    <tr key={`${r.key}-${i}`} className={i === 0 ? "flist-tp-first" : ""}>
+                      {i === 0 && <td rowSpan={items.length} className="flist-tp">{r.label}</td>}
+                      {i === 0 && (
+                        <td rowSpan={items.length} className="flist-date">
+                          {r.date_text || r.window}
+                          {r.date_text && r.window ? <div className="flist-window">{r.window}</div> : null}
+                        </td>
+                      )}
+                      <td><Link to={it.route}><strong>{it.form}:</strong> {it.text}</Link></td>
+                      <td><span className={`flist-badge ${BADGE[it.status] || ""}`}>{it.status_text}</span></td>
+                    </tr>
+                  ));
+                })}
               </tbody>
             </table>
-          </div>
-        ) : <p className="ss-none">Nothing in this view.</p>)}
+          </section>
+        ))}
       </div>
     </DashboardWorkspaceLayout>
   );

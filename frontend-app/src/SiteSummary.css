@@ -117,17 +117,61 @@ button.ss-tile:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; 
 .ss-card { scroll-margin-top: 16px; }
 
 /* Follow-up list (FollowupList.jsx) */
-.fl-tiles { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
-.fl-tile { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; padding: 10px 14px; font-size: 13px; cursor: pointer; color: #334155; }
-.fl-tile strong { font-size: 20px; margin-right: 4px; }
-.fl-red strong { color: #b91c1c; } .fl-amber strong { color: #b45309; } .fl-blue strong { color: #1d4ed8; }
-.fl-views { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
-.fl-view { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
-.fl-view.is-on { background: #00132c; border-color: #00132c; color: #fff; }
-.fl-badge { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 600; background: #f1f5f9; color: #334155; }
-.fl-b-overdue { background: #fee2e2; color: #b91c1c; }
-.fl-b-window { background: #fef3c7; color: #b45309; }
-.fl-b-booked { background: #dbeafe; color: #1d4ed8; }
-.fl-b-in_nicu { background: #e0f2fe; color: #0369a1; }
-.fl-b-done { background: #dcfce7; color: #15803d; }
-.fl-text { font-size: 12px; color: #475569; margin-top: 2px; }
+.flist-tiles { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+.flist-tile { border: 1px solid #e2e8f0; background: #fff; border-radius: 10px; padding: 10px 14px; font-size: 13px; cursor: pointer; color: #334155; }
+.flist-tile strong { font-size: 20px; margin-right: 4px; }
+.flist-red strong { color: #b91c1c; } .flist-amber strong { color: #b45309; } .flist-blue strong { color: #1d4ed8; }
+.flist-views { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.flist-view { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.flist-view.is-on { background: #00132c; border-color: #00132c; color: #fff; }
+.flist-badge { display: inline-block; white-space: nowrap; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 600; background: #f1f5f9; color: #334155; }
+.flist-b-overdue { background: #fee2e2; color: #b91c1c; }
+.flist-b-window { background: #fef3c7; color: #b45309; }
+.flist-b-booked { background: #dbeafe; color: #1d4ed8; }
+.flist-b-in_nicu { background: #e0f2fe; color: #0369a1; }
+.flist-b-done { background: #dcfce7; color: #15803d; }
+.flist-text { font-size: 12px; color: #475569; margin-top: 2px; }
+
+/* Outcome matrix (OutcomeMatrix.jsx, PI 2026-11-26); prefix omx- is unused elsewhere */
+.omx-legend { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 12px; }
+.omx-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 10px; }
+.omx-table { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+.omx-table th { background: #f8fafc; color: #475569; font-weight: 600; text-align: left; padding: 6px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: bottom; min-width: 92px; }
+.omx-table td { padding: 4px 6px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+.omx-sticky { position: sticky; left: 0; background: #fff; z-index: 1; min-width: 150px; max-width: 190px; white-space: normal; box-shadow: 1px 0 0 #e2e8f0; }
+.omx-table th.omx-sticky { background: #f8fafc; }
+.omx-totals th { font-weight: 500; font-size: 11px; color: #334155; white-space: normal; background: #fff; }
+.omx-groups th { background: #00132c; color: #fff; text-align: center; font-size: 12px; border-left: 2px solid #fff; }
+.omx-groups th.omx-sticky { background: #00132c; }
+.omx-cell { display: inline-block; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; font-size: 12px; line-height: 1.35; cursor: pointer; text-align: left; white-space: normal; max-width: 130px; }
+.omx-yes { background: #fee2e2; color: #991b1b; }
+.omx-no { background: #dcfce7; color: #166534; }
+.omx-pending { background: #f1f5f9; color: #475569; }
+.omx-overdue { background: #ffedd5; color: #9a3412; font-weight: 600; }
+.omx-na { background: transparent; color: #94a3b8; }
+.omx-val { background: #e0f2fe; color: #075985; }
+.omx-detected { border: 1.5px dashed currentColor; }
+
+/* Follow-up list, baby by baby (PI 2026-11-26) */
+.flist-card { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; margin: 0 0 14px; overflow: hidden; }
+.flist-card-head { padding: 10px 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: grid; gap: 3px; }
+.flist-name { font-weight: 600; color: #0f172a; }
+.flist-meta { font-size: 13px; color: #475569; }
+.flist-next { font-size: 13px; color: #0f172a; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.flist-count { font-size: 13px; color: #475569; margin: 4px 0 10px; }
+.flist-check { display: flex; gap: 6px; align-items: center; font-size: 13px; color: #334155; align-self: flex-end; padding-bottom: 6px; }
+.flist-tl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.flist-tl th { text-align: left; font-size: 12px; color: #64748b; font-weight: 600; padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+.flist-tl td { padding: 5px 10px; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
+.flist-tl tr.flist-tp-first td { border-top: 1px solid #e2e8f0; }
+.flist-tp { font-weight: 600; white-space: nowrap; width: 130px; }
+.flist-date { white-space: nowrap; width: 180px; }
+.flist-date .flist-window { white-space: normal; }
+.flist-window { font-size: 11px; color: #64748b; }
+.flist-tl a { color: #0f172a; text-decoration: none; }
+.flist-tl a:hover { text-decoration: underline; }
+.flist-b-due { background: #f1f5f9; color: #475569; }
+.flist-b-na { background: transparent; color: #94a3b8; font-weight: 500; }
+@media (max-width: 720px) { .flist-tp, .flist-date { white-space: normal; width: auto; } }
+.ss-field input[type="text"], .ss-field input:not([type]) { min-width: 180px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font-size: 13.5px; color: #0f172a; }
+.flist-check input[type="checkbox"] { appearance: auto; -webkit-appearance: checkbox; width: 16px; height: 16px; min-width: 16px; display: inline-block; margin: 0; }

@@ -5389,8 +5389,140 @@ def _ready_report(key, site, date_from, date_to, db, current_user):
             follow.update({e: (st, why) for e, (_, st, why) in followup_by_baby(db).items()})
         return follow.get(eid, ({}, {}))
 
+    if key == "outcome_matrix":
+        import outcome_matrix as om
+        rows = _outcome_matrix_rows(db, sites, current_user)
+        return ready_reports._report(key, sites, "randomised babies born since the trial start",
+                                     om.report_sections(rows, ready_reports.site_label))
     return ready_reports.build(key, db, sites, date_from, date_to, status_for=status_for,
                                composite_for=composite_for, followup_for=followup_for)
+
+
+# Form I's own fill-ins (FormI.jsx), so the outcome matrix shows what Form I
+# would show for a blank item (PI 2026-11-26).
+_PMA_FIELD_MAP = {
+    36: {"death": "death36", "death_date": "death36_date", "nec_stage": "nec36_stage", "nec_date": "nec36_date",
+         "ivh_grade3": "ivh36_grade3", "ivh_date": "ivh36_date", "cpvl_grade2": "cpvl36_grade2",
+         "cpvl_date": "cpvl36_date", "rop": "rop36", "rop_date": "rop36_date", "rop_treated": "rop36_treated",
+         "bpd_jensen_grade": "bpd36_jensen_grade", "bpd_jensen_date": "bpd36_jensen_date"},
+    40: {"death": "death40", "death_date": "death40_date", "nec_stage": "nec40_stage", "nec_date": "nec40_date",
+         "ivh_grade3": "ivh40_grade3", "ivh_date": "ivh40_date", "cpvl_grade2": "cpvl40_grade2",
+         "cpvl_date": "cpvl40_date", "rop": "rop40", "rop_date": "rop40_date", "rop_treated": "rop40_treated",
+         "abnormal_mri_tea": "abnormal_mri_tea"},
+    44: {"death": "death44", "death_date": "death44_date", "nec_stage": "nec44_stage", "nec_date": "nec44_date",
+         "ivh_grade3": "ivh44_grade3", "ivh_date": "ivh44_date", "cpvl_grade2": "cpvl44_grade2",
+         "cpvl_date": "cpvl44_date", "rop": "rop44_assessed", "rop_date": "rop44_date",
+         "rop_treated": "rop44_treated"},
+}
+_POST_RESUS_FIELDS = ("resp_support_72h", "sepsis_eos", "sepsis_los", "culture_positive_sepsis",
+                      "culture_positive_body_fluid", "mortality_7_days", "mortality_7d_date",
+                      "mortality_28_days", "mortality_28d_date")
+
+
+def _form_i_suggestions(eid, ga_days, db, current_user) -> dict:
+    """{Form I field: suggested value}, the same sources and mapping as FormI.jsx."""
+    def safe(fn, *a, **kw):
+        try:
+            out = fn(*a, **kw)
+            return out if isinstance(out, dict) else {}
+        except Exception:   # a missing source leaves the item blank, never breaks the matrix
+            db.rollback()
+            return {}
+    out = {}
+    b = safe(get_birth_resuscitation, eid, db=db, current_user=current_user)
+    for field, src in (("ventilation_required", "ppv_required"), ("resus_chest_compressions", "chest_compression"),
+                       ("intubation_during_resus", "intubation"), ("time_to_spontaneous_breathing", "time_to_respiration")):
+        if b.get(src) is not None:
+            out[field] = b[src]
+    post = safe(get_post_resus_prefill, eid, db=db, current_user=current_user)
+    if post.get("has_data"):
+        out.update({f: post[f] for f in _POST_RESUS_FIELDS if post.get(f) is not None})
+    resp = safe(get_resp_prefill, eid, db=db, current_user=current_user)
+    if resp.get("has_data"):
+        for field, src in (("mv_days", "imv_days"), ("cpap_days", "cpap_days"), ("hfnc_days", "hfnc_days"),
+                           ("nippv_days", "nippv_days")):
+            if resp.get(src) is not None:
+                out[field] = resp[src]
+    inf = safe(get_infection_detect, eid, db=db, current_user=current_user)
+    if inf.get("has_data"):
+        out["sepsis_overall"] = "Yes" if inf.get("windows") else "No"
+    surv = safe(get_survival_check, eid, db=db, current_user=current_user)
+    if surv.get("did_not_survive") or surv.get("form_h_died"):
+        out["mortality_in_hospital"] = "Yes"
+        when = surv.get("form_h_date") or surv.get("date")
+        if when:
+            out["mortality_hospital_date"] = when
+    elif surv.get("stay_ended"):
+        out["mortality_in_hospital"] = "No"
+    if ga_days is not None:
+        for cp, fmap in _PMA_FIELD_MAP.items():
+            d = safe(get_pma_assessment_prefill, eid, cp, gestation_weeks=ga_days // 7, gestation_days=ga_days % 7,
+                     db=db, current_user=current_user)
+            if d.get("has_data"):
+                out.update({field: d[key] for key, field in fmap.items() if d.get(key) is not None})
+    return out
+
+
+def _outcome_matrix_rows(db, sites, current_user):
+    """outcome_matrix.py rows for these sites (PI 2026-11-26)."""
+    import followup_booking as fbk
+    import followup_due as fd
+    import followup_list as fl
+    import outcome_matrix as om
+    from clinical_time import clinical_today
+    today = clinical_today()
+    kids = fd.babies(db, sites)
+    eids = [b["enrollment_id"] for b in kids]
+    if not eids:
+        return []
+    booked = fbk.bookings_by_key(db, eids)
+    rops, form_l = {}, {}
+    for r in db.query(ROPScreening).filter(ROPScreening.enrollment_id.in_(eids)).order_by(ROPScreening.id):
+        rops[r.enrollment_id] = r
+    for r in db.query(BlenderStudySummary).filter(BlenderStudySummary.enrollment_id.in_(eids)):
+        form_l[r.enrollment_id] = r
+    rows = []
+    for b in kids:
+        eid = b["enrollment_id"]
+        try:
+            comp = get_composite_suggestion(eid, db=db, current_user=current_user)
+        except HTTPException:
+            comp = {}
+        visits = {r["checkpoint"]: r for r in fl.rows_for(b, today, booked, rops.get(eid)) if r["kind"] == "form_i"}
+        sugg = _form_i_suggestions(eid, b.get("ga_days"), db, current_user)
+        rows.append(om.row_for(b, comp, visits, today, form_l.get(eid), sugg))
+    return rows
+
+
+@app.get("/outcome-matrix")
+def get_outcome_matrix(
+    site: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Outcome matrix page (outcome_matrix.py): one row per randomised baby,
+    one column per protocol outcome. Same people as Reports (Global PI,
+    Project Scientist, Site PIs / Scientists own site). Never by arm; the
+    baby's name only with PII rights."""
+    import outcome_matrix as om
+    from routers.reports import _scope_sites
+    sites = _scope_sites(current_user, site)
+    rows = _outcome_matrix_rows(db, sites, current_user)
+    allowed = [r["enrollment_id"] for r in rows if can_view_pii_for_site(current_user, r["site"])]
+    if allowed:
+        from site_summary import pii_names
+        brs = db.query(BirthResuscitation).filter(BirthResuscitation.enrollment_id.in_(allowed)).all()
+        found = pii_names(db, [b.screening_id for b in brs], [b.enrollment_id for b in brs if (b.baby_number or 1) > 1])
+        names = {}
+        for b in brs:
+            mine = found.get(b.enrollment_id) if (b.baby_number or 1) > 1 else found.get(b.screening_id)
+            names[b.enrollment_id] = (mine or {}).get("baby")
+        for r in rows:
+            r["name"] = names.get(r["enrollment_id"])
+    totals = om.totals(rows)
+    return {"sections": [{"key": k, "label": label} for k, label in om.SECTIONS], "columns": om.columns(),
+            "rows": rows, "totals": totals, "totals_text": om.summary_texts(rows),
+            "sites": sites}
 
 
 @app.get("/reports/ready")

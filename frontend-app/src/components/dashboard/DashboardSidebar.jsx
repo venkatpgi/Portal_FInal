@@ -1,5 +1,6 @@
 import {
   CalendarClock,
+  Grid3X3,
   LayoutDashboard,
   Target,
   Users,
@@ -175,6 +176,15 @@ export default function DashboardSidebar({
             className={workspaceNavClass}
           >
             <CalendarClock size={14} aria-hidden="true" /> Follow-up list
+          </NavLink>
+        )}
+        {canUseReports(user) && (
+          <NavLink
+            to="/outcome-matrix"
+            onClick={onClose}
+            className={workspaceNavClass}
+          >
+            <Grid3X3 size={14} aria-hidden="true" /> Outcome matrix
           </NavLink>
         )}
         {canViewAudit(user) && (

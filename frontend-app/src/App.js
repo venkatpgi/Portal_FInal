@@ -2,7 +2,7 @@
 
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation, useParams } from "react-router-dom";
-import { Activity, CalendarClock, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartPulse, Home, Hospital, Plus, Search, Users } from "lucide-react";
+import { Activity, CalendarClock, Grid3X3, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartPulse, Home, Hospital, Plus, Search, Users } from "lucide-react";
 
 import { FormProgressProvider } from "./context/FormProgressContext";
 import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
@@ -43,6 +43,7 @@ import DataQueries from "./DataQueries";
 import ReportBuilder from "./ReportBuilder";
 import SiteSummary from "./SiteSummary";
 import FollowupList from "./FollowupList";
+import OutcomeMatrix from "./OutcomeMatrix";
 import ShiftReport from "./ShiftReport";
 import DataQueriesNavLink from "./components/DataQueriesNavLink";
 import EditScreening from "./EditScreening";
@@ -253,6 +254,14 @@ function AppContent() {
                   <CalendarClock size={16} /> <span>Follow-up list</span>
                 </NavLink>
               )}
+              {canUseReports(user) && (
+                <NavLink
+                  to="/outcome-matrix"
+                  className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
+                >
+                  <Grid3X3 size={16} /> <span>Outcome matrix</span>
+                </NavLink>
+              )}
               {canSeeAnalytics(user) && (
                 <NavLink
                   to="/trial-monitoring"
@@ -305,6 +314,7 @@ function AppContent() {
                       <Route path="/reports" element={<ProtectedRoute><ReportBuilder /></ProtectedRoute>} />
                       <Route path="/site-summary" element={<ProtectedRoute><SiteSummary /></ProtectedRoute>} />
                       <Route path="/follow-up" element={<ProtectedRoute><FollowupList /></ProtectedRoute>} />
+                      <Route path="/outcome-matrix" element={<ProtectedRoute><OutcomeMatrix /></ProtectedRoute>} />
                       <Route path="/shift-report" element={<ProtectedRoute><ShiftReport /></ProtectedRoute>} />
                       <Route path="/edit/:id" element={<ProtectedRoute><EditScreening /></ProtectedRoute>} />
                       <Route path="/form-a/:screeningId?" element={<ProtectedRoute><FormLayout currentForm="form_a"><ScreeningForm /></FormLayout></ProtectedRoute>} />

@@ -414,20 +414,33 @@ unlocks, data queries and emails were audited.
 5. If the source itself is wrong, go one step further upstream and repeat.
 
 
-## Follow-up list (PI 2026-11-25)
+## Follow-up list (PI 2026-11-25; baby by baby from 2026-11-26)
 
-Left panel **Follow-up list** (`/follow-up`, `FollowupList.jsx`, `GET /followup-list`,
-`backend/followup_list.py`), for all site staff (own site) and the central team
-(any or all sites); the baby's name only with PII rights. One row per assessment
-for every randomised baby born since the trial start:
-- **Form I 36 / 40 / 44 wk PMA** (window ± 2 days): Done (Form I), Ended (death,
-  consent withdrawn), Booked (Form H follow-up calendar), Admitted (assess on
-  the ward), Coming up, Window open, Overdue.
-- **ROP screen (outpatient)**: a baby who left alive by DOL 30 with no Form G
-  visit, due by DOL 30, until Form G records a screen (here or elsewhere).
-Views: due or overdue in the next 14 days (default), overdue, all still to do,
-done, everything. The site summary keeps its "Follow-up coming up" section; the
-tablet's in-app notifications (`inbox.py`, Harsh) carry the same follow-up items.
+Left panel / top menu **Follow-up list** (`/follow-up`, `FollowupList.jsx`,
+`GET /followup-list/timeline`, `backend/followup_timeline.py`), for all site
+staff (own site) and the central team; the baby's name only with PII rights.
+**One card per randomised baby**, most urgent first: GA, date of birth, now
+(DOL and PMA, or died), where (Helper 5 location / discharged), next due item,
+then its time points worked out from DOB, GA and PMA, in date order, with what
+to document, the date / window and the status:
+
+| Time point | Date | To document |
+|---|---|---|
+| Day 3 (72 h) | DOL 3 | Form I: resp support 0.5–72 h, early-onset sepsis |
+| Day 7 ± 1 | DOL 6–8 | Form F cranial USG 1; Form I death ≤ 7 days |
+| Day 28 ± 2 | DOL 26–30 | Form F cranial USG 2; Form I death ≤ 28 days |
+| DOL 30 | by DOL 30 | Form G first ROP screen |
+| 36 wk PMA | ± 2 days | Form I visit: death, BPD, NEC, IVH / cPVL, ROP |
+| Discharge | when it happens | Form H; Form I overall; final cranial USG if before the 40 wk window; follow-up booked |
+| 40 wk PMA (TEA) | ± 2 days | Form I visit; Form K MRI (subset); final cranial USG (40 ± 1 wk) if still admitted |
+| 44 wk PMA | ± 2 days | Form I visit incl. death after discharge |
+
+Status: Done, Booked (Form H calendar), due in N days, due now, Overdue / Scan
+missing / Not entered, at discharge, not applicable (after a death, not in the
+MRI subset, left before the window). Default view: babies with something due in
+14 days or overdue; "All randomised babies", find by ID / name, "Hide done
+lines". The old row-per-assessment API (`GET /followup-list`,
+`followup_list.py`) stays for the outcome matrix and the Form I visit rules.
 
 ## Census location (PI 2026-11-25)
 
@@ -471,3 +484,38 @@ summary, dashboard safety tables, site summary (W9 / W11), death alerts, the
   baby's Form B. The "Go to another baby" box lists each baby separately. Every
   baby form of a multiple birth shows a coloured bar "Twin 2 of 2 · <ID>:
   everything on this page is for baby 2" (`components/TwinBanner.jsx`).
+
+
+## Outcome matrix (PI 2026-11-26, redesigned the same day)
+
+Left panel / top menu **Outcome matrix** (`/outcome-matrix`, `OutcomeMatrix.jsx`,
+`GET /outcome-matrix`, `backend/outcome_matrix.py`) and the ready-made report
+**Outcome matrix** (`outcome_matrix`, PDF / CSV: one table per section).
+Global PI, Project Scientist, Site PIs and Site Scientists (own site). One row
+per randomised baby born since the trial start.
+- **Columns = every Form I item, in the order it happens** (`SECTIONS`, `ITEMS`):
+  at birth (I.1: PPV, 100% O₂, compressions, intubation, time to breathing,
+  HIE) → first 72 h – 7 days (resp support 0.5–72 h, EOS, death ≤ 7 d) → up to
+  28 days / the stay (LOS, culture-positive sepsis, death ≤ 28 d) → 36 wk PMA
+  (visit, death, BPD Jensen + NICHD, NEC, IVH, cPVL, ROP, ROP treated) → 40 wk
+  (visit, death 36–40, NEC, IVH, cPVL, ROP, treated, MRI at TEA) → 44 wk
+  (visit, death 40–44, NEC, IVH, cPVL, ROP, treated) → overall (support days,
+  sepsis, death in hospital / after discharge) and composites 1 and 2. A
+  "Key outcomes (summary)" view keeps death, BPD, NEC, brain injury, ROP
+  treated, MRI and the composites (Form L composite rules). The "Outcomes"
+  drop-down shows one section or all.
+- **Values:** Form I's saved answer; where blank, the same fill-in Form I uses
+  (`main._form_i_suggestions`: Form B for I.1, post-resus / resp / infection /
+  survival checks for I.2 and I.6, the 36/40/44 wk assessment suggestion).
+  Dashed outline / "*" = not yet saved on Form I.
+- **Cell text says the answer** ("Yes · 03 Nov 2026", "No", "Grade 2", "5",
+  "due 15 Dec 2026", "at discharge", "not entered", "—"); colour only backs it
+  up. Due: birth items at birth (blank = "not entered"), 72 h items day 3,
+  ≤ 7 d day 7, ≤ 28 d day 28, LOS / culture / overall at the end of stay,
+  checkpoint items at 36 / 40 / 44 wk (+2 days). Items due after a death are "—".
+- **Number items** (time to breathing in seconds; ventilation / CPAP / HFNC /
+  NIPPV days) show the number; their totals give "Median 5 d (0–21) · 15
+  babies" (`summary_texts`).
+- **Totals row in words** per column ("Yes 2 · No 21 · Due 3"), all arms
+  together; never by arm. Filters: overdue / not entered, still due, not yet on
+  Form I.
