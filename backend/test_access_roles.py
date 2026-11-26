@@ -69,9 +69,33 @@ def test_who_sees_participant_identity():
     assert not can_view_pii_for_site(user("monitor", "GMCH"), "GMCH")
 
 
-def test_helper_day_override_global_pi_and_site_pi_only():
+def test_helper_day_override_global_pi_project_scientist_and_site_pi():
     from types import SimpleNamespace as NS
     from deps import can_override_helper_day
     allowed = {r for r in ("superadmin", "site_pi", "site_scientist", "project_scientist", "global_scientist",
                            "nurse", "tech_support", "pii_officer") if can_override_helper_day(NS(role=r))}
-    assert allowed == {"superadmin", "site_pi"}
+    assert allowed == {"superadmin", "site_pi", "project_scientist", "global_scientist"}
+
+
+def test_project_scientist_oversight_writes_only():
+    """PI 2026-11-26: oversight actions pass the view-only gate; form entry,
+    Manage Staff and everything else stay refused. Not for PTS3."""
+    ps, ts = user("project_scientist"), user("tech_support")
+    oversight = [
+        ("PATCH", "/resp-cv-neuro/01-A-001/3/override-unlock"),
+        ("PATCH", "/infect-gi-hema/01-A-001/3/override-unlock"),
+        ("PATCH", "/metab-renal-vasc-eye/01-A-001/12/override-unlock"),
+        ("POST", "/sae-report/6/withdraw"),
+        ("POST", "/adverse-events/suggestions/01-B-006/dismiss"),
+        ("PUT", "/followup-bookings/clinic/PGIMER"),
+        ("POST", "/data-queries/run"),
+    ]
+    for method, path in oversight:
+        assert not refused(method, path, ps), path
+        assert not refused(method, path, user("global_scientist")), path
+        assert refused(method, path, ts), path
+    for method, path in [("PUT", "/resp-cv-neuro/01-A-001/3"), ("POST", "/sae-report/"),
+                         ("PUT", "/adverse-events/01-A-001"), ("POST", "/users"),
+                         ("PUT", "/followup-bookings/01-A-001"),
+                         ("PATCH", "/resp-cv-neuro/01-A-001/3/override-unlock/extra")]:
+        assert refused(method, path, ps), path

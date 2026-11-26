@@ -1,4 +1,5 @@
 import os
+import re
 
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, Request, status
@@ -69,11 +70,22 @@ def is_superadmin(user: User) -> bool:
     return _role(user) == ROLE_SUPERADMIN
 
 
+# Overall Project Scientist oversight (PI 2026-11-26): the Global PI's
+# oversight actions at every site, but still no form entry, no Manage Staff
+# and no restoring a withdrawn SAE report. global_scientist is its alias.
+OVERSIGHT_ROLES = frozenset({ROLE_PROJECT_SCIENTIST, ROLE_GLOBAL_SCIENTIST})
+
+
+def is_oversight(user: User) -> bool:
+    return _role(user) in OVERSIGHT_ROLES
+
+
 def can_override_helper_day(user: User) -> bool:
-    """Override & Unlock a locked Helper 2/4/5 day: Global PI, or the site PI
-    for own-site babies (site checked by require_enrollment_access). Not
-    scientists (PI 2026-11-12)."""
-    return _role(user) in (ROLE_SUPERADMIN, ROLE_SITE_PI)
+    """Override & Unlock a locked Helper 2/4/5 day: Global PI, the Overall
+    Project Scientist (all sites, PI 2026-11-26), or the site PI for own-site
+    babies (site checked by require_enrollment_access). Not site scientists
+    (PI 2026-11-12). The unlock reopens the day for the site's staff."""
+    return _role(user) in (ROLE_SUPERADMIN, ROLE_SITE_PI) or is_oversight(user)
 
 
 def is_read_only(user: User) -> bool:
@@ -207,6 +219,14 @@ def refuse_login_change_on_training(request: Request) -> None:
 READ_ONLY_ALLOWED_WRITE_PREFIXES = ("/auth/", "/pii/batch", "/data-queries/", "/reports/")
 # Central analytics roles may also use the AI Insights chat (a POST).
 ANALYTICS_ALLOWED_WRITE_PREFIXES = ("/dashboard/ai-insights",)
+# Oversight actions the Overall Project Scientist may take although the role
+# is otherwise view-only (PI 2026-11-26). Each endpoint checks the role again.
+OVERSIGHT_ALLOWED_WRITE_PATTERNS = (
+    re.compile(r"^/(resp-cv-neuro|infect-gi-hema|metab-renal-vasc-eye)/[^/]+/\d+/override-unlock$"),
+    re.compile(r"^/sae-report/\d+/withdraw$"),
+    re.compile(r"^/adverse-events/suggestions/[^/]+/dismiss$"),
+    re.compile(r"^/followup-bookings/clinic/[^/]+$"),
+)
 # PTS3 (tech_support) reads records to reproduce bugs, but never sees
 # participant identity, quality / analytics dashboards or generated reports.
 TECH_SUPPORT_DENIED_PREFIXES = ("/dashboard/", "/pii/", "/data-queries", "/reports")
@@ -226,6 +246,8 @@ def refuse_role_restricted_request(request: Request, user: User) -> None:
     if path.startswith(READ_ONLY_ALLOWED_WRITE_PREFIXES):
         return
     if role in CENTRAL_ANALYTICS_ROLES and path.startswith(ANALYTICS_ALLOWED_WRITE_PREFIXES):
+        return
+    if role in OVERSIGHT_ROLES and any(p.match(path) for p in OVERSIGHT_ALLOWED_WRITE_PATTERNS):
         return
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail="This account is view-only: entries cannot be created, changed or deleted.")

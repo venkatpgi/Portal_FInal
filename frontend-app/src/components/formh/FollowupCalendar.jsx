@@ -54,7 +54,7 @@ export default function FollowupCalendar({ enrollmentId, outcome, dischargeDate,
   const [clinicEdit, setClinicEdit] = useState(null);
 
   const role = (user?.role || "").toLowerCase();
-  const canSetClinic = ["superadmin", "site_pi", "site_scientist"].includes(role);
+  const canSetClinic = ["superadmin", "site_pi", "site_scientist", "project_scientist", "global_scientist"].includes(role);
   const alive = ALIVE_OUTCOMES.includes(outcome);
 
   const load = useCallback(async () => {

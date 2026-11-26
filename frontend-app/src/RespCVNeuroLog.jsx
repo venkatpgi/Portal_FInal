@@ -29,6 +29,7 @@ import { BLANK_HELPER_DAY_CLIENT_MESSAGE, isBlankHelperDay, isBlankHelperDayRefu
 import { helperDayDisplayStatus, helperDaySaveStatus } from "./utils/helperDayStatus";
 import { useDefaultToWorkingNicuDay, useNicuWorkingDay } from "./hooks/useNicuWorkingDay";
 import { getMapCpapMode, validateMapCpap } from "./utils/mapCpapMode";
+import { isOversightUser, isReadOnlyUser } from "./utils/roles";
 import {
   computeRespAAutofillFromMml,
   mergeMmlListFieldAutofill,
@@ -3636,10 +3637,14 @@ export default function RespCVNeuroLog() {
                     // true (always true for a submitted day) — without this,
                     // the override succeeds server-side but fields still
                     // render read-only and every setter silently no-ops.
-                    setIsEditing(true);
+                    // A view-only Project Scientist unlocks for the site's
+                    // staff to correct; their own screen stays read-only.
+                    if (!isReadOnlyUser(user)) setIsEditing(true);
                     setOverrideReason("");
                     setShowOverrideModal(false);
-                    setMessage(`🔓 Day ${activeDay} reopened for 2 hours`);
+                    setMessage(isReadOnlyUser(user)
+                      ? `🔓 Day ${activeDay} reopened for 2 hours for the site staff to correct`
+                      : `🔓 Day ${activeDay} reopened for 2 hours`);
                   } catch (err) {
                     setMessage("⚠️ Could not unlock — " + (err?.response?.data?.detail || "try again"));
                   } finally {
@@ -3720,7 +3725,7 @@ export default function RespCVNeuroLog() {
             <div className="rcn-locked-badge">
               <Lock size={13} /> Day {activeDay} Locked
             </div>
-            {(isSuperadmin || isPI) && (
+            {(isSuperadmin || isPI || isOversightUser(user)) && (
               <button
                 type="button"
                 className="rcn-override-btn"

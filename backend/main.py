@@ -89,7 +89,7 @@ from schemas import ScreeningCreate, ScreeningClinicalOut, ScreeningOut, Pregnan
 from pydantic import BaseModel
 from typing import Optional, List
 from deps import (
-    get_current_user, is_superadmin, is_global, require_superadmin, ensure_same_site,
+    get_current_user, is_superadmin, is_global, is_oversight, require_superadmin, ensure_same_site,
     ALL_ROLES, ROLE_SUPERADMIN, ROLE_SITE_PI, ROLE_SITE_SCIENTIST,
 )
 from routers import enrollment
@@ -5346,11 +5346,12 @@ def get_composite_suggestion(
 # routers/reports.py, because they reuse per-baby endpoints of this module
 # (enrollment-status ticks, composite outcome suggestion).
 # ---------------------------------------------------------------------------
-# PI 2026-11-09: the IEC / DSMB AE summary only for the Global PI, the
-# Project Scientist ("global scientist") and site PIs (their own site).
+# PI 2026-11-09: the IEC / DSMB AE summary for the Global PI, the Project
+# Scientist ("global scientist") and site PIs (their own site); site
+# scientists too (own site) since PI 2026-11-26.
 from deps import ROLE_PROJECT_SCIENTIST  # noqa: E402
 READY_REPORT_ROLES = {
-    "ae_summary": {ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, ROLE_SITE_PI},
+    "ae_summary": {ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, "global_scientist", ROLE_SITE_PI, "site_scientist"},
     # same people as the Data queries page (routers/data_queries.py)
     "data_queries": {ROLE_SUPERADMIN, ROLE_PROJECT_SCIENTIST, "global_scientist", ROLE_SITE_PI, "site_scientist"},
 }
@@ -6449,8 +6450,8 @@ def withdraw_sae_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Withdraw a Form Y entered in error (PI 2026-11-25): Site PI of that site or
-    the Global PI, with a reason. The row stays (audit trail) but drops out of
+    """Withdraw a Form Y entered in error (PI 2026-11-25): Site PI of that site,
+    the Overall Project Scientist (PI 2026-11-26) or the Global PI, with a reason. The row stays (audit trail) but drops out of
     every count, list and alert. {"reason": "...", "restore": true} undoes it
     (Global PI only)."""
     record = db.query(SAEReport).filter(SAEReport.id == report_id).first()
@@ -6463,8 +6464,9 @@ def withdraw_sae_report(
             raise HTTPException(status_code=403, detail="Only the Global PI can restore a withdrawn SAE report.")
         record.withdrawn_at = record.withdrawn_by = record.withdrawn_reason = None
     else:
-        if not (is_superadmin(current_user) or role == "site_pi"):
-            raise HTTPException(status_code=403, detail="Only the Site PI or the Global PI can withdraw an SAE report.")
+        if not (is_superadmin(current_user) or role == "site_pi" or is_oversight(current_user)):
+            raise HTTPException(status_code=403, detail=("Only the Site PI, the Overall Project Scientist or the "
+                                                         "Global PI can withdraw an SAE report."))
         reason = (data.get("reason") or "").strip()
         if len(reason) < 5:
             raise HTTPException(status_code=422, detail="Give the reason (e.g. entered in error: not an SAE).")
@@ -7034,8 +7036,9 @@ def dismiss_ae_suggestion(
     from models import AEDismissal
     require_enrollment_access(enrollment_id, db, current_user)
     role = (current_user.role or "").lower()
-    if not (is_superadmin(current_user) or role in ("site_pi", "site_scientist")):
-        raise HTTPException(status_code=403, detail="The Site PI or a Site Scientist decides that a suggestion is not an AE.")
+    if not (is_superadmin(current_user) or role in ("site_pi", "site_scientist") or is_oversight(current_user)):
+        raise HTTPException(status_code=403, detail=("The Site PI, a Site Scientist, the Overall Project Scientist "
+                                                     "or the Global PI decides that a suggestion is not an AE."))
     term = (data.get("term") or "").strip()
     if not term:
         raise HTTPException(status_code=422, detail="term is required")

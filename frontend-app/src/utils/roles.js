@@ -28,6 +28,14 @@ export function isCentralReviewer(user) {
   return CENTRAL_REVIEWER_ROLES.has((user?.role || "").toLowerCase());
 }
 
+/** Overall Project Scientist oversight (PI 2026-11-26): Override & Unlock,
+ * "Not an AE", withdraw an SAE report, follow-up clinic details, at every
+ * site, while still not entering forms. Mirrors deps.OVERSIGHT_ROLES. */
+const OVERSIGHT_ROLES = new Set(["project_scientist", "global_scientist"]);
+export function isOversightUser(user) {
+  return OVERSIGHT_ROLES.has((user?.role || "").toLowerCase());
+}
+
 /** View-only account: cannot create, change or delete entries. */
 export function isReadOnlyUser(user) {
   return READ_ONLY_ROLES.has((user?.role || "").toLowerCase());

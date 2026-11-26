@@ -55,13 +55,14 @@ Enforced on the server (`deps.py`, `pii_service.py`); the UI only mirrors it (`u
 | Designation | App role | Scope | Edits data | Participant identity | Dashboards / AI / CSV | Audit trail |
 | --- | --- | --- | --- | --- | --- | --- |
 | Global PI (Nodal / main PI) | `superadmin` | All sites | Yes; also accounts, day reopening | All sites | Yes | All |
-| Overall Project Scientist (PRS3-M) | `project_scientist` | All sites | **No** (view only) | All sites, view | Yes | All |
+| Overall Project Scientist (PRS3-M) | `project_scientist` | All sites | **No form entry**; oversight actions only (below, PI 2026-11-26) | All sites, view | Yes | All |
 | Technical support (PTS3) | `tech_support` | All sites | No | **None** (`/pii/*` refused, Form C address hidden) | **No** (`/dashboard/*`, report `/document` refused) | All |
 | Site PI | `site_pi` | Own site | Yes, incl. delete | Own site | Data quality / site views | Own site |
 | Site Scientist (PRS3-NM, PRS2-M) | `site_scientist` | Own site | Yes, incl. delete | Own site | Data quality / site views | No |
 | Project Nurse (PN3) | `nurse` | Own site | Yes, **no delete**, no CONSORT | Own site | Data quality only | No |
 
 - Read-only roles (`project_scientist`, `global_scientist`, `tech_support`): every POST/PUT/PATCH/DELETE is refused (403) except `/auth/*`, `/pii/batch` (a read), `/data-queries/`, `/reports/` (running a report is a read; tech support is refused `/reports` outright) and, for analytics roles, `/dashboard/ai-insights` (`deps.refuse_role_restricted_request`, run inside `get_current_user`).
+- Overall Project Scientist oversight (PI 2026-11-26, `deps.OVERSIGHT_ROLES` = `project_scientist` + alias `global_scientist`, `deps.OVERSIGHT_ALLOWED_WRITE_PATTERNS`; not PTS3): Override & Unlock a Helper 2 / 4 / 5 day (reopens it for the site's staff; the Project Scientist's own screen stays read-only), withdraw a Form Y, "Not an AE" on a suggested AE, follow-up clinic details, run all data checks now, at every site. Still Global PI only: Manage Staff, restoring a withdrawn Form Y, the Day 1 date override; still Site PI / Global PI: consent correction, "randomised in error" PPV back to Yes, and every other form entry.
 - Trial-wide analytics (CONSORT CSV, safety, baseline, clinical quality, enrolment trend, ops summary, AI Insights) = `CENTRAL_ANALYTICS_ROLES` (Global PI, Overall Project Scientist). Opening the site-scoped views to Site PI / Site Scientist (SOP change 3) is still to do.
 - Placeholder roles (`pi`, `scientist`, `deo`, `monitor`) no longer see identity data and are being retired.
 
@@ -164,7 +165,8 @@ nothing by arm. Definitions follow CONSORT (`routers/dashboard.py`):
 - **AE summary for IEC / DSMB** (PI 2026-11-09, monthly, pooled, never by
   arm): `ae_summary.py`; details in chapter 07. Dates = AE start date; a
   "Last month" button sets the previous calendar month. Only the Global PI,
-  Project Scientist and Site PIs (own site) can open it.
+  Project Scientist, Site PIs and Site Scientists (own site; site scientists
+  since PI 2026-11-26) can open it.
 
 ## Data queries (Phase 1, PI 2026-10-15)
 Fixed checks in `backend/data_checks.py` (catalogue `CHECKS`) find problems
@@ -172,7 +174,7 @@ and keep one row per problem in `data_queries`. `run_checks()` opens new
 ones, resolves those whose problem has gone, reopens resolved ones that come
 back, and leaves "confirmed correct" ones closed unless their facts change.
 It runs hourly (`run_data_checks.py`, systemd timer) and on demand
-(`POST /data-queries/run`, Global PI). Checks never edit clinical data; facts
+(`POST /data-queries/run`, Global PI or Overall Project Scientist). Checks never edit clinical data; facts
 and details hold ids, numbers and dates only.
 - Age colour from `due_at`: amber after 72 h, red after 7 days. Form
   timeliness checks (Form C / D / E not complete for randomised babies) are
@@ -366,7 +368,7 @@ https://claude.ai/artifact/MSSUiC1sRbvQMqN2V6fNmZ ):
 | M4 ROP | no real Form G visit by DOL 30 (national ROP operational guidelines, RBSK / NPCB); auto-suggested visit unfilled. Left the NICU before a screen: only in the first summary after the stay ended (PI 2026-11-25), then the outpatient screen is on the Follow-up list until Form G records one |
 | M5 | Form I 36 / 40 / 44 wk checkpoint window (date ± 2 days, PI 2026-11-17) closed with no encounter method, death or loss-to-follow-up reason recorded |
 | M6 | Form H incomplete 48 h after discharge / death (**not Form I** (PI 2026-11-25: filled at the 36 / 40 / 44 wk checkpoints, M5 and the Follow-up list) and **not Form L**: it is filled after unblinding) |
-| M9 | one item per suggested AE (from data already entered: daily-log values over a grade threshold, transfusions, Form D / H diagnoses) whose term is not a row in the Adverse Events table, with its evidence; cleared by adding the row or by the Site PI / a Site Scientist marking it "Not an AE" with a reason (`ae_dismissals`, `POST /adverse-events/suggestions/{id}/dismiss`, undo possible; a dismissed term is also left out of the AE scan, W1 and the reports) |
+| M9 | one item per suggested AE (from data already entered: daily-log values over a grade threshold, transfusions, Form D / H diagnoses) whose term is not a row in the Adverse Events table, with its evidence; cleared by adding the row or by the Site PI / a Site Scientist / the Overall Project Scientist / the Global PI marking it "Not an AE" with a reason (`ae_dismissals`, `POST /adverse-events/suggestions/{id}/dismiss`, undo possible; a dismissed term is also left out of the AE scan, W1 and the reports) |
 | M10 | red data queries (count per site) |
 
 AE-form rows are matched to terms by key, CDISC / MedDRA code ("C154928 |
@@ -450,8 +452,9 @@ report, instead of "In NICU" for every admitted baby.
 
 ## Form Y withdrawn: entered in error (PI 2026-11-25)
 
-The Site PI (own site) or the Global PI can withdraw a Form Y with a reason
-(`POST /sae-report/{id}/withdraw`; Global PI can restore with `restore: true`).
+The Site PI (own site), the Overall Project Scientist (PI 2026-11-26) or the
+Global PI can withdraw a Form Y with a reason (`POST /sae-report/{id}/withdraw`;
+only the Global PI can restore with `restore: true`).
 Columns `withdrawn_at / _by / _reason`. The report stays (audit trail, shown
 "withdrawn" with a red banner, no edits) but is left out of the monthly AE / SAE
 summary, dashboard safety tables, site summary (W9 / W11), death alerts, the

@@ -231,7 +231,8 @@ def reject_confirmation(query_id: int, db: Session = Depends(get_db), current_us
 
 @router.post("/run")
 def run_now(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Run every check now (Global PI only; the hourly timer does this too)."""
-    if not is_superadmin(current_user):
-        raise HTTPException(status_code=403, detail="Global PI only.")
+    """Run every check now (Global PI or Overall Project Scientist, PI
+    2026-11-26; the hourly timer does this too)."""
+    if _role(current_user) not in CENTRAL:
+        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only.")
     return run_checks(db)
