@@ -224,8 +224,9 @@ export default function FollowupList() {
             <h1>Follow-up list</h1>
             <p>
               Baby by baby: what has to be documented and when, worked out from the date of birth, gestation and
-              PMA: the baby's ID numbers on Form B by day 7, day 3, day 7 and day 28 (cranial USG, early outcomes),
-              the first ROP screen by DOL 30, Form I at 36, 40 and 44 weeks PMA, MRI at term (subset) and discharge.
+              PMA: day 3, day 7 and day 28 (cranial USG, early outcomes), the baby's ID numbers on Form B by day 7,
+              the first ROP screen by DOL 30, Form I at 36, 40 and 44 weeks PMA, MRI at term (subset) and discharge
+              (including designated gender when sex at birth is DSD).
               Each line clears itself when the form is filled. Tap a line to open the form. The Calendar shows the
               same tasks under their dates.
             </p>
