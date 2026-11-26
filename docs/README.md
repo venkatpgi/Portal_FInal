@@ -447,7 +447,7 @@ out of both and a baby with no line left is hidden. "Everything" shows every lin
 of every randomised baby, with "Hide done lines". Find by ID / name.
 **Calendar** view (PI 2026-11-26): month grid (Monday first) with each day's
 babies (worst status colour, ×N tasks); click a day for its tasks grouped by
-baby; Overdue and Due now (window open) panels above. A task sits on its item
+baby; Overdue and Due now (window already open, dated on or before today) panels above, closed until tapped. A task sits on its item
 date: a scan window's first day, a deadline (DOL 7 IDs, DOL 30 ROP), a checkpoint
 date, or a booked visit's booked date. At-discharge lines are not on the
 calendar. The old row-per-assessment API (`GET /followup-list`,

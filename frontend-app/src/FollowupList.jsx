@@ -78,6 +78,9 @@ function groupByBaby(entries) {
 }
 
 function CalendarView({ cards, today, global, site }) {
+  // Panels start closed so the month grid is in view; "Due now" lists windows
+  // already open on or before today (a deadline later on, e.g. the DOL 30 ROP
+  // screen, stays on the grid on its date).
   const [month, setMonth] = useState(() => { const t = parseIso(today); return new Date(t.getFullYear(), t.getMonth(), 1); });
   const [picked, setPicked] = useState(today);
 
@@ -89,7 +92,7 @@ function CalendarView({ cards, today, global, site }) {
           if (!OPEN.has(it.status)) continue;
           const e = { card, item: { ...it, rowLabel: r.label } };
           if (it.status === "overdue") overdue.push(e);
-          if (it.status === "due_now") dueNow.push(e);
+          if (it.status === "due_now" && it.date && it.date <= today) dueNow.push(e);
           if (!it.date) continue;
           if (!byDate.has(it.date)) byDate.set(it.date, []);
           byDate.get(it.date).push(e);
@@ -97,7 +100,7 @@ function CalendarView({ cards, today, global, site }) {
       }
     }
     return { byDate, overdue, dueNow };
-  }, [cards]);
+  }, [cards, today]);
 
   const cells = useMemo(() => {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -117,14 +120,14 @@ function CalendarView({ cards, today, global, site }) {
   return (
     <div>
       {overdue.length > 0 && (
-        <details className="fcal-panel fcal-panel-red" open>
-          <summary>Overdue: {overdue.length} task{overdue.length !== 1 ? "s" : ""}</summary>
+        <details className="fcal-panel fcal-panel-red">
+          <summary>Overdue: {overdue.length} task{overdue.length !== 1 ? "s" : ""} ({groupByBaby(overdue).length} babies), tap to open</summary>
           <TaskGroups groups={groupByBaby(overdue)} global={global} site={site} showDate />
         </details>
       )}
       {dueNow.length > 0 && (
-        <details className="fcal-panel fcal-panel-amber" open>
-          <summary>Due now (window open): {dueNow.length} task{dueNow.length !== 1 ? "s" : ""}</summary>
+        <details className="fcal-panel fcal-panel-amber">
+          <summary>Due now (window open): {dueNow.length} task{dueNow.length !== 1 ? "s" : ""} ({groupByBaby(dueNow).length} babies), tap to open</summary>
           <TaskGroups groups={groupByBaby(dueNow)} global={global} site={site} showDate />
         </details>
       )}
