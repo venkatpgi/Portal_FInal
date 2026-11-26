@@ -11,7 +11,7 @@ import { useAuth } from "../context/AuthContext";
 export default function AeSuggestions({ enrollmentId }) {
   const { user } = useAuth() || {};
   const role = (user?.role || "").toLowerCase();
-  const canDecide = ["superadmin", "site_pi", "site_scientist"].includes(role);
+  const canDecide = ["superadmin", "site_pi", "site_scientist", "project_scientist", "global_scientist"].includes(role);
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(null);       // term being dismissed
   const [reason, setReason] = useState("");

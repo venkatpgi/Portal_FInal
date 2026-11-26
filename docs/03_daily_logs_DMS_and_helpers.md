@@ -154,7 +154,7 @@ Helpers 2 and 5 are scored **after** the DMS overlay (§3a), so a day can reach
 - **Lock** = `PATCH …/{day}/submit` → `submission_status = submitted`.
   A past day stays editable ("Past day — still editable") until it is locked. Locked days reject edits (403) unless an
   override is active.
-- **Override & Unlock** (Global PI, or the site PI for own-site babies — PI 2026-11-12; not scientists, nurses, Project Scientist or tech support; `deps.can_override_helper_day`, `main._override_unlock_day`):
+- **Override & Unlock** (Global PI, the Overall Project Scientist at any site — PI 2026-11-26, or the site PI for own-site babies — PI 2026-11-12; not site scientists, nurses or tech support. The window reopens the day for whoever edits it; a Project Scientist unlocks for the site staff and stays read-only; `deps.can_override_helper_day`, `main._override_unlock_day`):
   reason ≥ 5 chars, 1–24 h window, recorded on the row
   (`override_unlocked_until`, `override_reason`, `override_by`) and in
   `audit_log`. The page shows "Day N reopened by override …" only while the

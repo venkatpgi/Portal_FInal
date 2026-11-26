@@ -9,7 +9,7 @@ import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PatientProvider } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
-import { canSeeAnalytics, canSeeDataQueries, canUseReports, canUseShiftReport, isReadOnlyUser } from "./utils/roles";
+import { canSeeAnalytics, canSeeDataQueries, canUseReports, canUseShiftReport, isOversightUser, isReadOnlyUser } from "./utils/roles";
 
 import ScreeningForm from "./ScreeningForm";
 import BirthResuscitation from "./BirthResuscitationForm";
@@ -285,7 +285,9 @@ function AppContent() {
             style={{ background: "#eff6ff", color: "#1e3a8a", borderBottom: "1px solid #bfdbfe",
                      padding: "6px 16px", fontSize: 13, textAlign: "center" }}
           >
-            View-only account: you can open every record, but entries cannot be created, changed or deleted.
+            {isOversightUser(user)
+              ? "Oversight account: you can open every record and unlock, withdraw or dismiss where offered, but form entries cannot be created, changed or deleted."
+              : "View-only account: you can open every record, but entries cannot be created, changed or deleted."}
           </div>
         )}
 

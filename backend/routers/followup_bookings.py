@@ -17,7 +17,7 @@ from babies import screening_for_enrollment
 from clinical_time import clinical_today
 from db import get_db
 from deps import (ROLE_SITE_PI, ROLE_SITE_SCIENTIST, ensure_same_site, get_current_user, is_read_only,
-                  is_superadmin)
+                  is_oversight, is_superadmin)
 from models import BirthResuscitation, FollowupClinic, User
 from pii_service import can_view_pii_for_site
 import followup_booking as fb
@@ -50,8 +50,9 @@ def put_clinic(site: str, data: dict = Body(...), db: Session = Depends(get_db),
                current_user: User = Depends(get_current_user)):
     ensure_same_site(site, current_user)
     role = (current_user.role or "").lower()
-    if not (is_superadmin(current_user) or role in (ROLE_SITE_PI, ROLE_SITE_SCIENTIST)):
-        raise HTTPException(status_code=403, detail="The Site PI or a Site Scientist sets the clinic details.")
+    if not (is_superadmin(current_user) or role in (ROLE_SITE_PI, ROLE_SITE_SCIENTIST) or is_oversight(current_user)):
+        raise HTTPException(status_code=403, detail=("The Site PI, a Site Scientist, the Overall Project Scientist "
+                                                     "or the Global PI sets the clinic details."))
     c = db.get(FollowupClinic, site)
     if c is None:
         c = FollowupClinic(site_name=site)

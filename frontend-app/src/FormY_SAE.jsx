@@ -541,11 +541,12 @@ export default function FormY_SAE() {
   const [sitePi, setSitePi] = useState("");
   const [building, setBuilding] = useState(false);
   const [savedRows, setSavedRows] = useState([]);
-  // Withdraw a report entered in error (PI 2026-11-25): Site PI or Global PI.
+  // Withdraw a report entered in error (PI 2026-11-25): Site PI, Overall
+  // Project Scientist (PI 2026-11-26) or Global PI. Restore: Global PI only.
   const { user } = useAuth() || {};
   const userRole = (user?.role || "").toLowerCase();
   const isGlobalPi = userRole === "superadmin";
-  const canWithdraw = isGlobalPi || userRole === "site_pi";
+  const canWithdraw = isGlobalPi || ["site_pi", "project_scientist", "global_scientist"].includes(userRole);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawReason, setWithdrawReason] = useState("");
   const [withdrawMsg, setWithdrawMsg] = useState("");
