@@ -313,6 +313,12 @@ and checkpoint), API `routers/followup_bookings.py`, card H12.6 on Form H
   the card by the Site PI or a Site Scientist; blank lines if not set). It
   carries the baby's name only when the user may see that site's PII; each
   print is an audit row (`EXPORT`, `followup_slip`).
+- **Clinic days (PI 2026-11-24):** the site's clinic weekdays
+  (`followup_clinics.weekdays`, e.g. "Wed,Fri"; PGIMER Wednesday or Friday,
+  2 pm) are offered as one-tap buttons in each row (`clinic_days`: those
+  weekdays from the earliest to the latest allowed date; Clinic visit is set
+  too). A window with no clinic day says so (book a telephone call or a
+  special appointment); a Clinic visit on another day is allowed, with a note.
 
 ## Enrolment status (PI 2026-10-31)
 

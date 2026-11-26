@@ -883,3 +883,4 @@
   .fu-cal-head { display: none; }
   .fu-cal-state { grid-column: 1 / span 2; }
 }
+.fu-cal-days { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; font-size: 12px; color: #475569; }

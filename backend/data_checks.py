@@ -480,6 +480,26 @@ def check_dms_weight_jump(ctx):
     return out
 
 
+def check_form_h_outcome_no_date(ctx):
+    """Form H has an outcome but no discharge date / date of death (PI
+    2026-11-24, 01-B-003: "Discharged" ticked while still in the NICU)."""
+    out = []
+    for r in ctx["formh_no_date"]:
+        seen = []
+        if r["last_dms"]:
+            seen.append(f"DMS to {str(r['last_dms'])[:10]}")
+        if r["last_h5"]:
+            seen.append(f"Helper 5 to day {r['last_h5']}")
+        still = f" Daily logs continue ({', '.join(seen)})." if seen else ""
+        out.append(finding(ctx["site_of_eid"].get(r["enrollment_id"]), "enrollment", r["enrollment_id"],
+                           "Form H outcome without a date",
+                           f"{r['enrollment_id']}: Form H outcome is \"{r['outcome']}\" but there is no "
+                           f"{'date of death' if r['outcome'] == 'Died' else 'discharge date'}.{still} If the baby "
+                           "is still admitted, clear the outcome (H12.4 Clear outcome); otherwise enter the date.",
+                           {"outcome": r["outcome"]}, None))
+    return out
+
+
 # ----------------------------------------------------------------- follow-up calendar
 def _fmt_d(d) -> str:
     return d.strftime("%d %b %Y")
@@ -556,6 +576,8 @@ CHECKS = [
     Check("DISCHARGE_WEIGHT_LOW", "Plausible values", "Form H discharge weight below birth weight after 21 days", check_discharge_weight),
     Check("DMS_BP_ORDER", "Plausible values", "DMS diastolic not below systolic, or mean outside them", check_dms_bp_order),
     Check("DMS_WEIGHT_JUMP", "Plausible values", "DMS weight change over 10% from the previous weight", check_dms_weight_jump),
+    Check("FORM_H_OUTCOME_NO_DATE", "Clinical consistency", "Form H outcome entered without a discharge date",
+          check_form_h_outcome_no_date),
     Check("FOLLOWUP_NOT_BOOKED", "Follow-up", "Baby left alive with a Form I checkpoint not booked",
           check_followup_not_booked, raise_after=timedelta(hours=24)),
     Check("FOLLOWUP_BOOKED_MISSED", "Follow-up", "Booked follow-up date passed with nothing on Form I",
@@ -694,6 +716,16 @@ def _context(db, now: datetime, today: date) -> dict:
         "now": now,
         "today": today,
         "followup_cal": followup_cal,
+        "formh_no_date": [dict(r) for r in db.execute(text("""
+            SELECT n.enrollment_id, n.outcome,
+                   (SELECT max(m.record_date) FROM minimal_monitoring_day_logs m
+                     WHERE m.enrollment_id = n.enrollment_id) AS last_dms,
+                   (SELECT max(h.nicu_day) FROM metab_renal_vasc_eye_day_logs h
+                     WHERE h.enrollment_id = n.enrollment_id) AS last_h5
+            FROM neonatal_morbidities n
+            WHERE COALESCE(TRIM(n.outcome), '') <> '' AND n.discharge_date IS NULL
+              AND n.id = (SELECT max(x.id) FROM neonatal_morbidities x WHERE x.enrollment_id = n.enrollment_id)
+        """)).mappings()],
         "ga": _ga_rows(db, today),
         "births": db.query(BirthLogEntry).all(),
         "pre_trial": lambda b: bool(is_pre_trial(b.date_of_birth, b.created_at)),

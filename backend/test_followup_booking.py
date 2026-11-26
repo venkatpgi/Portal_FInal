@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 import data_checks as dc
 import followup_booking as fb
 import followup_due as fd
-from models import FollowupBooking
+from models import FollowupBooking, FollowupClinic
 
 DOB = date(2026, 10, 20)
 GA = 28 * 7          # 36 wk PMA 15 Dec 2026, 40 wk 12 Jan 2027, 44 wk 9 Feb 2027
@@ -35,6 +35,7 @@ def baby(outcome="Discharged", left=date(2026, 12, 14), so=None, died=False):
 def db(monkeypatch):
     eng = create_engine("sqlite://")
     FollowupBooking.__table__.create(eng)
+    FollowupClinic.__table__.create(eng)
     s = sessionmaker(bind=eng)()
     state = {"baby": baby()}
     monkeypatch.setattr(fd, "babies", lambda db, sites, eids=None: [state["baby"]])
@@ -246,3 +247,21 @@ def test_parent_slip_pdf(db):
                       "Baby of Test", "PGIMER Chandigarh")
     assert pdf.startswith(b"%PDF") and len(pdf) > 1000
     assert fb.slip_pdf(cal, None, None, "PGIMER").startswith(b"%PDF")        # no clinic details, no name
+
+
+def test_clinic_day_suggestions(db):
+    assert fb.parse_weekdays("Wed, friday;MON,xyz") == [0, 2, 4]
+    db.add(FollowupClinic(site_name="PGIMER", weekdays="Wed,Fri"))
+    db.commit()
+    cal = fb.calendar(db, EID, TODAY)          # left 14 Dec 2026 (Mon)
+    assert cal["clinic_weekdays"] == ["Wed", "Fri"]
+    r36, r40, r44 = cal["rows"]
+    assert r36["clinic_days"] == [date(2026, 12, 16)]                    # 14-17 Dec: Wed 16 only
+    assert r40["clinic_days"] == [date(2027, 1, 13)]                     # 10-14 Jan: Wed 13
+    assert r44["clinic_days"] == [date(2027, 2, 10)]                     # 7-11 Feb: Wed 10 (Fri 12 outside)
+    # a clinic visit on a non-clinic day is allowed, only flagged
+    cal = fb.save(db, EID, [{"checkpoint": 36, "booked_date": "2026-12-15", "mode": "Clinic visit"}], "n", TODAY)
+    assert cal["rows"][0]["not_clinic_day"] is True
+    cal = fb.save(db, EID, [{"checkpoint": 36, "booked_date": "2026-12-15", "mode": "Telephone"}], "n", TODAY)
+    assert cal["rows"][0]["not_clinic_day"] is False
+    assert fb.clinic_days(date(2026, 12, 14), date(2026, 12, 15), [2, 4]) == []   # no clinic day in range

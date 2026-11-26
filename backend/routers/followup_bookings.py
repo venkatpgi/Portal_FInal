@@ -35,7 +35,8 @@ def _site_of(db, eid: str, user: User) -> str:
 
 def _clinic_out(c, site) -> dict:
     return {"site_name": site, "place": c.place if c else None, "days_times": c.days_times if c else None,
-            "phone": c.phone if c else None}
+            "phone": c.phone if c else None,
+            "weekdays": [fb.WEEKDAYS[i] for i in fb.parse_weekdays(c.weekdays if c else None)]}
 
 
 @router.get("/clinic/{site}")
@@ -58,6 +59,10 @@ def put_clinic(site: str, data: dict = Body(...), db: Session = Depends(get_db),
     for k in ("place", "days_times", "phone"):
         v = (data.get(k) or "").strip()
         setattr(c, k, v[:300] or None)
+    days = data.get("weekdays")
+    if isinstance(days, list):
+        days = ",".join(str(x) for x in days)
+    c.weekdays = ",".join(fb.WEEKDAYS[i] for i in fb.parse_weekdays(days)) or None
     c.updated_by = current_user.username
     db.commit()
     return _clinic_out(c, site)

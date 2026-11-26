@@ -2613,6 +2613,7 @@ class FollowupClinic(Base):
     site_name = Column(String, primary_key=True)
     place = Column(String, nullable=True)                  # e.g. "High-risk follow-up clinic, ..."
     days_times = Column(String, nullable=True)             # e.g. "Monday and Thursday, 9 am to 1 pm"
+    weekdays = Column(String, nullable=True)               # clinic days for the calendar, e.g. "Wed,Fri"
     phone = Column(String, nullable=True)                  # site follow-up phone (not a participant's)
     updated_by = Column(String, nullable=True)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
