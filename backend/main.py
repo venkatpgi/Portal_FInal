@@ -9704,6 +9704,8 @@ def _mark_cr_pending(record):
     record.cr_pending = not normalize_cr(record.mother_uid)
     if isinstance(record, BirthLogEntry):
         record.pre_trial = is_pre_trial(record.date_of_birth, record.created_at)
+        if not hasattr(record, "match_checked"):
+            record.match_checked = None
     return record
 
 
@@ -9811,10 +9813,13 @@ def list_birth_log_entries(
         query = query.filter(BirthLogEntry.site_name == site)
     refresh_birth_log_matches(db, _birth_log_sites(db, current_user, site))
     records = query.order_by(BirthLogEntry.date_of_birth.desc().nulls_last(), BirthLogEntry.id.desc()).all()
+    from birth_log_matching import checked_possible_matches
+    checked = checked_possible_matches(db)
 
     out = []
     for r in records:
         _mark_cr_pending(r)
+        r.match_checked = checked.get(r.id) if r.match_status == "possible_match" else None
         if not can_view_pii_for_site(current_user, r.site_name):
             r.mother_uid = None
             r.mother_name = None
@@ -9851,6 +9856,11 @@ def get_birth_log_alerts(
     elif site:
         query = query.filter(BirthLogEntry.site_name == site)
     records = query.order_by(BirthLogEntry.date_of_birth.desc().nulls_last()).all()
+    # a possible match the site checked (different woman) is no longer an alert
+    from birth_log_matching import checked_possible_matches
+    checked = checked_possible_matches(db)
+    records = [r for r in records if not (r.match_status == "possible_match" and r.id in checked
+                                          and not r.ga_log_missing)]
 
     can_view = lambda r: can_view_pii_for_site(current_user, r.site_name)
     return [

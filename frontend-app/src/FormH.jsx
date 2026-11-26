@@ -11239,6 +11239,7 @@ const peripheralStatus= getPeripheralStatus();
         <input
           type="number"
           name="total_los"
+          placeholder="0"
           value={formData.total_los || ""}
           onChange={handleChange}
           onBlur={handleBlur}
@@ -11252,6 +11253,7 @@ const peripheralStatus= getPeripheralStatus();
         <input
           type="number"
           name="nicu_days"
+          placeholder="0"
           value={formData.nicu_days || ""}
           onChange={handleChange}
           onBlur={handleBlur}
@@ -11265,6 +11267,7 @@ const peripheralStatus= getPeripheralStatus();
         <input
           type="number"
           name="o2_days"
+          placeholder="0"
           value={formData.o2_days || ""}
           onChange={handleChange}
           onBlur={handleBlur}
@@ -11281,6 +11284,7 @@ const peripheralStatus= getPeripheralStatus();
         <input
           type="number"
           name="vent_days"
+          placeholder="0"
           value={formData.vent_days || ""}
           onChange={handleChange}
           onBlur={handleBlur}
@@ -11297,6 +11301,7 @@ const peripheralStatus= getPeripheralStatus();
         <input
           type="number"
           name="cpap_days"
+          placeholder="0"
           value={formData.cpap_days || ""}
           onChange={handleChange}
           onBlur={handleBlur}
@@ -11328,6 +11333,7 @@ const peripheralStatus= getPeripheralStatus();
         <input
           type="number"
           name="pn_days_summary"
+          placeholder="0"
           value={formData.pn_days_summary || ""}
           onChange={handleChange}
           onBlur={handleBlur}

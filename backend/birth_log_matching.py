@@ -260,3 +260,26 @@ def refresh_birth_log_matches(db: Session, site_names: Optional[Iterable[str]] =
     if changed:
         db.commit()
     return changed
+
+
+# A "possible match" the site has checked (PI 2026-11-26): the BIRTH_POSSIBLE_MATCH
+# data query was answered "confirmed correct" (two different women, CRs right),
+# awaiting or after the second sign-off. The birth log then shows it as checked,
+# not as an alert, and the birth counts as having no Form A.
+CHECKED_STATES = ("confirmed_correct", "awaiting_signoff")
+
+
+def checked_possible_matches(db, ids=None) -> dict:
+    """{birth-log id: query status} for possible matches answered 'different woman'."""
+    from models import DataQuery
+    q = db.query(DataQuery.record_key, DataQuery.status).filter(
+        DataQuery.check_id == "BIRTH_POSSIBLE_MATCH", DataQuery.status.in_(CHECKED_STATES))
+    out = {}
+    for key, status in q:
+        try:
+            rid = int(key)
+        except (TypeError, ValueError):
+            continue
+        if ids is None or rid in ids:
+            out[rid] = status
+    return out

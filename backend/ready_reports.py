@@ -170,6 +170,8 @@ def eligible_births(db, sites, date_from: date | None, date_to: date | None) -> 
     if not sites:
         return []
     refresh_birth_log_matches(db, sites)
+    from birth_log_matching import checked_possible_matches
+    different = checked_possible_matches(db)   # possible match checked: a different woman, no Form A
     start = max(d for d in (date_from, trial_start()) if d)
     women: dict = {}
     for e in db.query(BirthLogEntry).filter(BirthLogEntry.site_name.in_(list(sites))).all():
@@ -183,7 +185,7 @@ def eligible_births(db, sites, date_from: date | None, date_to: date | None) -> 
             "site": e.site_name, "born": born, "rows": [], "ga": [], "form_a": False, "reasons": [], "other": []})
         w["rows"].append(e.id)
         w["ga"].append(f"{e.gestation_weeks}+{e.gestation_days or 0}")
-        w["form_a"] |= e.match_status in FORM_A_FOUND
+        w["form_a"] |= e.match_status in FORM_A_FOUND and e.id not in different
         for x in _split(e.reason_not_approached):
             if x not in w["reasons"]:
                 w["reasons"].append(x)

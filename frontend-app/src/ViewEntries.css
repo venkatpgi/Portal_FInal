@@ -947,3 +947,8 @@ button.pdot {
   font-weight: 700;
   white-space: nowrap;
 }
+/* Twin / triplet baby chips in the Enrollment ID column (PI 2026-11-26) */
+.ve-baby-chip { display: block; margin: 1px 0; padding: 2px 6px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; font-size: 12px; cursor: pointer; text-align: left; white-space: nowrap; }
+.ve-baby-chip.is-on { background: #00132c; border-color: #00132c; color: #fff; }
+.ve-baby-chip small { font-weight: 700; margin-right: 2px; }
+.exp-forms-baby { margin: 0 0 6px; font-size: 13px; color: #1d4ed8; }

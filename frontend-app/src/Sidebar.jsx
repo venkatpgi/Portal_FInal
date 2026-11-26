@@ -10,6 +10,7 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import { useFormProgress } from './context/FormProgressContext';
+import QuickSwitch from './components/QuickSwitch';
 import { useActiveFormSessionRegistry } from './context/ActiveFormSessionContext';
 import { useAuth } from './context/AuthContext';
 import api from './api/axios';
@@ -519,6 +520,7 @@ export default function Sidebar({ currentForm }) {
           </button>
         </div>
         <div className="sidebar-nav-inner">
+          <QuickSwitch go={(to) => guardedNavigate(null, to)} />
           <NavLink to="/dashboard"
             onClick={(e) => guardedNavigate(e, '/dashboard')}
             className={({ isActive }) => `sidebar-dash-link${isActive ? ' active' : ''}`}>
