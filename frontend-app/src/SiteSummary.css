@@ -199,7 +199,7 @@ button.ss-tile:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; 
 .fcal-num { font-size: 12px; font-weight: 600; }
 .fcal-count { display: none; position: absolute; top: 4px; right: 4px; font-size: 11px; font-weight: 700; background: #00132c; color: #fff; border-radius: 999px; padding: 0 6px; }
 .fcal-chips { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.fcal-chip { display: block; border-radius: 6px; padding: 1px 4px; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #f1f5f9; color: #334155; }
+.fcal-chip { display: block; border-radius: 6px; padding: 1px 4px; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* colour from the flist-b-* status class */
 .fcal-more { font-size: 11px; color: #64748b; }
 .fcal-day-title { font-size: 16px; margin: 16px 0 6px; color: #0f172a; }
 @media (max-width: 720px) {
