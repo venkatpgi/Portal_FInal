@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from models import BirthResuscitation, ParticipantPII, Screening
 
 # Who may see participant identity (explicit list: access hierarchy SOP 1 Oct
-# 2026, PI 2026-10-15). All sites: Global PI, Overall Project Scientist
+# 2026, PI 2026-10-15). All sites: Global PI, Project Scientist
 # (view only; writes are refused centrally), PII officer. Own site only:
 # the site roles. Technical support (PTS3) and any other role: none.
 PII_VIEW_ROLES = frozenset({"superadmin", "pii_officer", "project_scientist", "global_scientist"})

@@ -18,7 +18,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 # Scientist -> Nurse. Stored lowercase/snake_case in User.role.
 # ============================================================================
 ROLE_SUPERADMIN = "superadmin"
-ROLE_PROJECT_SCIENTIST = "project_scientist"   # Overall Project Scientist (PRS3-M): all sites, view only (PI 2026-10-15)
+ROLE_PROJECT_SCIENTIST = "project_scientist"   # Project Scientist (PRS3-M): all sites, view only (PI 2026-10-15)
 ROLE_SITE_PI = "site_pi"
 ROLE_SITE_SCIENTIST = "site_scientist"
 ROLE_NURSE = "nurse"
@@ -70,7 +70,7 @@ def is_superadmin(user: User) -> bool:
     return _role(user) == ROLE_SUPERADMIN
 
 
-# Overall Project Scientist oversight (PI 2026-11-26): the Global PI's
+# Project Scientist oversight (PI 2026-11-26): the Global PI's
 # oversight actions at every site, but still no form entry, no Manage Staff
 # and no restoring a withdrawn SAE report. global_scientist is its alias.
 OVERSIGHT_ROLES = frozenset({ROLE_PROJECT_SCIENTIST, ROLE_GLOBAL_SCIENTIST})
@@ -219,7 +219,7 @@ def refuse_login_change_on_training(request: Request) -> None:
 READ_ONLY_ALLOWED_WRITE_PREFIXES = ("/auth/", "/pii/batch", "/data-queries/", "/reports/")
 # Central analytics roles may also use the AI Insights chat (a POST).
 ANALYTICS_ALLOWED_WRITE_PREFIXES = ("/dashboard/ai-insights",)
-# Oversight actions the Overall Project Scientist may take although the role
+# Oversight actions the Project Scientist may take although the role
 # is otherwise view-only (PI 2026-11-26). Each endpoint checks the role again.
 OVERSIGHT_ALLOWED_WRITE_PATTERNS = (
     re.compile(r"^/(resp-cv-neuro|infect-gi-hema|metab-renal-vasc-eye)/[^/]+/\d+/override-unlock$"),

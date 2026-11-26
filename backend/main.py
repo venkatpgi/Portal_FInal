@@ -6312,7 +6312,7 @@ def _sae_payload(data: SAEReportCreate) -> dict:
 
 def _sae_notification_recipients(db: Session, site: str) -> list[str]:
     """Site scientist emails on file, the configured site PI email, and (PI
-    2026-10-25) the Global PI and Overall Project Scientist for every site."""
+    2026-10-25) the Global PI and Project Scientist for every site."""
     import sae_config
     from deps import ROLE_GLOBAL_SCIENTIST, ROLE_PROJECT_SCIENTIST, ROLE_SITE_SCIENTIST, ROLE_SUPERADMIN
 
@@ -6451,7 +6451,7 @@ def withdraw_sae_report(
     current_user: User = Depends(get_current_user),
 ):
     """Withdraw a Form Y entered in error (PI 2026-11-25): Site PI of that site,
-    the Overall Project Scientist (PI 2026-11-26) or the Global PI, with a reason. The row stays (audit trail) but drops out of
+    the Project Scientist (PI 2026-11-26) or the Global PI, with a reason. The row stays (audit trail) but drops out of
     every count, list and alert. {"reason": "...", "restore": true} undoes it
     (Global PI only)."""
     record = db.query(SAEReport).filter(SAEReport.id == report_id).first()
@@ -6465,7 +6465,7 @@ def withdraw_sae_report(
         record.withdrawn_at = record.withdrawn_by = record.withdrawn_reason = None
     else:
         if not (is_superadmin(current_user) or role == "site_pi" or is_oversight(current_user)):
-            raise HTTPException(status_code=403, detail=("Only the Site PI, the Overall Project Scientist or the "
+            raise HTTPException(status_code=403, detail=("Only the Site PI, the Project Scientist or the "
                                                          "Global PI can withdraw an SAE report."))
         reason = (data.get("reason") or "").strip()
         if len(reason) < 5:
@@ -7037,7 +7037,7 @@ def dismiss_ae_suggestion(
     require_enrollment_access(enrollment_id, db, current_user)
     role = (current_user.role or "").lower()
     if not (is_superadmin(current_user) or role in ("site_pi", "site_scientist") or is_oversight(current_user)):
-        raise HTTPException(status_code=403, detail=("The Site PI, a Site Scientist, the Overall Project Scientist "
+        raise HTTPException(status_code=403, detail=("The Site PI, a Site Scientist, the Project Scientist "
                                                      "or the Global PI decides that a suggestion is not an AE."))
     term = (data.get("term") or "").strip()
     if not term:

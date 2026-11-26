@@ -897,7 +897,7 @@ def get_consort_flow(
     global_view = is_global(current_user)
 
     if format == "csv" and not is_central_analytics(current_user):
-        raise HTTPException(status_code=403, detail="CSV export is for the Global PI or Overall Project Scientist")
+        raise HTTPException(status_code=403, detail="CSV export is for the Global PI or Project Scientist")
 
     sites = _dashboard_sites(current_user, site)
 
@@ -1496,7 +1496,7 @@ def get_clinical_quality(
     current_user=Depends(get_current_user),
 ):
     if not is_central_analytics(current_user):
-        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
+        raise HTTPException(status_code=403, detail="Global PI or Project Scientist only")
 
     DR_Q = text("""
         SELECT
@@ -1677,7 +1677,7 @@ def get_baseline(
     current_user=Depends(get_current_user),
 ):
     if not is_central_analytics(current_user):
-        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
+        raise HTTPException(status_code=403, detail="Global PI or Project Scientist only")
 
     INFANT_Q = text("""
         SELECT
@@ -1752,7 +1752,7 @@ def get_safety(
     current_user=Depends(get_current_user),
 ):
     if not is_central_analytics(current_user):
-        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
+        raise HTTPException(status_code=403, detail="Global PI or Project Scientist only")
 
     # Total randomised per site (denominator)
     DENOM_Q = text("""
@@ -2088,7 +2088,7 @@ def get_safety_summary_report(
     unparseable/missing date are always included rather than silently
     dropped from a safety report."""
     if not is_central_analytics(current_user):
-        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
+        raise HTTPException(status_code=403, detail="Global PI or Project Scientist only")
 
     import sae_config as cfg
     import sae_summary_report
@@ -2134,7 +2134,7 @@ def get_enrollment_trend(
     current_user=Depends(get_current_user),
 ):
     if not is_central_analytics(current_user):
-        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
+        raise HTTPException(status_code=403, detail="Global PI or Project Scientist only")
 
     TREND_Q = text("""
         SELECT
@@ -2545,7 +2545,7 @@ def post_ai_insight(
     current_user=Depends(get_current_user),
 ):
     if not is_central_analytics(current_user):
-        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only")
+        raise HTTPException(status_code=403, detail="Global PI or Project Scientist only")
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:

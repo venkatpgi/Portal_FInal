@@ -71,6 +71,7 @@ const QUICK_AI_QUESTIONS = [
 
 const RL_MAP = {
   superadmin: "Super Admin", global_scientist: "Global Scientist", admin: "Administrator",
+  project_scientist: "Project Scientist", site_pi: "Site PI", site_scientist: "Site Scientist", tech_support: "Technical Support (PTS3)",
   pi: "Principal Investigator", scientist: "Scientist", nurse: "Research Nurse",
   deo: "Data Entry Operator", monitor: "Trial Monitor",
 };

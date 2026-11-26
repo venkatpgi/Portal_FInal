@@ -1,6 +1,6 @@
 """Data queries inbox API (Phase 1, PI 2026-10-15).
 
-Who: Global PI (superadmin) and the Overall Project Scientist
+Who: Global PI (superadmin) and the Project Scientist
 (project_scientist / global_scientist) see and act on all sites; Site PI and
 Site Scientist their own site. Nurses and technical support: no access.
 Acting on a query (acknowledge, confirm correct, sign off) is oversight, so
@@ -202,7 +202,7 @@ def confirm_correct(query_id: int, body: ConfirmBody, db: Session = Depends(get_
 def signoff(query_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Second sign-off of a site-level 'confirmed correct' (Project Scientist / Global PI)."""
     if _role(current_user) not in CENTRAL:
-        raise HTTPException(status_code=403, detail="Second sign-off is by the Overall Project Scientist or Global PI.")
+        raise HTTPException(status_code=403, detail="Second sign-off is by the Project Scientist or Global PI.")
     q = _get(db, current_user, query_id)
     if q.status != "awaiting_signoff":
         raise HTTPException(status_code=409, detail=f"Query is {q.status}, not awaiting sign-off.")
@@ -217,7 +217,7 @@ def signoff(query_id: int, db: Session = Depends(get_db), current_user: User = D
 def reject_confirmation(query_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Second reviewer disagrees: the query goes back to open."""
     if _role(current_user) not in CENTRAL:
-        raise HTTPException(status_code=403, detail="Only the Overall Project Scientist or Global PI can do this.")
+        raise HTTPException(status_code=403, detail="Only the Project Scientist or Global PI can do this.")
     q = _get(db, current_user, query_id)
     if q.status != "awaiting_signoff":
         raise HTTPException(status_code=409, detail=f"Query is {q.status}, not awaiting sign-off.")
@@ -231,8 +231,8 @@ def reject_confirmation(query_id: int, db: Session = Depends(get_db), current_us
 
 @router.post("/run")
 def run_now(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Run every check now (Global PI or Overall Project Scientist, PI
+    """Run every check now (Global PI or Project Scientist, PI
     2026-11-26; the hourly timer does this too)."""
     if _role(current_user) not in CENTRAL:
-        raise HTTPException(status_code=403, detail="Global PI or Overall Project Scientist only.")
+        raise HTTPException(status_code=403, detail="Global PI or Project Scientist only.")
     return run_checks(db)

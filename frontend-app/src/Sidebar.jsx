@@ -117,6 +117,7 @@ const ALL_ITEMS = SECTIONS.flatMap(s => s.items);
 const getCurrentFormMeta = (id) => ALL_ITEMS.find(i => i.id === id);
 const ROLE_LABELS = {
   superadmin:'Super Admin', global_scientist:'Global Scientist', admin:'Admin', pi:'Principal Investigator',
+  project_scientist:'Project Scientist', site_pi:'Site PI', site_scientist:'Site Scientist', tech_support:'Technical Support (PTS3)',
   scientist:'Scientist', nurse:'Research Nurse', deo:'Data Entry Operator', monitor:'Monitor',
 };
 const consentAllowsEnrollment = value => value === 'Yes'; // "Trial run" retired 2026-10-18

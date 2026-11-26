@@ -139,7 +139,7 @@ Gestation Log entry ──(Continue to Form A)──► Form A  screening_id 01-
   code that matches on them (birth-log matching, duplicate CR check) loads the
   site's rows and compares in Python.
 - PII is returned only to an explicit role list (`pii_service.py`,
-  PI 2026-10-15): Global PI (superadmin), Overall Project Scientist
+  PI 2026-10-15): Global PI (superadmin), Project Scientist
   (project_scientist, view) and PII officer for all sites; site_pi,
   site_scientist and nurse for their own site. Technical support (PTS3) and
   any other role get `null` for those fields (`routers/pii.py`,

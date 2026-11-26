@@ -1,6 +1,6 @@
 """Report builder (PI 2026-10-24): pick columns from any form, filter, download CSV.
 
-Who: Global PI (superadmin) and the Overall Project Scientist see all sites
+Who: Global PI (superadmin) and the Project Scientist see all sites
 (optionally one); Site PI and Site Scientist their own site only. Nurses and
 technical support: no access (deps.TECH_SUPPORT_DENIED_PREFIXES).
 

@@ -51,7 +51,7 @@ def put_clinic(site: str, data: dict = Body(...), db: Session = Depends(get_db),
     ensure_same_site(site, current_user)
     role = (current_user.role or "").lower()
     if not (is_superadmin(current_user) or role in (ROLE_SITE_PI, ROLE_SITE_SCIENTIST) or is_oversight(current_user)):
-        raise HTTPException(status_code=403, detail=("The Site PI, a Site Scientist, the Overall Project Scientist "
+        raise HTTPException(status_code=403, detail=("The Site PI, a Site Scientist, the Project Scientist "
                                                      "or the Global PI sets the clinic details."))
     c = db.get(FollowupClinic, site)
     if c is None:
