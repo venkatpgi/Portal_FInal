@@ -1776,6 +1776,7 @@ def get_safety(
             SUM(CASE WHEN LOWER(sr.causality) IN ('probable','definite','possible') THEN 1 ELSE 0 END) AS n_related,
             SUM(CASE WHEN LOWER(sr.outcome) = 'fatal'     THEN 1 ELSE 0 END) AS n_fatal
         FROM sae_reports sr
+        WHERE sr.withdrawn_at IS NULL
         GROUP BY GROUPING SETS ((sr.site), ())
     """)
 
@@ -2095,7 +2096,7 @@ def get_safety_summary_report(
     df = _parse_date_prefix(date_from)
     dt = _parse_date_prefix(date_to)
 
-    sae_records = db.query(SAEReport).all()
+    sae_records = db.query(SAEReport).filter(SAEReport.withdrawn_at.is_(None)).all()
     ae_records = db.query(AdverseEvents).all()
 
     all_enrollment_ids = list(
@@ -2236,6 +2237,7 @@ def get_ops_summary(
             sr.report_date,
             sr.ongoing
         FROM sae_reports sr
+        WHERE sr.withdrawn_at IS NULL
         ORDER BY sr.id DESC
         LIMIT 50
     """)

@@ -1,4 +1,5 @@
 import {
+  CalendarClock,
   LayoutDashboard,
   Target,
   Users,
@@ -165,6 +166,15 @@ export default function DashboardSidebar({
             className={workspaceNavClass}
           >
             <ClipboardCheck size={14} aria-hidden="true" /> Twice-daily report
+          </NavLink>
+        )}
+        {canUseShiftReport(user) && (
+          <NavLink
+            to="/follow-up"
+            onClick={onClose}
+            className={workspaceNavClass}
+          >
+            <CalendarClock size={14} aria-hidden="true" /> Follow-up list
           </NavLink>
         )}
         {canViewAudit(user) && (

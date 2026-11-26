@@ -13,6 +13,7 @@ from ae_reference import (
     detect_resp_misc_candidates,
     detect_domain8_candidates,
 )
+from ae_terms import term_of
 from infection_windows import _compute_infection_windows
 from models import (CranialUSGRecord, InfectGIHemaDayLog, MetabRenalVascEyeDayLog, NeonatalMorbidities,
                     NICUAdmission, PostnatalDay1, RespCVNeuroDayLog, StudyOutcomes)
@@ -81,8 +82,19 @@ def collect_ae_candidates(db, enrollment_id):
     candidates += detect_domain8_candidates(nm, postnatal, outcomes, resp_logs, inf_logs, logs,
                                             day1_date=day1_date)
     pending_cranial_usg_findings = detect_pending_cranial_usg_findings(cranial_usg_record, nm)
+    # "Not an AE" (PI 2026-11-25): a dismissed term is left out everywhere
+    gone = dismissed_terms(db, enrollment_id)
+    dismissed = [c for c in candidates if term_of(c) in gone]
+    candidates = [c for c in candidates if term_of(c) not in gone]
     return {
         "has_data": True,
         "candidates": candidates,
+        "dismissed": dismissed,
         "pending_cranial_usg_findings": pending_cranial_usg_findings,
     }
+
+
+def dismissed_terms(db, enrollment_id) -> dict:
+    """{term: AEDismissal} for one baby."""
+    from models import AEDismissal
+    return {d.term: d for d in db.query(AEDismissal).filter(AEDismissal.enrollment_id == enrollment_id)}

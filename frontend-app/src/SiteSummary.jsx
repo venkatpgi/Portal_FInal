@@ -98,8 +98,8 @@ export default function SiteSummary() {
     ...babies.flatMap(b => b.missed.map(m => ({ ...m, site: b.site, enrollment_id: b.enrollment_id, name: b.name }))),
     ...(data?.mothers || []),
   ], [babies, data]);
-  const active = babies.filter(b => b.status === "In NICU" && b.active.length);
-  const census = babies.filter(b => b.status === "In NICU" || b.ended_since_last);
+  const active = babies.filter(b => b.status === "Admitted" && b.active.length);
+  const census = babies.filter(b => b.status === "Admitted" || b.ended_since_last);
   const followup = data?.followup || [];
   const c = data?.counts || {};
 
@@ -123,7 +123,7 @@ export default function SiteSummary() {
   }
 
   const tiles = [
-    ["In NICU", c.in_nicu, "ss-t-dark", "census"], ["Stays ended since last", c.ended_since_last, "ss-t-grey", "census"],
+    ["Admitted", c.in_nicu, "ss-t-dark", "census"], ["Stays ended since last", c.ended_since_last, "ss-t-grey", "census"],
     ["Babies on safety watch list", c.watch_babies, "ss-t-red", "watch"],
     ["With active morbidity", c.active_babies, "ss-t-amber", "active"],
     ["Missed data items", c.missed, "ss-t-violet", "missed"], ["Advisory notes", c.advisory, "ss-t-teal", "advisory"],
@@ -185,7 +185,7 @@ export default function SiteSummary() {
                 <h2>By site</h2>
                 <div className="ss-table-wrap">
                   <table className="ss-table">
-                    <thead><tr><th>Site</th><th>In NICU</th><th>Watch-list items</th><th>Missed items</th><th>Overdue queries</th></tr></thead>
+                    <thead><tr><th>Site</th><th>Admitted</th><th>Watch-list items</th><th>Missed items</th><th>Overdue queries</th></tr></thead>
                     <tbody>
                       {Object.entries(data.per_site || {}).map(([s, p]) => (
                         <tr key={s}><td>{formatSiteName(s)}</td><td>{p.in_nicu}</td><td>{p.watch}</td><td>{p.missed}</td><td>{p.red_queries}</td></tr>
@@ -207,7 +207,7 @@ export default function SiteSummary() {
             </section>
 
             <section className="ss-card" id="ss-active">
-              <h2>Active morbidities, babies in the NICU ({active.length})</h2>
+              <h2>Active morbidities, admitted babies ({active.length})</h2>
               {active.length ? (
                 <div className="ss-table-wrap">
                   <table className="ss-table">
@@ -258,7 +258,7 @@ export default function SiteSummary() {
             </section>
 
             <section className="ss-card" id="ss-census">
-              <h2>Census: in the NICU or stay ended since last ({census.length})</h2>
+              <h2>Census: admitted or stay ended since last ({census.length})</h2>
               {census.length ? (
                 <div className="ss-table-wrap">
                   <table className="ss-table">
@@ -269,7 +269,7 @@ export default function SiteSummary() {
                           {showSite && <td>{formatSiteName(b.site)}</td>}
                           <td><Baby id={b.enrollment_id} name={b.name} /></td>
                           <td>DOL {b.dol} · {b.pma}</td>
-                          <td>{b.status}{b.ended_on ? ` (${b.ended_on})` : ""}</td>
+                          <td>{b.status_text || b.status}{b.ended_on ? ` (${b.ended_on})` : ""}</td>
                         </tr>
                       ))}
                     </tbody>

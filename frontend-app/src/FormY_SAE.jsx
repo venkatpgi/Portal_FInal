@@ -11,6 +11,7 @@ import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
 import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList, nameWithoutDr } from "./utils/completedByDesignation";
 import FormNavBar from "./components/FormNavBar";
 import { usePatient } from "./context/PatientContext";
+import { useAuth } from "./context/AuthContext";
 import { useFormProgress } from "./context/FormProgressContext";
 import {
   Home,
@@ -540,6 +541,14 @@ export default function FormY_SAE() {
   const [sitePi, setSitePi] = useState("");
   const [building, setBuilding] = useState(false);
   const [savedRows, setSavedRows] = useState([]);
+  // Withdraw a report entered in error (PI 2026-11-25): Site PI or Global PI.
+  const { user } = useAuth() || {};
+  const userRole = (user?.role || "").toLowerCase();
+  const isGlobalPi = userRole === "superadmin";
+  const canWithdraw = isGlobalPi || userRole === "site_pi";
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [withdrawMsg, setWithdrawMsg] = useState("");
   const [isSaved, setIsSaved] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [assessors, setAssessors] = useState([]);
@@ -753,6 +762,21 @@ export default function FormY_SAE() {
     });
   };
 
+  const currentRow = savedRows.find((r) => r.id === formData._record_id) || null;
+  const withdraw = async (restore) => {
+    if (!currentRow) return;
+    setWithdrawMsg("");
+    try {
+      const res = await api.post(`/sae-report/${currentRow.id}/withdraw`,
+        restore ? { restore: true } : { reason: withdrawReason.trim() });
+      setSavedRows((rows) => rows.map((r) => (r.id === currentRow.id ? res.data : r)));
+      setWithdrawOpen(false);
+      setWithdrawReason("");
+    } catch (err) {
+      setWithdrawMsg(err?.response?.data?.detail || "Could not change the report.");
+    }
+  };
+
   const startNew = () => {
     deathPrefilled.current = false;
     const id = formData.enrollment_id;
@@ -867,7 +891,7 @@ export default function FormY_SAE() {
             title={reportLabel(row)}
           >
             <span className="dot" />
-            {reportLabel(row)}
+            {reportLabel(row)}{row.withdrawn_at ? " (withdrawn)" : ""}
           </button>
         ))}
         <button type="button" className="fy-new-btn" onClick={startNew}>
@@ -875,6 +899,38 @@ export default function FormY_SAE() {
           New report
         </button>
       </div>
+
+      {currentRow?.withdrawn_at && (
+        <div className="fy-banner fy-withdrawn">
+          <AlertTriangle size={18} />
+          <div>
+            <strong>Withdrawn: entered in error.</strong> {currentRow.withdrawn_by || ""}
+            {currentRow.withdrawn_at ? `, ${String(currentRow.withdrawn_at).slice(0, 10)}` : ""}: {currentRow.withdrawn_reason}
+            . This report is kept for the audit trail but is not counted anywhere and cannot be edited.
+            {isGlobalPi && (
+              <button type="button" className="fy-link" onClick={() => withdraw(true)}>Restore</button>
+            )}
+          </div>
+        </div>
+      )}
+      {currentRow && !currentRow.withdrawn_at && canWithdraw && (
+        <div className="fy-withdraw">
+          {!withdrawOpen ? (
+            <button type="button" className="fy-link" onClick={() => setWithdrawOpen(true)}>
+              Withdraw this report (entered in error)
+            </button>
+          ) : (
+            <>
+              <input className="fy-input" placeholder="Reason, e.g. entered in error: not an SAE"
+                value={withdrawReason} onChange={(e) => setWithdrawReason(e.target.value)} />
+              <button type="button" className="fy-new-btn" onClick={() => withdraw(false)}
+                disabled={withdrawReason.trim().length < 5}>Withdraw</button>
+              <button type="button" className="fy-link" onClick={() => setWithdrawOpen(false)}>Cancel</button>
+            </>
+          )}
+          {withdrawMsg && <span className="fy-hint">{withdrawMsg}</span>}
+        </div>
+      )}
 
       <div className={`fy-editing${formData._record_id ? " edit" : " new"}`}>
         {formData._record_id

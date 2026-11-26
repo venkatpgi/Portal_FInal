@@ -10,6 +10,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { toDateOnlyValue, parseDateOnly } from "./utils/datetime";
 import { fallbackCompletedByDesignation as getDesignation, withMannatLast, completedByNameList, nameWithoutDr } from "./utils/completedByDesignation";
 import FormNavBar from "./components/FormNavBar";
+import AeSuggestions from "./components/AeSuggestions";
 import { usePatient } from "./context/PatientContext";
 import { useFormProgress } from "./context/FormProgressContext";
 import { stripDigits } from "./utils/personName";
@@ -714,6 +715,7 @@ export default function AdverseEventsForm() {
           </span>
         </div>
         {scanMessage && <p className="ae-scan-msg">{scanMessage}</p>}
+        <AeSuggestions enrollmentId={formData.enrollment_id} />
         {pendingCranialUsgFindings.length > 0 && (
           <div className="field-hint field-hint-warning" style={{ marginTop: 10 }}>
             ⚠ Form F (Cranial USG) has a severe finding not yet reflected in Form H:

@@ -2393,6 +2393,9 @@ class SAEReportCreate(BaseModel):
 class SAEReportOut(SAEReportCreate):
     id: int
     created_at: Optional[datetime] = None
+    withdrawn_at: Optional[datetime] = None
+    withdrawn_by: Optional[str] = None
+    withdrawn_reason: Optional[str] = None
 
     class Config:
         from_attributes = True

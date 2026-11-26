@@ -224,7 +224,7 @@ def collect(db, babies_with_site):
     babies = [(s, eid, dob.get(eid)) for s, eid in babies_with_site]
     events = {a.enrollment_id: a.events for a in
               db.query(AdverseEvents).filter(AdverseEvents.enrollment_id.in_(eids))}
-    saes = db.query(SAEReport).filter(SAEReport.enrollment_id.in_(eids)).all()
+    saes = db.query(SAEReport).filter(SAEReport.enrollment_id.in_(eids), SAEReport.withdrawn_at.is_(None)).all()
     deaths = {}
     for eid in eids:
         st = death_alert.status(db, eid)

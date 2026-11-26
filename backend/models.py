@@ -1790,7 +1790,13 @@ class SAEReport(Base):
     death_from_event = Column(Boolean, nullable=True)     # fatal report: this SAE led to the death (sae_rules.py)
 
     created_at = Column(DateTime, default=utcnow)
-    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow) 
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+    # Withdrawn: entered in error (PI 2026-11-25). Kept for the audit trail but
+    # left out of every count, list and alert.
+    withdrawn_at = Column(DateTime, nullable=True)
+    withdrawn_by = Column(String, nullable=True)
+    withdrawn_reason = Column(Text, nullable=True)
+
 
 class AdverseEvents(Base):
     __tablename__ = "adverse_events"
@@ -2617,3 +2623,19 @@ class FollowupClinic(Base):
     phone = Column(String, nullable=True)                  # site follow-up phone (not a participant's)
     updated_by = Column(String, nullable=True)
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class AEDismissal(Base):
+    """An auto-detected AE suggestion the site judged 'Not an AE' (PI 2026-11-25).
+    One row per baby and NAESS term (ae_terms.term_of); while it exists the
+    suggestion is left out of the AE scan, AE review (M9), W1 and the reports."""
+    __tablename__ = "ae_dismissals"
+    __table_args__ = (UniqueConstraint("enrollment_id", "term", name="uq_ae_dismissal"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    enrollment_id = Column(String, nullable=False, index=True)
+    term = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    reason = Column(Text, nullable=False)
+    dismissed_by = Column(String, nullable=True)
+    created_at = Column(DateTime, default=utcnow)

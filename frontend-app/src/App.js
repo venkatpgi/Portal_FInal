@@ -2,7 +2,7 @@
 
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation, useParams } from "react-router-dom";
-import { Activity, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartPulse, Home, Hospital, Plus, Search, Users } from "lucide-react";
+import { Activity, CalendarClock, ClipboardCheck, ClipboardList, FileSpreadsheet, HeartPulse, Home, Hospital, Plus, Search, Users } from "lucide-react";
 
 import { FormProgressProvider } from "./context/FormProgressContext";
 import { ActiveFormSessionProvider } from "./context/ActiveFormSessionContext";
@@ -42,6 +42,7 @@ import AuditTrail from "./AuditTrail";
 import DataQueries from "./DataQueries";
 import ReportBuilder from "./ReportBuilder";
 import SiteSummary from "./SiteSummary";
+import FollowupList from "./FollowupList";
 import ShiftReport from "./ShiftReport";
 import DataQueriesNavLink from "./components/DataQueriesNavLink";
 import EditScreening from "./EditScreening";
@@ -244,6 +245,14 @@ function AppContent() {
                   <ClipboardCheck size={16} /> <span>Twice-daily report</span>
                 </NavLink>
               )}
+              {canUseShiftReport(user) && (
+                <NavLink
+                  to="/follow-up"
+                  className={({ isActive }) => `nav-btn ${isActive ? "active" : ""}`}
+                >
+                  <CalendarClock size={16} /> <span>Follow-up list</span>
+                </NavLink>
+              )}
               {canSeeAnalytics(user) && (
                 <NavLink
                   to="/trial-monitoring"
@@ -295,6 +304,7 @@ function AppContent() {
                       <Route path="/data-queries" element={<ProtectedRoute><DataQueries /></ProtectedRoute>} />
                       <Route path="/reports" element={<ProtectedRoute><ReportBuilder /></ProtectedRoute>} />
                       <Route path="/site-summary" element={<ProtectedRoute><SiteSummary /></ProtectedRoute>} />
+                      <Route path="/follow-up" element={<ProtectedRoute><FollowupList /></ProtectedRoute>} />
                       <Route path="/shift-report" element={<ProtectedRoute><ShiftReport /></ProtectedRoute>} />
                       <Route path="/edit/:id" element={<ProtectedRoute><EditScreening /></ProtectedRoute>} />
                       <Route path="/form-a/:screeningId?" element={<ProtectedRoute><FormLayout currentForm="form_a"><ScreeningForm /></FormLayout></ProtectedRoute>} />
